@@ -42,14 +42,29 @@ async function loadBalancesStore(): Promise<BalancesStore> {
   return import("../../server/balancesStore.mjs") as Promise<BalancesStore>;
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+async function readRawBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
-  const text = Buffer.concat(chunks).toString("utf8");
-  if (!text.trim()) return {};
-  return JSON.parse(text) as unknown;
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+function parseJsonBody(rawBody: string): NowPaymentsIpnPayload {
+  if (!rawBody.trim()) return {};
+  return JSON.parse(rawBody) as NowPaymentsIpnPayload;
+}
+
+function rejectUnauthorized(res: ServerResponse): void {
+  sendJson(res, 401, { error: "Unauthorized" });
+}
+
+function verifyIpnRequest(req: IncomingMessage, rawBody: string): boolean {
+  const secret = process.env.NOWPAYMENTS_IPN_SECRET;
+  if (!secret?.trim()) return false;
+
+  const signature = getNowPaymentsSignatureHeader(req);
+  return verifyNowPaymentsIpnSignature(rawBody, signature, secret);
 }
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {

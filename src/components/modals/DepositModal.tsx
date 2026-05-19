@@ -34,6 +34,18 @@ export function DepositModal() {
     if (!depositModalOpen) reset();
   }, [depositModalOpen, reset]);
 
+  useEffect(() => {
+    if (!depositModalOpen || !payment) return;
+
+    const pollBalance = () => {
+      void syncGemBalanceFromServer();
+    };
+
+    pollBalance();
+    const intervalId = window.setInterval(pollBalance, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [depositModalOpen, payment, syncGemBalanceFromServer]);
+
   function handleClose() {
     setDepositModalOpen(false);
   }

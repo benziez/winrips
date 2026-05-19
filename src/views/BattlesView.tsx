@@ -110,7 +110,6 @@ function BattleLobbyRow({
 function ArenaPlayerColumn({
   slotIndex,
   player,
-  maxPlayers,
   isLive,
 }: {
   slotIndex: number;

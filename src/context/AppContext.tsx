@@ -94,7 +94,7 @@ const INITIAL_STATE: AppState = {
   infoPageSlug: readInfoSlugFromLocation(),
   walletConnected: false,
   activeCurrency: "sweeps-cash",
-  goldVolts: 25_000,
+  goldVolts: 0,
   sweepsCash: 250,
   selectedPack: null,
   mobileMenuOpen: false,

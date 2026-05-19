@@ -6,7 +6,7 @@ const root = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(root, "data");
 const STORE_PATH = path.join(DATA_DIR, "balances.json");
 
-const DEFAULT_GEM_BALANCE = 25_000;
+const DEFAULT_GEM_BALANCE = 0;
 const GEMS_PER_USD = 100;
 
 function defaultStore() {

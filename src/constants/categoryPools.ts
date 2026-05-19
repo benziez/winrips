@@ -1,0 +1,98 @@
+import type { StoreItem } from "../types/store";
+import { finalizeSportsPool } from "./poolUtils";
+
+/** Yu-Gi-Oh — isolated pool; images inline per item. */
+export const YUGIOH_POOL: StoreItem[] = finalizeSportsPool("yugioh", "Duelist Vault", [
+  {
+    id: "ygo-m1",
+    name: "LOB 1st Edition Blue-Eyes White Dragon",
+    rarity: "Mythic",
+    appRarity: "Ancient Rare",
+    value: 75_000,
+    image: "https://images.ygoprodeck.com/images/cards/89631139.jpg",
+    tcgMarketUsd: 750,
+  },
+  {
+    id: "ygo-l1",
+    name: "Dark Magician Ghost Rare",
+    rarity: "Legendary",
+    appRarity: "Ancient Rare",
+    value: 40_000,
+    image: "https://images.ygoprodeck.com/images/cards/46986414.jpg",
+    tcgMarketUsd: 400,
+  },
+  {
+    id: "ygo-l2",
+    name: "Exodia the Forbidden One",
+    rarity: "Legendary",
+    appRarity: "Ancient Rare",
+    value: 30_000,
+    image: "https://images.ygoprodeck.com/images/cards/33396948.jpg",
+    tcgMarketUsd: 300,
+  },
+  {
+    id: "ygo-e1",
+    name: "Black Luster Soldier Envoy",
+    rarity: "Epic",
+    appRarity: "Rare",
+    value: 2_400,
+    image: "https://images.ygoprodeck.com/images/cards/24094653.jpg",
+    tcgMarketUsd: 24,
+  },
+  {
+    id: "ygo-e2",
+    name: "Elemental HERO Stratos Ultimate",
+    rarity: "Epic",
+    appRarity: "Rare",
+    value: 2_100,
+    image: "https://images.ygoprodeck.com/images/cards/64332233.jpg",
+    tcgMarketUsd: 21,
+  },
+  {
+    id: "ygo-r1",
+    name: "Pot of Greed 1st Ed",
+    rarity: "Rare",
+    appRarity: "Rare",
+    value: 1_900,
+    image: "https://images.ygoprodeck.com/images/cards/53129443.jpg",
+    tcgMarketUsd: 19,
+  },
+  {
+    id: "ygo-r2",
+    name: "Stardust Dragon Holo",
+    rarity: "Rare",
+    appRarity: "Rare",
+    value: 1_700,
+    image: "https://images.ygoprodeck.com/images/cards/44519536.jpg",
+    tcgMarketUsd: 17,
+  },
+  {
+    id: "ygo-c1",
+    name: "Common Spell Card Lot",
+    rarity: "Common",
+    appRarity: "Common",
+    value: 35,
+    image: "https://images.ygoprodeck.com/images/cards/5318639.jpg",
+    tcgMarketUsd: 0.35,
+  },
+  {
+    id: "ygo-c2",
+    name: "Duelist Kingdom Promo",
+    rarity: "Common",
+    appRarity: "Common",
+    value: 45,
+    image: "https://images.ygoprodeck.com/images/cards/66788016.jpg",
+    tcgMarketUsd: 0.45,
+  },
+  {
+    id: "ygo-c3",
+    name: "Starter Deck Common",
+    rarity: "Common",
+    appRarity: "Common",
+    value: 30,
+    image: "https://images.ygoprodeck.com/images/cards/83764719.jpg",
+    tcgMarketUsd: 0.3,
+  },
+]);
+
+export const YUGIOH_ITEM_IDS: string[] = YUGIOH_POOL.map((item) => item.id);

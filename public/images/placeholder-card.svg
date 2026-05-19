@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none">
+  <rect width="200" height="280" rx="12" fill="#121318"/>
+  <rect x="16" y="16" width="168" height="200" rx="8" fill="#0A0A0C" stroke="#1C1D24" stroke-width="2"/>
+  <path d="M72 120h56M100 92v56" stroke="#FF007F" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+  <text x="100" y="248" text-anchor="middle" fill="#6B7280" font-family="system-ui,sans-serif" font-size="11" font-weight="600">CARD ASSET</text>
+</svg>

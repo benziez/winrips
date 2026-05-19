@@ -1,0 +1,227 @@
+export const FOOTER_PAGE_SLUGS = [
+  "solo-openings",
+  "pvp-battles",
+  "drop-tables",
+  "live-pull-feed",
+  "provably-fair",
+  "help-desk",
+  "terms",
+  "privacy",
+  "affiliate",
+  "vip-vault",
+  "creator-codes",
+  "events",
+  "purchase-agreement",
+  "shipping-policy",
+  "responsible-play",
+] as const;
+
+export type FooterPageSlug = (typeof FOOTER_PAGE_SLUGS)[number];
+
+export interface FooterPageContent {
+  slug: FooterPageSlug;
+  title: string;
+  eyebrow: string;
+  paragraphs: string[];
+}
+
+export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
+  "solo-openings": {
+    slug: "solo-openings",
+    eyebrow: "Drop Rooms",
+    title: "Solo Openings",
+    paragraphs: [
+      "Solo Openings represent the core individual collecting pipeline on the Platform, allowing users to instantly unbox premium custom-curated mystery packs at their own pace. Each box listed on the storefront storefront dashboard contains a dedicated, cryptographically sealed pool of authentic Pokémon TCG assets, ranging from accessible entry-level modern holographic cards to hyper-rare vintage graded slabs.",
+      "Before committing any Gems to an opening, collectors can inspect the transparent box contents, real-time market value distributions, and precise hit probability metrics listed directly within the Pack View interface. Once an opening is initiated, our randomized cryptographic execution matrix instantly determines the pulled card item, immediately updating your secure digital vault locker inventory.",
+    ],
+  },
+  "pvp-battles": {
+    slug: "pvp-battles",
+    eyebrow: "Drop Rooms",
+    title: "PvP Battles",
+    paragraphs: [
+      "PvP Box Battles deliver a highly competitive, gamified opening experience where multiple collectors pit their unboxing luck against each other in real-time high-stakes rooms. Users can either create custom battle configurations with up to four players or instantly join active lobbies waiting for participants.",
+      "The mechanism is perfectly synchronized across all sessions: players unbox identical pack sequences side-by-side. Once all rounds resolve, the values of each player's pulled assets are automatically calculated by our pricing index system. The collector who amasses the highest total combined card value walks away with all unboxed assets from the entire battle, while the remaining players receive a standard platform consolation credit balance to ensure a continuous collection loop.",
+    ],
+  },
+  "drop-tables": {
+    slug: "drop-tables",
+    eyebrow: "Transparency",
+    title: "Drop Tables",
+    paragraphs: [
+      "The Drop Tables directory serves as our central compliance data clearinghouse, offering a completely transparent, public breakdown of every individual asset pool loaded onto our wheel spinners. We maintain a strict policy of absolute visibility: we do not utilize dynamic adjustment filters or hidden pool skewing systems.",
+      "Every single collectible card inside our inventory database carries an explicit, static weight ratio. This directory allows users to audit full item indices, sorting by specific card sets (such as Scarlet & Violet 151, Paradox Rift, or Base Set), precise gem valuations, and exact mathematical drop probabilities down to four decimal places. This ensures you know the exact risk and reward profile of any box before interacting with the platform.",
+    ],
+  },
+  "live-pull-feed": {
+    slug: "live-pull-feed",
+    eyebrow: "Platform",
+    title: "Live Pull Feed",
+    paragraphs: [
+      "The Live Pull Feed is the real-time social ledger of the entire Platform ecosystem, continuously broadcasting successful unboxings, elite ceiling drops, and major collection updates as they happen across our global user base. This rolling ticker creates an environment of absolute transparency, proving the continuous movement of high-value inventory.",
+      "Every entry visible on the feed layout showcases the collector's username, their customized tier ranking badge, the precise pack origin, a clear asset card visual, and its real-time platform Gem value. Collectors can hover over any live feed item to audit its verifiable cryptographic transaction hash, or click a user's profile icon to view their public trophy case and trade-in history.",
+    ],
+  },
+  "provably-fair": {
+    slug: "provably-fair",
+    eyebrow: "Trust & Compliance",
+    title: "Provably Fair Hub",
+    paragraphs: [
+      "To guarantee 100% mathematical integrity and operational transparency, every unboxing transaction and trade-in multiplier outcome executed on the Platform uses a decentralized cryptographic verification framework. No outcome can be predicted, adjusted, or manipulated by the engineering staff or external users.",
+      "The Cryptographic Input Matrix: Each roll configuration relies on a pre-committed, mathematically sealed combination of three variables: a secret hash string generated by our server (Server Seed), a customizable data string passed by the user's browser context (Client Seed), and an automated incrementing integer tracking total rolls (Nonce).",
+      "The Hashing Loop: The combined string values feed directly into an industry-standard HMAC-SHA512 cryptographic calculator. The resulting hexadecimal signature string is parsed into a definitive numerical index value relative to your active box pool weights. Collectors can copy these raw seed logs at the close of any session and paste them into any open-source independent script runner to verify their result down to the exact byte.",
+    ],
+  },
+  "help-desk": {
+    slug: "help-desk",
+    eyebrow: "Support",
+    title: "Help Desk",
+    paragraphs: [
+      "The WinRips Help Desk is our comprehensive customer resolution hub, designed to provide lightning-fast technical guidance and operational troubleshooting for collectors worldwide. Managed by a dedicated staff of logistics experts and TCG collectors, our primary goal is maintaining a smooth collection experience.",
+      "The Help Desk provides detailed interactive resolution walkthroughs covering account security management, immediate transaction auditing, Client Seed rotations, and real-time wallet verification checks. If you encounter an operational layout error, a stuck unboxing animation, or require urgent updates regarding a physical vault delivery dispatch, you can open a secure priority support ticket directly through this panel for a guaranteed rapid human response.",
+    ],
+  },
+  terms: {
+    slug: "terms",
+    eyebrow: "Legal",
+    title: "Terms of Service",
+    paragraphs: [
+      "By accessing WinRips you agree to these Terms and our Privacy Policy. You must be 18+ (or local age of majority) and legally permitted to purchase digital goods and receive shipped collectibles in your jurisdiction.",
+      "Gems are virtual storefront currency with no cash redemption except where required by law. All mystery pack purchases are final once the unlock animation completes. Stated card values are marketing estimates—not guaranteed resale prices.",
+      "We may suspend accounts for chargebacks, multi-account abuse, bot traffic, or attempts to exploit fairness systems. Disputes are governed by the laws of the State of Delaware, USA, excluding conflict provisions.",
+    ],
+  },
+  privacy: {
+    slug: "privacy",
+    eyebrow: "Legal",
+    title: "Privacy Policy",
+    paragraphs: [
+      "This Privacy Policy outlines how the Platform securely aggregates, isolates, and protects user data profiles to maintain strict compliance with global digital commerce privacy frameworks. We operate on a foundational principle of minimal data retention: we only track metrics strictly necessary to maintain your digital vault integrity and guarantee legal transactional security.",
+      "We gather baseline profile configurations including encrypted email records, localization variables for age-gated verification compliance, and physical mailing addresses explicitly required to fulfill delivery requests from our vaults. Your personal identity data is fully isolated behind industry-standard corporate firewalls and is never distributed, leased, or sold to external marketing networks. Cryptographic transaction history and session roll logs remain permanently public to preserve our core transparency commitments.",
+    ],
+  },
+  affiliate: {
+    slug: "affiliate",
+    eyebrow: "Community",
+    title: "Affiliate Program",
+    paragraphs: [
+      "The WinRips Affiliate Program allows creators, community leaders, and regular collectors to monetize their network reach by driving new user volume to the platform. Upon activating your affiliate tier, you can generate a custom referral link or personalized Creator Code directly within your user dashboard.",
+      "When a new collector registers using your code, they receive an immediate platform welcome bonus (such as a free entry-level booster drop), while you unlock a permanent, scaling commission split on all their ongoing unboxing volume. Our affiliate tracking system records clicks and payouts in real-time, allowing you to instantly withdraw your earned affiliate credits directly into your active Gem balance.",
+    ],
+  },
+  "vip-vault": {
+    slug: "vip-vault",
+    eyebrow: "Community",
+    title: "VIP Vault Club",
+    paragraphs: [
+      "The VIP Vault Club is our institutional tier architecture built exclusively for high-volume collectors, offering deep platform benefits, optimized asset management margins, and premium physical perks. Membership scaling is computed automatically at the close of every billing cycle based on your cumulative unboxing and trade-in volume metrics.",
+      "Silver Hunter Tier: Unlocks baseline platform priority, custom UI dashboard access, and flat-rate trade-in fee reductions.",
+      "Gold Collector Tier: Grants instant access to limited-edition custom event drops, reduced physical delivery processing fees, and dedicated support line access.",
+      "Platinum Vault Tier: The ultimate tier for high-volume collectors. Includes zero-fee physical storage, automated priority routing on all delivery requests, a dedicated structural account representative, and quarterly physical gift deliveries featuring limited-edition merchandise, premium booster packs, and custom-designed apparel shipped directly from our primary corporate facilities.",
+    ],
+  },
+  "creator-codes": {
+    slug: "creator-codes",
+    eyebrow: "Community",
+    title: "Creator Codes",
+    paragraphs: [
+      "Creator Codes are premium, high-tier tracking nodes reserved for verified digital media partners, stream hosts, and TCG community influencers. This system integrates deeply with our live streaming simulator widget, allowing creators to host custom unboxing events, track viewer participation, and distribute automated reward drops directly to their communities.",
+      "When a user binds a verified Creator Code to their session profile, a percentage of all platform trade-in fees is automatically redirected into the creator's operational support wallet. This allows our media partners to generate consistent revenue while providing exclusive community custom box discounts, customized leaderboard giveaways, and priority tier access to their loyal subscriber base.",
+    ],
+  },
+  events: {
+    slug: "events",
+    eyebrow: "Community",
+    title: "Events",
+    paragraphs: [
+      "The Events dashboard keeps our global collecting community aligned with active platform milestones, limited-edition set releases, and competitive seasonal tournaments. Our development team structures specialized collection events to coincide with major real-world trading card milestones, introducing high-demand, temporary drop pools to the storefront lobby.",
+      "Participating in active events allows collectors to hunt for restricted-run cards, compete for top positions on limited seasonal leaderboards, and unlock custom profile badges or fuchsia accent themes. Check this page regularly to view comprehensive timelines for upcoming collection releases, snapshot criteria for VIP tier updates, and tracking schedules for physical mystery box giveaways.",
+    ],
+  },
+  "purchase-agreement": {
+    slug: "purchase-agreement",
+    eyebrow: "Retail Legal",
+    title: "Purchase Agreement",
+    paragraphs: [
+      "This Purchase Agreement dictates the legally binding commercial terms governing every financial transaction, token acquisition, and item trade-in executed on the Platform. By confirming a payment routing or executing a digital wallet transfer, you enter into an absolute agreement with Drops Retail Limited.",
+      "All acquisitions of our digital Gem currency constitute the immediate purchase of a closed-loop virtual good; these transactions are entirely final, non-refundable, and legally non-reversible. The Platform strictly prohibits chargeback manipulation or fraudulent payment disputes. Any user attempting to reverse a verified transaction via external banking institutions will face immediate permanent vault isolation, total forfeiture of stored items, and potential legal referral.",
+    ],
+  },
+  "shipping-policy": {
+    slug: "shipping-policy",
+    eyebrow: "Retail Legal",
+    title: "Shipping Policy",
+    paragraphs: [
+      "All physical trading cards, slabs, and collectibles unboxed on the Platform are held securely as digital twins inside our climate-controlled physical facility. When a collector selects 'Request Delivery' inside their digital vault locker, the physical asset is pulled from storage, heavily inspected, and prepared for transit.",
+      "Handling & Security: Every item is packed utilizing heavy-duty, tamper-evident materials, including top-loaders, team bags, and bubble-wrapped structural boxes to eliminate any transit degradation. High-value grails exceeding 10,000 Gems are automatically dispatched inside custom armor-shield packaging with mandatory signature delivery.",
+      "Timeline & Tracking: Orders are fully processed within 48 to 72 business hours. Once handed to our primary logistics partners (FedEx, UPS, or DHL), a secure tracking signature link is updated directly to your user dashboard environment. International shipping is fully supported, though collectors remain solely liable for any localized customs clearance fees, import duties, or regional value-added taxes (VAT).",
+    ],
+  },
+  "responsible-play": {
+    slug: "responsible-play",
+    eyebrow: "Retail Legal",
+    title: "Responsible Play Guidelines",
+    paragraphs: [
+      "WinRips is a gamified e-commerce storefront dedicated strictly to collection entertainment and trading card enthusiasts. Because unboxing mystery packages carries inherent financial variance, we enforce rock-solid Responsible Play Guidelines to ensure a safe, sustainable environment for all users.",
+      "We provide proactive, user-controlled account management utilities directly within the settings profile layer. Collectors can instantly establish strict daily, weekly, or monthly deposit ceilings, or activate a voluntary self-exclusion lock to completely freeze account access for durations ranging from 24 hours to permanent closure. If you feel your collection habits are becoming unhealthy, we urge you to leverage these isolation tools or contact our dedicated support representatives for immediate guidance.",
+    ],
+  },
+};
+
+export const FOOTER_NAV_COLUMNS = [
+  {
+    title: "Drop Rooms",
+    links: [
+      { label: "Solo Openings", slug: "solo-openings" as const },
+      { label: "PvP Battles", slug: "pvp-battles" as const },
+      { label: "Drop Tables", slug: "drop-tables" as const },
+      { label: "Live Pull Feed", slug: "live-pull-feed" as const },
+    ],
+  },
+  {
+    title: "Trust & Compliance",
+    links: [
+      { label: "Provably Fair Hub", slug: "provably-fair" as const },
+      { label: "Help Desk", slug: "help-desk" as const },
+      { label: "Terms of Service", slug: "terms" as const },
+      { label: "Privacy Policy", slug: "privacy" as const },
+    ],
+  },
+  {
+    title: "Community",
+    links: [
+      { label: "Affiliate Program", slug: "affiliate" as const },
+      { label: "VIP Vault Club", slug: "vip-vault" as const },
+      { label: "Creator Codes", slug: "creator-codes" as const },
+      { label: "Events", slug: "events" as const },
+    ],
+  },
+  {
+    title: "Retail Legal",
+    links: [
+      { label: "Purchase Agreement", slug: "purchase-agreement" as const },
+      { label: "Shipping Policy", slug: "shipping-policy" as const },
+      { label: "Responsible Play Guidelines", slug: "responsible-play" as const },
+    ],
+  },
+] as const;
+
+export function isFooterPageSlug(value: string): value is FooterPageSlug {
+  return (FOOTER_PAGE_SLUGS as readonly string[]).includes(value);
+}
+
+export function getFooterPageContent(slug: string): FooterPageContent | null {
+  if (!isFooterPageSlug(slug)) return null;
+  return FOOTER_CONTENT[slug];
+}
+
+export function infoPathForSlug(slug: FooterPageSlug): string {
+  return `/info/${slug}`;
+}
+
+export function parseInfoPath(pathname: string): FooterPageSlug | null {
+  const match = pathname.match(/^\/info\/([^/]+)\/?$/);
+  if (!match) return null;
+  const slug = decodeURIComponent(match[1]);
+  return isFooterPageSlug(slug) ? slug : null;
+}

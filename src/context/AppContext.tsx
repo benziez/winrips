@@ -16,13 +16,11 @@ import {
 import { exchangeCreditGems } from "../constants/retail";
 import { VAULT_ITEMS } from "../constants/vaultItems";
 import type { PurchaseBundle } from "../data/purchaseBundles";
-import { persistVipAccess, readVipAccessFromStorage } from "../constants/waitlistAccess";
 import type { AppView, AuthModalMode, Currency, Pack, VaultedCard } from "../types";
 import { fetchAccountBalance } from "../lib/paymentsApi";
 import { getOrCreateUserId } from "../utils/userId";
 
 interface AppState {
-  isAuthenticated: boolean;
   currentView: AppView;
   infoPageSlug: FooterPageSlug | null;
   walletConnected: boolean;
@@ -55,7 +53,6 @@ function readInitialView(): AppView {
 interface AppContextValue extends AppState {
   /** @deprecated use currentView */
   view: AppView;
-  grantAppAccess: () => void;
   navigateToView: (view: AppView) => void;
   setView: (view: AppView) => void;
   goToLobby: () => void;
@@ -93,7 +90,6 @@ function readInfoSlugFromLocation(): FooterPageSlug | null {
 }
 
 const INITIAL_STATE: AppState = {
-  isAuthenticated: readVipAccessFromStorage(),
   currentView: readInitialView(),
   infoPageSlug: readInfoSlugFromLocation(),
   walletConnected: false,
@@ -131,22 +127,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
-  }, []);
-
-  const grantAppAccess = useCallback(() => {
-    persistVipAccess();
-    setState((s) => ({
-      ...s,
-      isAuthenticated: true,
-      currentView: "lobby",
-      infoPageSlug: null,
-      selectedPack: null,
-      mobileMenuOpen: false,
-    }));
-    if (readInfoSlugFromLocation() || window.location.pathname !== "/") {
-      window.history.pushState({}, "", "/");
-    }
-    window.scrollTo(0, 0);
   }, []);
 
   const navigateToView = useCallback((nextView: AppView) => {
@@ -252,9 +232,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.userId]);
 
   useEffect(() => {
-    if (!state.isAuthenticated) return;
     void syncGemBalanceFromServer();
-  }, [state.isAuthenticated, state.userId, syncGemBalanceFromServer]);
+  }, [state.userId, syncGemBalanceFromServer]);
 
   const setMobileMenuOpen = useCallback((mobileMenuOpen: boolean) => {
     setState((s) => ({ ...s, mobileMenuOpen }));
@@ -348,7 +327,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       view: state.currentView,
-      grantAppAccess,
       navigateToView,
       setView,
       goToLobby,
@@ -380,7 +358,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
-      grantAppAccess,
       navigateToView,
       setView,
       goToLobby,

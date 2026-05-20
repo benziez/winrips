@@ -7,7 +7,8 @@
     "dev:payments": "tsx server/index.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4444",
-    "seed:pokemon": "node scripts/seedPokemon.js"
+    "seed:pokemon": "node scripts/seedPokemon.js",
+    "dev:set-balance": "node scripts/setGemBalance.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",

@@ -142,6 +142,22 @@ export async function getUserBalance(userId: string) {
   };
 }
 
+/** Dev/test helper — sets absolute gem balance for a user. */
+export async function setUserGemBalance(userId: string, gemBalance: number) {
+  const store = await loadStore();
+  const user = ensureUser(store, userId);
+  const amount = Math.max(0, Math.round(gemBalance));
+  user.gemBalance = amount;
+  user.tokenBalance = amount;
+  user.updatedAt = new Date().toISOString();
+  await saveStore(store);
+  return {
+    userId,
+    gemBalance: user.gemBalance,
+    tokenBalance: user.tokenBalance,
+  };
+}
+
 export async function registerDepositOrder({
   orderId,
   userId,

@@ -15,6 +15,14 @@ export function TokenBalanceWidget() {
     void syncGemBalanceFromServer();
   }, [userId, syncGemBalanceFromServer]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const intervalId = window.setInterval(() => {
+      void syncGemBalanceFromServer();
+    }, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [syncGemBalanceFromServer]);
+
   return (
     <div className="flex h-10 max-w-full items-stretch overflow-hidden rounded-md border border-[#2A2D34] bg-[#1A1C20]">
       <div className="flex min-w-0 flex-1 items-center">

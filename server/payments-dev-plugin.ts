@@ -18,7 +18,7 @@ export function paymentsDevPlugin(env: Record<string, string>): Plugin {
     name: "winrips-payments-api",
     configureServer(server) {
       for (const [key, value] of Object.entries(env)) {
-        if (key.startsWith("NOWPAYMENTS_")) {
+        if (key.startsWith("NOWPAYMENTS_") || key === "DEV_BALANCE_SECRET") {
           process.env[key] = value;
         }
       }

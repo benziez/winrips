@@ -8,6 +8,7 @@ import { PurchaseModal } from "../wallet/PurchaseModal";
 import { AuthModal } from "../auth/AuthModal";
 import { CorporateFooter } from "./CorporateFooter";
 import { ShippingModal } from "../pack-opening/ShippingModal";
+import { DevBalanceTools } from "../wallet/DevBalanceTools";
 import { useApp } from "../../context/AppContext";
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -39,6 +40,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <PurchaseModal />
         <DepositModal />
         <AuthModal />
+        <DevBalanceTools />
 
         {shippingVaultItem && (
           <ShippingModal

@@ -31,7 +31,7 @@ export function Header() {
   const { isMenuOpen, toggleMenu } = useNavDrawer();
 
   return (
-    <header className="sticky top-0 z-30 bg-obsidian/95 backdrop-blur-md border-b border-border h-16">
+    <header className="sticky top-0 z-50 bg-obsidian/95 backdrop-blur-md border-b border-border h-16">
       <div className="mx-auto grid h-full w-full max-w-[1600px] grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-1.5 px-2 sm:grid-cols-[1fr_auto_1fr] sm:gap-3 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-2 justify-self-start bg-transparent">
           <button

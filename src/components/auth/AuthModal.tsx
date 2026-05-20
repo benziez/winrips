@@ -7,6 +7,7 @@ export function AuthModal() {
     authModalMode,
     setAuthModalOpen,
     openAuthModal,
+    completeLogin,
     showCashoutToast,
   } = useApp();
   const [email, setEmail] = useState("");
@@ -33,12 +34,14 @@ export function AuthModal() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    showCashoutToast(isLogin ? "Logged in (demo)" : "Account created (demo)");
+    completeLogin();
+    showCashoutToast(isLogin ? "Welcome back!" : "Account created — you're in.");
     handleClose();
   }
 
   function handleSso(provider: string) {
-    showCashoutToast(`Continuing with ${provider} (demo)`);
+    completeLogin();
+    showCashoutToast(`Signed in with ${provider}.`);
     handleClose();
   }
 

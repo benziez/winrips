@@ -15,12 +15,13 @@ import {
 } from "../constants/footerContent";
 import { exchangeCreditGems } from "../constants/retail";
 import { VAULT_ITEMS } from "../constants/vaultItems";
-import type { PurchaseBundle } from "../data/purchaseBundles";
+import { persistLoggedIn, readLoggedInFromStorage } from "../constants/userSession";
 import type { AppView, AuthModalMode, Currency, Pack, VaultedCard } from "../types";
 import { fetchAccountBalance } from "../lib/paymentsApi";
 import { getOrCreateUserId } from "../utils/userId";
 
 interface AppState {
+  isLoggedIn: boolean;
   currentView: AppView;
   infoPageSlug: FooterPageSlug | null;
   walletConnected: boolean;
@@ -69,8 +70,8 @@ interface AppContextValue extends AppState {
   setShippingModalOpen: (open: boolean) => void;
   setPurchaseModalOpen: (open: boolean) => void;
   setDepositModalOpen: (open: boolean) => void;
-  purchaseBundle: (bundle: PurchaseBundle) => void;
-  openAuthModal: (mode: AuthModalMode) => void;
+  completeLogin: () => void;
+  openAuthModal: (mode: AuthModalMode, options?: { keepPurchaseModalOpen?: boolean }) => void;
   setAuthModalOpen: (open: boolean) => void;
   showCashoutToast: (message: string) => void;
   clearCashoutToast: () => void;
@@ -90,6 +91,7 @@ function readInfoSlugFromLocation(): FooterPageSlug | null {
 }
 
 const INITIAL_STATE: AppState = {
+  isLoggedIn: typeof window !== "undefined" ? readLoggedInFromStorage() : false,
   currentView: readInitialView(),
   infoPageSlug: readInfoSlugFromLocation(),
   walletConnected: false,
@@ -255,23 +257,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const purchaseBundle = useCallback((bundle: PurchaseBundle) => {
-    setState((s) => ({
-      ...s,
-      goldVolts: s.goldVolts + bundle.goldVolts + bundle.bonusGems,
-      purchaseModalOpen: false,
-    }));
+  const completeLogin = useCallback(() => {
+    persistLoggedIn();
+    setState((s) => ({ ...s, isLoggedIn: true }));
   }, []);
 
-  const openAuthModal = useCallback((authModalMode: AuthModalMode) => {
-    setState((s) => ({
-      ...s,
-      authModalOpen: true,
-      authModalMode,
-      purchaseModalOpen: false,
-      mobileMenuOpen: false,
-    }));
-  }, []);
+  const openAuthModal = useCallback(
+    (authModalMode: AuthModalMode, options?: { keepPurchaseModalOpen?: boolean }) => {
+      setState((s) => ({
+        ...s,
+        authModalOpen: true,
+        authModalMode,
+        purchaseModalOpen: options?.keepPurchaseModalOpen ? s.purchaseModalOpen : false,
+        mobileMenuOpen: false,
+      }));
+    },
+    [],
+  );
 
   const setAuthModalOpen = useCallback((authModalOpen: boolean) => {
     setState((s) => ({ ...s, authModalOpen }));
@@ -343,7 +345,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setShippingModalOpen,
       setPurchaseModalOpen,
       setDepositModalOpen,
-      purchaseBundle,
+      completeLogin,
       openAuthModal,
       setAuthModalOpen,
       showCashoutToast,
@@ -373,7 +375,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setShippingModalOpen,
       setPurchaseModalOpen,
       setDepositModalOpen,
-      purchaseBundle,
+      completeLogin,
       openAuthModal,
       setAuthModalOpen,
       showCashoutToast,

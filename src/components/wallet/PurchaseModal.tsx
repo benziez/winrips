@@ -9,6 +9,13 @@ import {
   type PurchaseBundle,
 } from "../../data/purchaseBundles";
 import { useApp } from "../../context/AppContext";
+import { depositQrCodeUrl, requestDepositPayment } from "../../lib/paymentsApi";
+import type { DepositPayCurrency, DepositPaymentResponse } from "../../types/payments";
+
+const CRYPTO_ASSETS: { id: DepositPayCurrency; label: string; hint: string }[] = [
+  { id: "sol", label: "Solana", hint: "SOL" },
+  { id: "ltc", label: "Litecoin", hint: "LTC" },
+];
 
 function GemCluster({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   const scale =
@@ -136,7 +143,7 @@ function RefillTierCard({
       <button
         type="button"
         onClick={onSelect}
-        className="flex flex-1 flex-col items-center px-2.5 py-4 text-center"
+        className="flex flex-1 flex-col items-center px-2 py-3 text-center sm:px-2.5 sm:py-4"
       >
         <div className="mb-1 flex w-full items-start">
           <RadioMark active={selected} />
@@ -160,10 +167,18 @@ function RefillTierCard({
 }
 
 export function PurchaseModal() {
-  const { purchaseModalOpen, setPurchaseModalOpen, purchaseBundle, showCashoutToast } =
-    useApp();
+  const {
+    purchaseModalOpen,
+    setPurchaseModalOpen,
+    isLoggedIn,
+    openAuthModal,
+    userId,
+    showCashoutToast,
+    syncGemBalanceFromServer,
+  } = useApp();
 
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("crypto");
+  const [payCurrency, setPayCurrency] = useState<DepositPayCurrency>("sol");
   const [selectedTierId, setSelectedTierId] = useState<string | null>(
     PURCHASE_BUNDLES[0]?.id ?? null,
   );
@@ -171,6 +186,9 @@ export function PurchaseModal() {
   const [affiliateCode, setAffiliateCode] = useState("");
   const [giftCode, setGiftCode] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [payment, setPayment] = useState<DepositPaymentResponse | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const gemValue = Number.parseInt(customAmount.replace(/,/g, ""), 10) || 0;
   const isValidAmount = gemValue >= CUSTOM_GEM_MIN && gemValue <= CUSTOM_GEM_MAX;
@@ -187,45 +205,92 @@ export function PurchaseModal() {
   }
 
   const reset = useCallback(() => {
-    setPaymentMethod("card");
+    setPaymentMethod("crypto");
+    setPayCurrency("sol");
     setSelectedTierId(PURCHASE_BUNDLES[0]?.id ?? null);
     setCustomAmount("");
     setAffiliateCode("");
     setGiftCode("");
     setProcessing(false);
+    setPayment(null);
+    setPaymentError(null);
+    setCopied(false);
   }, []);
 
   useEffect(() => {
     if (!purchaseModalOpen) reset();
   }, [purchaseModalOpen, reset]);
 
+  useEffect(() => {
+    if (!purchaseModalOpen || !payment) return;
+
+    const pollBalance = () => {
+      void syncGemBalanceFromServer();
+    };
+
+    pollBalance();
+    const intervalId = window.setInterval(pollBalance, 5000);
+    return () => window.clearInterval(intervalId);
+  }, [purchaseModalOpen, payment, syncGemBalanceFromServer]);
+
   function handleClose() {
     setPurchaseModalOpen(false);
   }
 
-  const completePurchase = useCallback(
-    (bundle: PurchaseBundle) => {
+  const startPurchase = useCallback(
+    async (bundle: PurchaseBundle) => {
       if (processing) return;
 
-      const credited = bundleTotalGems(bundle);
+      if (!isLoggedIn) {
+        openAuthModal("login", { keepPurchaseModalOpen: true });
+        return;
+      }
+
+      if (paymentMethod === "card") {
+        showCashoutToast("Card checkout is coming soon — use Crypto to refill now.");
+        return;
+      }
+
       setProcessing(true);
-      purchaseBundle(bundle);
-      showCashoutToast(
-        `Success! Added ${credited.toLocaleString()} Gems to your locker wallet.`,
-      );
-      setProcessing(false);
+      setPaymentError(null);
+      setPayment(null);
+
+      try {
+        const result = await requestDepositPayment({
+          priceAmount: bundle.priceUsd,
+          payCurrency,
+          userId,
+        });
+        setPayment(result);
+      } catch (err) {
+        setPaymentError(err instanceof Error ? err.message : "Unable to create payment.");
+      } finally {
+        setProcessing(false);
+      }
     },
-    [processing, purchaseBundle, showCashoutToast],
+    [processing, isLoggedIn, openAuthModal, paymentMethod, payCurrency, userId],
   );
 
   function handleTierPurchase(bundle: PurchaseBundle) {
     setSelectedTierId(bundle.id);
-    completePurchase(bundle);
+    void startPurchase(bundle);
   }
 
   function handleCustomAmount() {
     if (!isValidAmount) return;
-    completePurchase(customAmountBundle(gemValue));
+    void startPurchase(customAmountBundle(gemValue));
+  }
+
+  async function handleCopyAddress() {
+    if (!payment?.payAddress) return;
+    try {
+      await navigator.clipboard.writeText(payment.payAddress);
+      setCopied(true);
+      showCashoutToast("Deposit address copied to clipboard.");
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      showCashoutToast("Copy failed — select the address manually.");
+    }
   }
 
   function handleApplyAffiliate() {
@@ -249,8 +314,8 @@ export function PurchaseModal() {
       aria-modal="true"
       aria-labelledby="purchase-title"
     >
-      <div className="relative flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-[#2A2D34] bg-[#0F1115] shadow-2xl">
-        <div className="flex shrink-0 items-center justify-between border-b border-[#2A2D34] px-4 py-3 sm:px-6">
+      <div className="relative flex max-h-[90vh] w-[92%] max-w-xl flex-col overflow-hidden rounded-xl border border-[#2A2D34] bg-[#0F1115] shadow-2xl md:max-h-[94vh] md:max-w-4xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-[#2A2D34] px-4 py-2.5 sm:px-6 sm:py-3">
           <h2 id="purchase-title" className="text-base font-bold uppercase tracking-wide text-white sm:text-lg">
             Gem Refill
           </h2>
@@ -264,9 +329,57 @@ export function PurchaseModal() {
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:gap-5">
-            <aside className="flex shrink-0 flex-row gap-2 lg:w-44 lg:flex-col lg:gap-3 lg:self-stretch">
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          {payment ? (
+            <div className="mx-auto max-w-md space-y-4 py-2 text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[#A0A5B5]">
+                Send {payment.payCurrency.toUpperCase()} — ${payment.priceAmount.toFixed(2)} USD
+              </p>
+              <div className="mx-auto inline-block rounded-xl border border-[#2A2D34] bg-white p-3">
+                <img
+                  src={depositQrCodeUrl(payment.payAddress, 220)}
+                  alt={`QR code for ${payment.payCurrency} deposit`}
+                  width={220}
+                  height={220}
+                  className="h-[220px] w-[220px]"
+                />
+              </div>
+              <div className="text-left">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#A0A5B5]">
+                  Deposit address
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyAddress}
+                  className="group w-full rounded-lg border border-[#2A2D34] bg-[#0A0A0C] p-3 text-left transition-colors hover:border-[#FF007F]/50"
+                >
+                  <p className="break-all font-mono text-xs leading-relaxed text-white group-hover:text-[#FF007F]">
+                    {payment.payAddress}
+                  </p>
+                  <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-[#FF007F]">
+                    {copied ? "Copied" : "Tap to copy address"}
+                  </p>
+                </button>
+              </div>
+              <p className="text-[10px] leading-relaxed text-[#A0A5B5]/80">
+                Order <span className="font-mono text-white/70">{payment.orderId}</span> — gems credit
+                automatically after NOWPayments confirms your transfer.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPayment(null);
+                  setPaymentError(null);
+                }}
+                className="text-xs font-semibold uppercase tracking-wider text-[#A0A5B5] transition-colors hover:text-[#FF007F]"
+              >
+                ← Back to packages
+              </button>
+            </div>
+          ) : (
+          <>
+          <div className="flex flex-col gap-3 sm:gap-4 lg:flex-row lg:gap-5">
+            <aside className="flex shrink-0 flex-row gap-1.5 sm:gap-2 lg:w-44 lg:flex-col lg:gap-3 lg:self-stretch">
               <PaymentMethodPanel
                 active={paymentMethod === "card"}
                 onSelect={() => setPaymentMethod("card")}
@@ -284,8 +397,37 @@ export function PurchaseModal() {
               </PaymentMethodPanel>
             </aside>
 
-            <div className="min-w-0 flex-1 space-y-3">
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-2.5">
+            <div className="min-w-0 flex-1 space-y-2 sm:space-y-3">
+              {paymentMethod === "crypto" && (
+                <div className="grid grid-cols-2 gap-1.5">
+                  {CRYPTO_ASSETS.map((asset) => (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      onClick={() => setPayCurrency(asset.id)}
+                      className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
+                        payCurrency === asset.id
+                          ? "border-[#FF007F] bg-[#FF007F]/10"
+                          : "border-[#2A2D34] bg-[#121318] hover:border-[#FF007F]/40"
+                      }`}
+                    >
+                      <p className="text-xs font-bold text-white">{asset.label}</p>
+                      <p className="text-[10px] font-mono uppercase text-[#FF007F]">{asset.hint}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {paymentError && (
+                <p
+                  className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+                  role="alert"
+                >
+                  {paymentError}
+                </p>
+              )}
+
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-2">
                 {PURCHASE_BUNDLES.map((bundle) => (
                   <RefillTierCard
                     key={bundle.id}
@@ -332,7 +474,7 @@ export function PurchaseModal() {
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 border-t border-[#2A2D34] pt-4 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-2 border-t border-[#2A2D34] pt-3 sm:mt-4 sm:grid-cols-2 sm:gap-3 sm:pt-4">
             <div className="rounded-lg border border-[#2A2D34] bg-[#121318] p-3">
               <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-[#A0A5B5]">
                 Enter Affiliate Code
@@ -379,6 +521,8 @@ export function PurchaseModal() {
               </div>
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

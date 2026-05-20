@@ -9,6 +9,11 @@ const STORE_PATH = path.join(DATA_DIR, "balances.json");
 const DEFAULT_GEM_BALANCE = 0;
 const GEMS_PER_USD = 100;
 
+/** In-memory fallback when Vercel/serverless cannot read or write the JSON file. */
+let useMemoryOnly = false;
+/** @type {ReturnType<typeof defaultStore>} */
+let memoryStore = defaultStore();
+
 function defaultStore() {
   return {
     users: {},
@@ -17,30 +22,61 @@ function defaultStore() {
   };
 }
 
-function loadStore() {
+function warnMemoryFallback(reason) {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  console.warn(
+    `[balancesStore] Using in-memory store (changes persist only per warm instance): ${message}`,
+  );
+}
+
+function loadStoreFromFile() {
   if (!existsSync(STORE_PATH)) {
     return defaultStore();
   }
+
+  const raw = readFileSync(STORE_PATH, "utf8");
+  const parsed = JSON.parse(raw);
+  return {
+    users: parsed.users ?? {},
+    orders: parsed.orders ?? {},
+    processedPayments: Array.isArray(parsed.processedPayments)
+      ? parsed.processedPayments
+      : [],
+  };
+}
+
+function loadStore() {
+  if (useMemoryOnly) {
+    return memoryStore;
+  }
+
   try {
-    const raw = readFileSync(STORE_PATH, "utf8");
-    const parsed = JSON.parse(raw);
-    return {
-      users: parsed.users ?? {},
-      orders: parsed.orders ?? {},
-      processedPayments: Array.isArray(parsed.processedPayments)
-        ? parsed.processedPayments
-        : [],
-    };
-  } catch {
-    return defaultStore();
+    const store = loadStoreFromFile();
+    memoryStore = store;
+    return store;
+  } catch (error) {
+    useMemoryOnly = true;
+    warnMemoryFallback(error);
+    return memoryStore;
   }
 }
 
 function saveStore(store) {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
+  memoryStore = store;
+
+  if (useMemoryOnly) {
+    return;
   }
-  writeFileSync(STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+
+  try {
+    if (!existsSync(DATA_DIR)) {
+      mkdirSync(DATA_DIR, { recursive: true });
+    }
+    writeFileSync(STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+  } catch (error) {
+    useMemoryOnly = true;
+    warnMemoryFallback(error);
+  }
 }
 
 export function usdToGems(usdAmount) {
@@ -151,4 +187,10 @@ export function creditGemsFromDeposit({
     gemBalance: user.gemBalance,
     gems: creditAmount,
   };
+}
+
+/** @internal Test helper — reset store between tests. */
+export function __resetBalancesStoreForTests() {
+  useMemoryOnly = false;
+  memoryStore = defaultStore();
 }

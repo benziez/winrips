@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { dispatchPaymentRoute, readVercelRawBody } from "../_lib/vercelHttp.js";
+import { dispatchPaymentRoute, readVercelRawBodyForWebhook } from "../_lib/vercelHttp.js";
 
 export const config = {
   runtime: "nodejs",
@@ -14,6 +14,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const rawBody = await readVercelRawBody(req);
+  const rawBody = await readVercelRawBodyForWebhook(req);
   await dispatchPaymentRoute(req, res, rawBody);
 }

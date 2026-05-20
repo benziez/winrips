@@ -3,15 +3,7 @@ import { Readable } from "node:stream";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { handlePaymentHttp } from "./paymentRoutes.js";
 
-/** Raw body for IPN signature verification (or re-serialized JSON for create). */
-export async function readVercelRawBody(req: VercelRequest): Promise<string> {
-  const body = req.body;
-  if (body !== undefined && body !== null && body !== "") {
-    if (typeof body === "string") return body;
-    if (Buffer.isBuffer(body)) return body.toString("utf8");
-    if (typeof body === "object") return JSON.stringify(body);
-  }
-
+async function readStreamBody(req: VercelRequest): Promise<string> {
   const chunks: Buffer[] = [];
   await new Promise<void>((resolve, reject) => {
     req.on("data", (chunk: Buffer | string) => {
@@ -21,6 +13,33 @@ export async function readVercelRawBody(req: VercelRequest): Promise<string> {
     req.on("error", reject);
   });
   return Buffer.concat(chunks).toString("utf8");
+}
+
+/** Raw body for generic routes (may use parsed body fallback). */
+export async function readVercelRawBody(req: VercelRequest): Promise<string> {
+  const body = req.body;
+  if (body !== undefined && body !== null && body !== "") {
+    if (typeof body === "string") return body;
+    if (Buffer.isBuffer(body)) return body.toString("utf8");
+    if (typeof body === "object") return JSON.stringify(body);
+  }
+
+  return readStreamBody(req);
+}
+
+/**
+ * Raw body for IPN webhooks — always prefers the request stream so
+ * x-nowpayments-sig verification matches the bytes NOWPayments signed.
+ */
+export async function readVercelRawBodyForWebhook(req: VercelRequest): Promise<string> {
+  const fromStream = await readStreamBody(req);
+  if (fromStream.trim()) return fromStream;
+
+  const body = req.body;
+  if (typeof body === "string" && body.trim()) return body;
+  if (Buffer.isBuffer(body)) return body.toString("utf8");
+
+  return "";
 }
 
 export function createNodeRequest(vercelReq: VercelRequest, rawBody: string): IncomingMessage {

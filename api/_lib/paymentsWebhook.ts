@@ -10,6 +10,7 @@ import {
   getNowPaymentsSignatureHeader,
   verifyNowPaymentsIpnSignature,
 } from "./nowpaymentsIpnSignature.js";
+import { logWebhook } from "./webhookLog.js";
 
 /** NOWPayments IPN statuses that trigger gem credit. */
 const CREDIT_STATUSES = new Set(["finished", "confirmed"]);
@@ -25,6 +26,10 @@ export interface NowPaymentsIpnPayload {
   price_currency?: string;
 }
 
+type VerifyResult =
+  | { ok: true }
+  | { ok: false; reason: string };
+
 async function readRawBody(req: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -38,16 +43,26 @@ function parseJsonBody(rawBody: string): NowPaymentsIpnPayload {
   return JSON.parse(rawBody) as NowPaymentsIpnPayload;
 }
 
-function rejectUnauthorized(res: ServerResponse): void {
-  sendJson(res, 401, { error: "Unauthorized" });
-}
-
-function verifyIpnRequest(req: IncomingMessage, rawBody: string): boolean {
-  const secret = process.env.NOWPAYMENTS_IPN_SECRET;
-  if (!secret?.trim()) return false;
+function verifyIpnRequest(req: IncomingMessage, rawBody: string): VerifyResult {
+  const secret = process.env.NOWPAYMENTS_IPN_SECRET?.trim();
+  if (!secret) {
+    return { ok: false, reason: "missing_ipn_secret_env" };
+  }
 
   const signature = getNowPaymentsSignatureHeader(req);
-  return verifyNowPaymentsIpnSignature(rawBody, signature, secret);
+  if (!signature) {
+    return { ok: false, reason: "missing_x_nowpayments_sig_header" };
+  }
+
+  if (!rawBody.trim()) {
+    return { ok: false, reason: "empty_request_body" };
+  }
+
+  if (!verifyNowPaymentsIpnSignature(rawBody, signature, secret)) {
+    return { ok: false, reason: "signature_mismatch" };
+  }
+
+  return { ok: true };
 }
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
@@ -61,7 +76,23 @@ function resolveGemsToCredit(payload: NowPaymentsIpnPayload): number {
   if (Number.isFinite(priceUsd) && priceUsd > 0) {
     return usdToGems(priceUsd);
   }
+
+  const paidUsd = Number(payload.actually_paid ?? 0);
+  if (Number.isFinite(paidUsd) && paidUsd > 0) {
+    return usdToGems(paidUsd);
+  }
+
   return 0;
+}
+
+function ipnContext(body: NowPaymentsIpnPayload) {
+  return {
+    paymentId: body.payment_id != null ? String(body.payment_id) : null,
+    paymentStatus: String(body.payment_status ?? "").toLowerCase() || null,
+    orderId: typeof body.order_id === "string" ? body.order_id : null,
+    priceAmount: body.price_amount ?? null,
+    payCurrency: body.pay_currency ?? null,
+  };
 }
 
 /**
@@ -77,34 +108,68 @@ export async function handlePaymentsWebhookRoute(
     return false;
   }
 
-  try {
-    const rawBody = await readRawBody(req);
+  let rawBody = "";
+  let httpStatus = 500;
+  let outcome = "error";
 
-    if (!verifyIpnRequest(req, rawBody)) {
-      rejectUnauthorized(res);
+  try {
+    rawBody = await readRawBody(req);
+
+    logWebhook("received", {
+      bodyBytes: rawBody.length,
+      hasIpnSecret: Boolean(process.env.NOWPAYMENTS_IPN_SECRET?.trim()),
+      hasSignatureHeader: Boolean(getNowPaymentsSignatureHeader(req)),
+    });
+
+    const verification = verifyIpnRequest(req, rawBody);
+    if (!verification.ok) {
+      outcome = verification.reason;
+      httpStatus = verification.reason === "missing_ipn_secret_env" ? 500 : 401;
+      logWebhook("signature_failed", {
+        reason: verification.reason,
+        bodyBytes: rawBody.length,
+        ...safeBodyPreview(rawBody),
+      });
+      sendJson(res, httpStatus, { error: "Unauthorized", reason: verification.reason });
       return true;
     }
 
+    logWebhook("signature_ok", { bodyBytes: rawBody.length });
+
     const body = parseJsonBody(rawBody);
-    const paymentStatus = String(body.payment_status ?? "").toLowerCase();
+    const ctx = ipnContext(body);
+    const paymentStatus = ctx.paymentStatus ?? "";
 
     if (!CREDIT_STATUSES.has(paymentStatus)) {
+      outcome = "ignored_status";
+      httpStatus = 200;
+      logWebhook("ignored_status", { ...ctx, paymentStatus });
       sendJson(res, 200, { ok: true, ignored: true, paymentStatus });
       return true;
     }
 
-    const orderId = typeof body.order_id === "string" ? body.order_id : "";
+    const orderId = ctx.orderId ?? "";
     const parsed = parseWinripsOrderId(orderId);
 
     if (!parsed) {
+      outcome = "invalid_order_id";
+      httpStatus = 400;
+      logWebhook("invalid_order_id", { ...ctx, orderId });
       sendJson(res, 400, { error: "Invalid or missing order_id." });
       return true;
     }
 
-    const paymentId = body.payment_id != null ? String(body.payment_id) : null;
+    const paymentId = ctx.paymentId;
 
     if (paymentId && (await hasProcessedPayment(paymentId))) {
       const balance = await getUserBalance(parsed.userId);
+      outcome = "duplicate_payment";
+      httpStatus = 200;
+      logWebhook("duplicate_payment", {
+        ...ctx,
+        userId: parsed.userId,
+        gemBalance: balance.gemBalance,
+      });
       sendJson(res, 200, {
         ok: true,
         duplicate: true,
@@ -116,6 +181,14 @@ export async function handlePaymentsWebhookRoute(
 
     const gems = resolveGemsToCredit(body);
     if (gems <= 0) {
+      outcome = "invalid_gem_amount";
+      httpStatus = 400;
+      logWebhook("invalid_gem_amount", {
+        ...ctx,
+        userId: parsed.userId,
+        priceAmount: body.price_amount,
+        actuallyPaid: body.actually_paid,
+      });
       sendJson(res, 400, { error: "Unable to resolve USD amount for gem credit." });
       return true;
     }
@@ -126,6 +199,18 @@ export async function handlePaymentsWebhookRoute(
       paymentId,
       orderId,
       paymentStatus,
+    });
+
+    outcome = result.credited ? "credited" : "duplicate_not_credited";
+    httpStatus = 200;
+    logWebhook(outcome, {
+      ...ctx,
+      userId: parsed.userId,
+      gemsRequested: gems,
+      gemsAdded: result.gems,
+      gemBalance: result.gemBalance,
+      credited: result.credited,
+      duplicate: result.duplicate,
     });
 
     sendJson(res, 200, {
@@ -139,8 +224,22 @@ export async function handlePaymentsWebhookRoute(
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Webhook processing failed.";
+    outcome = "exception";
+    httpStatus = 500;
+    logWebhook("exception", {
+      error: message,
+      bodyBytes: rawBody.length,
+      ...safeBodyPreview(rawBody),
+    });
     sendJson(res, 500, { error: message });
+  } finally {
+    logWebhook("completed", { outcome, httpStatus });
   }
 
   return true;
+}
+
+function safeBodyPreview(rawBody: string): { bodyPreview?: string } {
+  if (!rawBody.trim()) return {};
+  return { bodyPreview: rawBody.slice(0, 500) };
 }

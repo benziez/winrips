@@ -3,7 +3,7 @@
   "outputDirectory": "dist",
   "functions": {
     "api/**/*.ts": {
-      "includeFiles": "node_modules/@vercel/kv/**/*"
+      "includeFiles": "node_modules/@upstash/redis/**/*"
     }
   },
   "rewrites": [

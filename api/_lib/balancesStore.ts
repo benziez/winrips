@@ -1,6 +1,18 @@
-import { kv } from "@vercel/kv";
+import { Redis } from "@upstash/redis";
 
 const STORE_KEY = "winrips:balances";
+
+let redisClient: Redis | null = null;
+
+function getRedis(): Redis {
+  if (!redisClient) {
+    redisClient = new Redis({
+      url: process.env.KV_REST_API_URL!,
+      token: process.env.KV_REST_API_TOKEN!,
+    });
+  }
+  return redisClient;
+}
 
 const DEFAULT_GEM_BALANCE = 0;
 const GEMS_PER_USD = 100;
@@ -56,7 +68,7 @@ async function loadStore(): Promise<BalanceStore> {
   }
 
   try {
-    const raw = await kv.get<BalanceStore>(STORE_KEY);
+    const raw = await getRedis().get<BalanceStore>(STORE_KEY);
     const store = normalizeStore(raw);
     memoryStore = store;
     return store;
@@ -73,7 +85,7 @@ async function saveStore(store: BalanceStore): Promise<void> {
     return;
   }
 
-  await kv.set(STORE_KEY, store);
+  await getRedis().set(STORE_KEY, store);
 }
 
 export function usdToGems(usdAmount: number | string): number {

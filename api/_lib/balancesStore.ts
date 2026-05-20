@@ -4,12 +4,25 @@ const STORE_KEY = "winrips:balances";
 
 let redisClient: Redis | null = null;
 
+function resolveKvCredentials(): { url: string; token: string } | null {
+  const url =
+    process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL ?? undefined;
+  const token =
+    process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? undefined;
+
+  if (!url || !token) return null;
+  return { url, token };
+}
+
 function getRedis(): Redis {
   if (!redisClient) {
-    redisClient = new Redis({
-      url: process.env.KV_REST_API_URL!,
-      token: process.env.KV_REST_API_TOKEN!,
-    });
+    const creds = resolveKvCredentials();
+    if (!creds) {
+      throw new Error(
+        "Missing KV credentials: set KV_REST_API_URL and KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_*) in Vercel env.",
+      );
+    }
+    redisClient = new Redis(creds);
   }
   return redisClient;
 }
@@ -43,7 +56,7 @@ function defaultStore(): BalanceStore {
 }
 
 function isKvConfigured(): boolean {
-  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+  return resolveKvCredentials() !== null;
 }
 
 function normalizeStore(raw: unknown): BalanceStore {

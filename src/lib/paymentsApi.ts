@@ -28,6 +28,14 @@ export async function fetchAccountBalance(userId: string): Promise<AccountBalanc
   const params = new URLSearchParams({ userId });
   const response = await fetch(`/api/account/balance?${params.toString()}`);
 
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    const snippet = (await response.text()).slice(0, 120);
+    throw new Error(
+      `Balance API returned non-JSON (${response.status}). Check that /api routes are deployed as serverless functions, not rewritten to index.html. ${snippet}`,
+    );
+  }
+
   const data = (await response.json()) as AccountBalanceResponse & { error?: string };
 
   if (!response.ok) {

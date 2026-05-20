@@ -5,10 +5,24 @@ const STORE_KEY = "winrips:balances";
 const DEFAULT_GEM_BALANCE = 0;
 const GEMS_PER_USD = 100;
 
+interface BalanceStore {
+  users: Record<
+    string,
+    {
+      userId: string;
+      gemBalance: number;
+      tokenBalance: number;
+      updatedAt: string;
+    }
+  >;
+  orders: Record<string, unknown>;
+  processedPayments: string[];
+}
+
 /** Local dev fallback when KV env vars are not configured. */
 let memoryStore = defaultStore();
 
-function defaultStore() {
+function defaultStore(): BalanceStore {
   return {
     users: {},
     orders: {},
@@ -16,23 +30,24 @@ function defaultStore() {
   };
 }
 
-function isKvConfigured() {
+function isKvConfigured(): boolean {
   return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 }
 
-function normalizeStore(raw) {
+function normalizeStore(raw: unknown): BalanceStore {
   if (!raw || typeof raw !== "object") {
     return defaultStore();
   }
 
+  const record = raw as Partial<BalanceStore>;
   return {
-    users: raw.users ?? {},
-    orders: raw.orders ?? {},
-    processedPayments: Array.isArray(raw.processedPayments) ? raw.processedPayments : [],
+    users: record.users ?? {},
+    orders: record.orders ?? {},
+    processedPayments: Array.isArray(record.processedPayments) ? record.processedPayments : [],
   };
 }
 
-async function loadStore() {
+async function loadStore(): Promise<BalanceStore> {
   if (!isKvConfigured()) {
     console.warn(
       "[balancesStore] KV_REST_API_URL / KV_REST_API_TOKEN not set — using in-memory store for local dev.",
@@ -41,7 +56,7 @@ async function loadStore() {
   }
 
   try {
-    const raw = await kv.get(STORE_KEY);
+    const raw = await kv.get<BalanceStore>(STORE_KEY);
     const store = normalizeStore(raw);
     memoryStore = store;
     return store;
@@ -51,7 +66,7 @@ async function loadStore() {
   }
 }
 
-async function saveStore(store) {
+async function saveStore(store: BalanceStore): Promise<void> {
   memoryStore = store;
 
   if (!isKvConfigured()) {
@@ -61,25 +76,25 @@ async function saveStore(store) {
   await kv.set(STORE_KEY, store);
 }
 
-export function usdToGems(usdAmount) {
+export function usdToGems(usdAmount: number | string): number {
   const usd = Number(usdAmount);
   if (!Number.isFinite(usd) || usd <= 0) return 0;
   return Math.round(usd * GEMS_PER_USD);
 }
 
-export function parseWinripsOrderId(orderId) {
-  if (typeof orderId !== "string" || !orderId.startsWith("winrips-")) {
+export function parseWinripsOrderId(orderId: string): { userId: string; timestamp: string } | null {
+  if (!orderId.startsWith("winrips-")) {
     return null;
   }
   const parts = orderId.split("-");
   if (parts.length < 3) return null;
-  const timestamp = parts[parts.length - 1];
+  const timestamp = parts[parts.length - 1]!;
   const userId = parts.slice(1, -1).join("-");
   if (!userId || !/^\d+$/.test(timestamp)) return null;
   return { userId, timestamp };
 }
 
-function ensureUser(store, userId) {
+function ensureUser(store: BalanceStore, userId: string) {
   if (!store.users[userId]) {
     store.users[userId] = {
       userId,
@@ -88,10 +103,10 @@ function ensureUser(store, userId) {
       updatedAt: new Date().toISOString(),
     };
   }
-  return store.users[userId];
+  return store.users[userId]!;
 }
 
-export async function getUserBalance(userId) {
+export async function getUserBalance(userId: string) {
   const store = await loadStore();
   const user = ensureUser(store, userId);
   await saveStore(store);
@@ -102,7 +117,17 @@ export async function getUserBalance(userId) {
   };
 }
 
-export async function registerDepositOrder({ orderId, userId, priceAmountUsd, paymentId }) {
+export async function registerDepositOrder({
+  orderId,
+  userId,
+  priceAmountUsd,
+  paymentId,
+}: {
+  orderId: string;
+  userId: string;
+  priceAmountUsd: number;
+  paymentId: string;
+}) {
   const store = await loadStore();
   ensureUser(store, userId);
   const gems = usdToGems(priceAmountUsd);
@@ -119,7 +144,7 @@ export async function registerDepositOrder({ orderId, userId, priceAmountUsd, pa
   return store.orders[orderId];
 }
 
-export async function hasProcessedPayment(paymentId) {
+export async function hasProcessedPayment(paymentId: string): Promise<boolean> {
   if (!paymentId) return false;
   const store = await loadStore();
   return store.processedPayments.includes(String(paymentId));
@@ -131,6 +156,12 @@ export async function creditGemsFromDeposit({
   paymentId,
   orderId,
   paymentStatus,
+}: {
+  userId: string;
+  gems: number;
+  paymentId: string | null;
+  orderId: string;
+  paymentStatus: string;
 }) {
   const store = await loadStore();
   const id = paymentId ? String(paymentId) : null;
@@ -151,10 +182,11 @@ export async function creditGemsFromDeposit({
   user.tokenBalance = user.gemBalance;
   user.updatedAt = new Date().toISOString();
 
-  if (store.orders[orderId]) {
-    store.orders[orderId].status = "credited";
-    store.orders[orderId].creditedAt = user.updatedAt;
-    store.orders[orderId].paymentStatus = paymentStatus;
+  const order = store.orders[orderId] as Record<string, unknown> | undefined;
+  if (order) {
+    order.status = "credited";
+    order.creditedAt = user.updatedAt;
+    order.paymentStatus = paymentStatus;
   }
 
   if (id) {
@@ -172,6 +204,6 @@ export async function creditGemsFromDeposit({
 }
 
 /** @internal Resets in-memory cache (tests / local dev). Does not clear KV. */
-export function __resetBalancesStoreForTests() {
+export function __resetBalancesStoreForTests(): void {
   memoryStore = defaultStore();
 }

@@ -1,8 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-
-async function loadBalancesStore() {
-  return import("../../server/balancesStore.mjs");
-}
+import { getUserBalance } from "../../api/_lib/balancesStore.js";
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
@@ -27,8 +24,7 @@ export async function handleAccountBalanceRoute(
   }
 
   try {
-    const store = await loadBalancesStore();
-    const balance = await store.getUserBalance(userId);
+    const balance = await getUserBalance(userId);
     sendJson(res, 200, balance);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Balance lookup failed.";

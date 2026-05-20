@@ -9,7 +9,7 @@ import {
   parseWinripsOrderId,
   registerDepositOrder,
   usdToGems,
-} from "./balancesStore.mjs";
+} from "../api/_lib/balancesStore.ts";
 import {
   getNowPaymentsSignatureHeader,
   verifyNowPaymentsIpnSignature,

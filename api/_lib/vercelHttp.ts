@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { handlePaymentHttp } from "../../src/api/paymentRoutes.js";
 
 /** Raw body for IPN signature verification (or re-serialized JSON for create). */
 export async function readVercelRawBody(req: VercelRequest): Promise<string> {
@@ -86,7 +87,6 @@ export async function dispatchPaymentRoute(
   vercelRes: VercelResponse,
   rawBody: string,
 ): Promise<void> {
-  const { handlePaymentHttp } = await import("../../src/api/paymentRoutes.js");
   const nodeReq = createNodeRequest(vercelReq, rawBody);
   const nodeRes = createNodeResponse(vercelRes);
   const handled = await handlePaymentHttp(nodeReq, nodeRes);

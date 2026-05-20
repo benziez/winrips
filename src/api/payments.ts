@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { registerDepositOrder } from "../../api/_lib/balancesStore.js";
 import { buildWinripsOrderId } from "./orderId";
 import type {
   CreateDepositPaymentRequest,
@@ -93,8 +94,7 @@ export async function createDepositPayment(
   const paymentId = String(data.payment_id ?? "");
   const resolvedOrderId = typeof data.order_id === "string" ? data.order_id : orderId;
 
-  const store = await import("../../server/balancesStore.mjs");
-  await store.registerDepositOrder({
+  await registerDepositOrder({
     orderId: resolvedOrderId,
     userId: input.userId,
     priceAmountUsd: input.priceAmount,

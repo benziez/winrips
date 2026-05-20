@@ -1,9 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  creditGemsFromDeposit,
+  getUserBalance,
+  hasProcessedPayment,
+  parseWinripsOrderId,
+  usdToGems,
+} from "../../api/_lib/balancesStore.js";
+import {
   getNowPaymentsSignatureHeader,
   verifyNowPaymentsIpnSignature,
 } from "../../server/nowpaymentsIpnSignature.mjs";
-import { parseWinripsOrderId } from "./orderId";
+import { parseWinripsOrderId as parseOrderIdFromModule } from "./orderId";
 
 /** NOWPayments IPN statuses that trigger gem credit. */
 const CREDIT_STATUSES = new Set(["finished", "confirmed"]);
@@ -17,29 +24,6 @@ export interface NowPaymentsIpnPayload {
   pay_amount?: number | string;
   pay_currency?: string;
   price_currency?: string;
-}
-
-type BalancesStore = {
-  usdToGems: (usd: number | string) => number;
-  parseWinripsOrderId: (orderId: string) => { userId: string } | null;
-  hasProcessedPayment: (paymentId: string) => Promise<boolean>;
-  getUserBalance: (userId: string) => Promise<{ gemBalance: number; tokenBalance: number }>;
-  creditGemsFromDeposit: (input: {
-    userId: string;
-    gems: number;
-    paymentId: string | null;
-    orderId: string;
-    paymentStatus: string;
-  }) => Promise<{
-    credited: boolean;
-    duplicate: boolean;
-    gemBalance: number;
-    gems: number;
-  }>;
-};
-
-async function loadBalancesStore(): Promise<BalancesStore> {
-  return import("../../server/balancesStore.mjs") as Promise<BalancesStore>;
 }
 
 async function readRawBody(req: IncomingMessage): Promise<string> {
@@ -73,13 +57,10 @@ function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.end(JSON.stringify(payload));
 }
 
-function resolveGemsToCredit(
-  payload: NowPaymentsIpnPayload,
-  store: BalancesStore,
-): number {
+function resolveGemsToCredit(payload: NowPaymentsIpnPayload): number {
   const priceUsd = Number(payload.price_amount ?? 0);
   if (Number.isFinite(priceUsd) && priceUsd > 0) {
-    return store.usdToGems(priceUsd);
+    return usdToGems(priceUsd);
   }
   return 0;
 }
@@ -114,8 +95,7 @@ export async function handlePaymentsWebhookRoute(
     }
 
     const orderId = typeof body.order_id === "string" ? body.order_id : "";
-    const store = await loadBalancesStore();
-    const parsed = parseWinripsOrderId(orderId) ?? store.parseWinripsOrderId(orderId);
+    const parsed = parseOrderIdFromModule(orderId) ?? parseWinripsOrderId(orderId);
 
     if (!parsed) {
       sendJson(res, 400, { error: "Invalid or missing order_id." });
@@ -124,8 +104,8 @@ export async function handlePaymentsWebhookRoute(
 
     const paymentId = body.payment_id != null ? String(body.payment_id) : null;
 
-    if (paymentId && (await store.hasProcessedPayment(paymentId))) {
-      const balance = await store.getUserBalance(parsed.userId);
+    if (paymentId && (await hasProcessedPayment(paymentId))) {
+      const balance = await getUserBalance(parsed.userId);
       sendJson(res, 200, {
         ok: true,
         duplicate: true,
@@ -135,13 +115,13 @@ export async function handlePaymentsWebhookRoute(
       return true;
     }
 
-    const gems = resolveGemsToCredit(body, store);
+    const gems = resolveGemsToCredit(body);
     if (gems <= 0) {
       sendJson(res, 400, { error: "Unable to resolve USD amount for gem credit." });
       return true;
     }
 
-    const result = await store.creditGemsFromDeposit({
+    const result = await creditGemsFromDeposit({
       userId: parsed.userId,
       gems,
       paymentId,

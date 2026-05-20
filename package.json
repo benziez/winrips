@@ -4,13 +4,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 4444",
-    "dev:payments": "node server/index.mjs",
+    "dev:payments": "tsx server/index.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4444",
     "seed:pokemon": "node scripts/seedPokemon.js"
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",
+    "@vercel/node": "^5.8.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
@@ -19,8 +20,8 @@
     "@types/node": "^25.9.1",
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
-    "@vercel/node": "^5.8.3",
     "@vitejs/plugin-react": "^4.4.1",
+    "tsx": "^4.19.4",
     "tailwindcss": "^4.1.7",
     "typescript": "^5.8.3",
     "vite": "^6.3.5"

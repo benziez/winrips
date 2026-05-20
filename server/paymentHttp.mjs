@@ -86,7 +86,7 @@ async function createDepositPayment(input) {
   const paymentId = String(data.payment_id ?? "");
   const resolvedOrderId = data.order_id ?? orderId;
 
-  registerDepositOrder({
+  await registerDepositOrder({
     orderId: resolvedOrderId,
     userId: input.userId,
     priceAmountUsd: input.priceAmount,
@@ -170,7 +170,7 @@ async function handleWebhook(req, res) {
     return;
   }
 
-  const result = creditGemsFromDeposit({
+  const result = await creditGemsFromDeposit({
     userId: parsed.userId,
     gems,
     paymentId,
@@ -210,7 +210,7 @@ export async function handlePaymentHttp(req, res) {
     }
 
     if (pathname === "/api/account/balance" && req.method === "GET") {
-      handleBalance(req, res, url);
+      await handleBalance(req, res, url);
       return true;
     }
 

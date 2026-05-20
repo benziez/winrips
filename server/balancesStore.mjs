@@ -1,17 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { kv } from "@vercel/kv";
 
-const root = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(root, "data");
-const STORE_PATH = path.join(DATA_DIR, "balances.json");
+const STORE_KEY = "winrips:balances";
 
 const DEFAULT_GEM_BALANCE = 0;
 const GEMS_PER_USD = 100;
 
-/** In-memory fallback when Vercel/serverless cannot read or write the JSON file. */
-let useMemoryOnly = false;
-/** @type {ReturnType<typeof defaultStore>} */
+/** Local dev fallback when KV env vars are not configured. */
 let memoryStore = defaultStore();
 
 function defaultStore() {
@@ -22,61 +16,49 @@ function defaultStore() {
   };
 }
 
-function warnMemoryFallback(reason) {
-  const message = reason instanceof Error ? reason.message : String(reason);
-  console.warn(
-    `[balancesStore] Using in-memory store (changes persist only per warm instance): ${message}`,
-  );
+function isKvConfigured() {
+  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 }
 
-function loadStoreFromFile() {
-  if (!existsSync(STORE_PATH)) {
+function normalizeStore(raw) {
+  if (!raw || typeof raw !== "object") {
     return defaultStore();
   }
 
-  const raw = readFileSync(STORE_PATH, "utf8");
-  const parsed = JSON.parse(raw);
   return {
-    users: parsed.users ?? {},
-    orders: parsed.orders ?? {},
-    processedPayments: Array.isArray(parsed.processedPayments)
-      ? parsed.processedPayments
-      : [],
+    users: raw.users ?? {},
+    orders: raw.orders ?? {},
+    processedPayments: Array.isArray(raw.processedPayments) ? raw.processedPayments : [],
   };
 }
 
-function loadStore() {
-  if (useMemoryOnly) {
+async function loadStore() {
+  if (!isKvConfigured()) {
+    console.warn(
+      "[balancesStore] KV_REST_API_URL / KV_REST_API_TOKEN not set — using in-memory store for local dev.",
+    );
     return memoryStore;
   }
 
   try {
-    const store = loadStoreFromFile();
+    const raw = await kv.get(STORE_KEY);
+    const store = normalizeStore(raw);
     memoryStore = store;
     return store;
   } catch (error) {
-    useMemoryOnly = true;
-    warnMemoryFallback(error);
+    console.warn("[balancesStore] KV read failed, using in-memory cache:", error);
     return memoryStore;
   }
 }
 
-function saveStore(store) {
+async function saveStore(store) {
   memoryStore = store;
 
-  if (useMemoryOnly) {
+  if (!isKvConfigured()) {
     return;
   }
 
-  try {
-    if (!existsSync(DATA_DIR)) {
-      mkdirSync(DATA_DIR, { recursive: true });
-    }
-    writeFileSync(STORE_PATH, JSON.stringify(store, null, 2), "utf8");
-  } catch (error) {
-    useMemoryOnly = true;
-    warnMemoryFallback(error);
-  }
+  await kv.set(STORE_KEY, store);
 }
 
 export function usdToGems(usdAmount) {
@@ -97,7 +79,7 @@ export function parseWinripsOrderId(orderId) {
   return { userId, timestamp };
 }
 
-export function ensureUser(store, userId) {
+function ensureUser(store, userId) {
   if (!store.users[userId]) {
     store.users[userId] = {
       userId,
@@ -109,10 +91,10 @@ export function ensureUser(store, userId) {
   return store.users[userId];
 }
 
-export function getUserBalance(userId) {
-  const store = loadStore();
+export async function getUserBalance(userId) {
+  const store = await loadStore();
   const user = ensureUser(store, userId);
-  saveStore(store);
+  await saveStore(store);
   return {
     userId,
     gemBalance: user.gemBalance,
@@ -120,8 +102,8 @@ export function getUserBalance(userId) {
   };
 }
 
-export function registerDepositOrder({ orderId, userId, priceAmountUsd, paymentId }) {
-  const store = loadStore();
+export async function registerDepositOrder({ orderId, userId, priceAmountUsd, paymentId }) {
+  const store = await loadStore();
   ensureUser(store, userId);
   const gems = usdToGems(priceAmountUsd);
   store.orders[orderId] = {
@@ -133,24 +115,24 @@ export function registerDepositOrder({ orderId, userId, priceAmountUsd, paymentI
     status: "pending",
     createdAt: new Date().toISOString(),
   };
-  saveStore(store);
+  await saveStore(store);
   return store.orders[orderId];
 }
 
-export function hasProcessedPayment(paymentId) {
+export async function hasProcessedPayment(paymentId) {
   if (!paymentId) return false;
-  const store = loadStore();
+  const store = await loadStore();
   return store.processedPayments.includes(String(paymentId));
 }
 
-export function creditGemsFromDeposit({
+export async function creditGemsFromDeposit({
   userId,
   gems,
   paymentId,
   orderId,
   paymentStatus,
 }) {
-  const store = loadStore();
+  const store = await loadStore();
   const id = paymentId ? String(paymentId) : null;
 
   if (id && store.processedPayments.includes(id)) {
@@ -179,7 +161,7 @@ export function creditGemsFromDeposit({
     store.processedPayments.push(id);
   }
 
-  saveStore(store);
+  await saveStore(store);
 
   return {
     credited: true,
@@ -189,8 +171,7 @@ export function creditGemsFromDeposit({
   };
 }
 
-/** @internal Test helper — reset store between tests. */
+/** @internal Resets in-memory cache (tests / local dev). Does not clear KV. */
 export function __resetBalancesStoreForTests() {
-  useMemoryOnly = false;
   memoryStore = defaultStore();
 }

@@ -28,7 +28,7 @@ export async function handleAccountBalanceRoute(
 
   try {
     const store = await loadBalancesStore();
-    const balance = store.getUserBalance(userId);
+    const balance = await store.getUserBalance(userId);
     sendJson(res, 200, balance);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Balance lookup failed.";

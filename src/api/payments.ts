@@ -94,7 +94,7 @@ export async function createDepositPayment(
   const resolvedOrderId = typeof data.order_id === "string" ? data.order_id : orderId;
 
   const store = await import("../../server/balancesStore.mjs");
-  store.registerDepositOrder({
+  await store.registerDepositOrder({
     orderId: resolvedOrderId,
     userId: input.userId,
     priceAmountUsd: input.priceAmount,

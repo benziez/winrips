@@ -22,20 +22,20 @@ export interface NowPaymentsIpnPayload {
 type BalancesStore = {
   usdToGems: (usd: number | string) => number;
   parseWinripsOrderId: (orderId: string) => { userId: string } | null;
-  hasProcessedPayment: (paymentId: string) => boolean;
-  getUserBalance: (userId: string) => { gemBalance: number; tokenBalance: number };
+  hasProcessedPayment: (paymentId: string) => Promise<boolean>;
+  getUserBalance: (userId: string) => Promise<{ gemBalance: number; tokenBalance: number }>;
   creditGemsFromDeposit: (input: {
     userId: string;
     gems: number;
     paymentId: string | null;
     orderId: string;
     paymentStatus: string;
-  }) => {
+  }) => Promise<{
     credited: boolean;
     duplicate: boolean;
     gemBalance: number;
     gems: number;
-  };
+  }>;
 };
 
 async function loadBalancesStore(): Promise<BalancesStore> {
@@ -124,8 +124,8 @@ export async function handlePaymentsWebhookRoute(
 
     const paymentId = body.payment_id != null ? String(body.payment_id) : null;
 
-    if (paymentId && store.hasProcessedPayment(paymentId)) {
-      const balance = store.getUserBalance(parsed.userId);
+    if (paymentId && (await store.hasProcessedPayment(paymentId))) {
+      const balance = await store.getUserBalance(parsed.userId);
       sendJson(res, 200, {
         ok: true,
         duplicate: true,
@@ -141,7 +141,7 @@ export async function handlePaymentsWebhookRoute(
       return true;
     }
 
-    const result = store.creditGemsFromDeposit({
+    const result = await store.creditGemsFromDeposit({
       userId: parsed.userId,
       gems,
       paymentId,

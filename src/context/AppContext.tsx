@@ -27,6 +27,7 @@ interface AppState {
   walletConnected: boolean;
   activeCurrency: Currency;
   goldVolts: number;
+  gemBalanceLoading: boolean;
   sweepsCash: number;
   selectedPack: Pack | null;
   mobileMenuOpen: boolean;
@@ -97,6 +98,7 @@ const INITIAL_STATE: AppState = {
   walletConnected: false,
   activeCurrency: "sweeps-cash",
   goldVolts: 0,
+  gemBalanceLoading: true,
   sweepsCash: 250,
   selectedPack: null,
   mobileMenuOpen: false,
@@ -222,20 +224,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const userId = state.userId;
     if (!userId) return;
 
+    setState((s) => ({ ...s, gemBalanceLoading: true }));
+
     try {
       const balance = await fetchAccountBalance(userId);
       setState((s) => ({
         ...s,
         goldVolts: balance.gemBalance,
+        gemBalanceLoading: false,
       }));
     } catch {
-      /* API unavailable — keep local balance */
+      setState((s) => ({ ...s, gemBalanceLoading: false }));
     }
   }, [state.userId]);
-
-  useEffect(() => {
-    void syncGemBalanceFromServer();
-  }, [state.userId, syncGemBalanceFromServer]);
 
   const setMobileMenuOpen = useCallback((mobileMenuOpen: boolean) => {
     setState((s) => ({ ...s, mobileMenuOpen }));

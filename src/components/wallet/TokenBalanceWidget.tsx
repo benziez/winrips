@@ -1,7 +1,19 @@
+import { useEffect } from "react";
 import { useApp } from "../../context/AppContext";
 
 export function TokenBalanceWidget() {
-  const { goldVolts, setPurchaseModalOpen, setDepositModalOpen } = useApp();
+  const {
+    goldVolts,
+    gemBalanceLoading,
+    userId,
+    syncGemBalanceFromServer,
+    setPurchaseModalOpen,
+    setDepositModalOpen,
+  } = useApp();
+
+  useEffect(() => {
+    void syncGemBalanceFromServer();
+  }, [userId, syncGemBalanceFromServer]);
 
   return (
     <div className="flex h-10 max-w-full items-stretch overflow-hidden rounded-md border border-[#2A2D34] bg-[#1A1C20]">
@@ -9,8 +21,12 @@ export function TokenBalanceWidget() {
         <span className="shrink-0 px-3 text-xs font-semibold uppercase tracking-wider text-[#A0A5B5]">
           GEMS
         </span>
-        <span className="truncate pr-3 text-sm font-bold tabular-nums text-white">
-          {goldVolts.toLocaleString()}
+        <span
+          className="truncate pr-3 text-sm font-bold tabular-nums text-white"
+          aria-busy={gemBalanceLoading}
+          aria-live="polite"
+        >
+          {gemBalanceLoading ? "…" : goldVolts.toLocaleString()}
         </span>
       </div>
       <button

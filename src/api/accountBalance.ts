@@ -1,5 +1,11 @@
+/**
+ * Node HTTP handler for Vite dev and the standalone payments server.
+ * Production balance route: api/account/balance.ts (export const runtime = "edge").
+ */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { getUserBalance } from "../../api/_lib/balancesStore.js";
+
+export const runtime = "edge";
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;

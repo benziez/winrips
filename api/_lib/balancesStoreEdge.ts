@@ -3,13 +3,46 @@ import { Redis } from "@upstash/redis/cloudflare";
 const STORE_KEY = "winrips:balances";
 const DEFAULT_GEM_BALANCE = 0;
 
+/**
+ * TEMP DEBUG — paste from Vercel → Project → Settings → Environment Variables
+ * (Storage / Upstash integration). Remove after env injection is confirmed.
+ */
+const FORCE_KV_URL = "";
+const FORCE_KV_TOKEN = "";
+
 let redisClient: Redis | null = null;
+
+function resolveKvCredentials(): { url: string; token: string } {
+  const url =
+    process.env.KV_REST_API_URL ??
+    process.env.UPSTASH_REDIS_REST_URL ??
+    (FORCE_KV_URL || undefined);
+
+  const token =
+    process.env.KV_REST_API_TOKEN ??
+    process.env.UPSTASH_REDIS_REST_TOKEN ??
+    (FORCE_KV_TOKEN || undefined);
+
+  if (!url || !token) {
+    throw new Error(
+      "Missing KV credentials on Edge: set KV_REST_API_URL and KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_*) in Vercel env, or paste into FORCE_KV_* for this test.",
+    );
+  }
+
+  return { url, token };
+}
 
 function getRedis(): Redis {
   if (!redisClient) {
+    const { url, token } = resolveKvCredentials();
+
+    console.log("DEBUG_KV_URL:", process.env.KV_REST_API_URL);
+    console.log("DEBUG_KV_TOKEN_EXISTS:", !!process.env.KV_REST_API_TOKEN);
+    console.log("DEBUG_RESOLVED_URL:", url);
+
     redisClient = new Redis({
-      url: process.env.KV_REST_API_URL!,
-      token: process.env.KV_REST_API_TOKEN!,
+      url,
+      token,
     });
   }
   return redisClient;
@@ -40,7 +73,11 @@ function defaultStore(): BalanceStore {
 }
 
 function isKvConfigured(): boolean {
-  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+  return Boolean(
+    (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) ||
+      (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
+      (FORCE_KV_URL && FORCE_KV_TOKEN),
+  );
 }
 
 function normalizeStore(raw: unknown): BalanceStore {
@@ -58,6 +95,7 @@ function normalizeStore(raw: unknown): BalanceStore {
 
 async function loadStore(): Promise<BalanceStore> {
   if (!isKvConfigured()) {
+    console.warn("[balancesStoreEdge] No KV env vars — using in-memory store.");
     return memoryStore;
   }
 
@@ -66,7 +104,8 @@ async function loadStore(): Promise<BalanceStore> {
     const store = normalizeStore(raw);
     memoryStore = store;
     return store;
-  } catch {
+  } catch (error) {
+    console.warn("[balancesStoreEdge] KV read failed:", error);
     return memoryStore;
   }
 }

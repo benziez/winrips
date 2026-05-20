@@ -4,11 +4,12 @@ const STORE_KEY = "winrips:balances";
 const DEFAULT_GEM_BALANCE = 0;
 
 /**
- * TEMP DEBUG — paste from Vercel → Project → Settings → Environment Variables
- * (Storage / Upstash integration). Remove after env injection is confirmed.
+ * TEMP DEBUG fallback — remove after confirming Vercel env injection works.
+ * Uses KV REST credentials (not rediss:// KV_URL).
  */
-const FORCE_KV_URL = "";
-const FORCE_KV_TOKEN = "";
+const FORCE_KV_URL = "https://model-pegasus-131097.upstash.io";
+const FORCE_KV_TOKEN =
+  "gQAAAAAAAgAZAAIgcDIyM2IxYWQyODFmMGU0MjdlOGI2OGI2MWIwOGYxYzNjMA";
 
 let redisClient: Redis | null = null;
 

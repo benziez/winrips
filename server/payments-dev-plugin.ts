@@ -1,6 +1,6 @@
 import type { Plugin } from "vite";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handlePaymentHttp } from "../src/api/paymentRoutes";
+import { handlePaymentHttp } from "../api/_lib/paymentRoutes.js";
 
 function runPaymentHttp(
   req: IncomingMessage,

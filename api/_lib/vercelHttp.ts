@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { handlePaymentHttp } from "../../src/api/paymentRoutes.js";
+import { handlePaymentHttp } from "./paymentRoutes.js";
 
 /** Raw body for IPN signature verification (or re-serialized JSON for create). */
 export async function readVercelRawBody(req: VercelRequest): Promise<string> {

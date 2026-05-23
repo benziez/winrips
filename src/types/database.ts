@@ -40,6 +40,10 @@ export interface VaultItemRow {
   gem_value: number;
   image_url: string;
   created_at: string;
+  status?: string;
+  shipping_name?: string | null;
+  shipping_address?: string | null;
+  tracking_number?: string | null;
 }
 
 export interface VaultItemInsert {
@@ -84,6 +88,15 @@ export interface Database {
         Args: {
           p_user_id: string;
           p_spin_cost: number;
+        };
+        Returns: Json;
+      };
+      process_shipping_request: {
+        Args: {
+          p_item_id: string;
+          p_shipping_cost: number;
+          p_name: string;
+          p_address: string;
         };
         Returns: Json;
       };

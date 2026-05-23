@@ -37,6 +37,7 @@ function normalizeVaultCard(raw: Record<string, unknown>): VaultedCard | null {
     value: Math.round(value),
     image,
     acquiredAt,
+    status: "vaulted",
   };
 }
 

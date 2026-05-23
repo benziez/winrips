@@ -10,6 +10,8 @@ import { CorporateFooter } from "./CorporateFooter";
 import { ShippingModal } from "../pack-opening/ShippingModal";
 import { GemBalanceDepositNotifier } from "../wallet/GemBalanceDepositNotifier";
 import { WalletModal } from "../wallet/WalletModal";
+import { VAULT_SHIPPING_COST } from "../../constants/shipping";
+import { processShippingRequest } from "../../lib/shippingLogic";
 import { useApp } from "../../context/AppContext";
 
 function AppLayoutFrame({ children }: { children: ReactNode }) {
@@ -20,6 +22,10 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
     shippingVaultItem,
     closeVaultShipping,
     showCashoutToast,
+    userId,
+    setGoldVolts,
+    syncVaultFromServer,
+    markVaultItemPendingShipment,
   } = useApp();
   const { isMenuOpen } = useNavDrawer();
 
@@ -52,11 +58,31 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
         <ShippingModal
           itemName={shippingVaultItem.name}
           onClose={closeVaultShipping}
-          onSubmit={() => {
-            showCashoutToast(
-              `Physical delivery request received for ${shippingVaultItem.name}. Our fulfillment team will confirm shipping details shortly.`,
-            );
-            closeVaultShipping();
+          vaultMode={{
+            shippingCost: VAULT_SHIPPING_COST,
+            onConfirm: async ({ name, address }) => {
+              const result = await processShippingRequest({
+                itemId: shippingVaultItem.vaultId,
+                shippingCost: VAULT_SHIPPING_COST,
+                name,
+                address,
+              });
+
+              if (!result.ok) {
+                return { ok: false, error: result.error };
+              }
+
+              setGoldVolts(result.gemsBalance);
+              markVaultItemPendingShipment(shippingVaultItem.vaultId, name, address);
+              if (userId) {
+                void syncVaultFromServer(userId);
+              }
+              showCashoutToast(
+                `Shipping request submitted for ${shippingVaultItem.name}. ${VAULT_SHIPPING_COST.toLocaleString()} Gems charged.`,
+              );
+              closeVaultShipping();
+              return { ok: true };
+            },
           }}
         />
       )}

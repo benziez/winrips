@@ -21,6 +21,8 @@ function VaultInventoryCard({
   onSell: (card: VaultedCard) => void;
   onShip: (card: VaultedCard) => void;
 }) {
+  const isPendingShipment = card.status === "pending_shipment";
+
   return (
     <article className="vault-door group relative flex flex-col overflow-hidden">
       <div className="relative aspect-[2.5/3.5] w-full bg-slate-elevated/40 p-2 sm:p-3">
@@ -29,7 +31,14 @@ function VaultInventoryCard({
           alt={card.name}
           className="h-full w-full object-contain"
         />
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-stretch justify-end gap-1.5 bg-gradient-to-t from-slate/95 via-slate/40 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
+        {isPendingShipment ? (
+          <div className="absolute inset-x-2 bottom-2 rounded-md border border-gold/30 bg-slate/90 px-2 py-1 text-center">
+            <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-gold">
+              Pending Shipment
+            </p>
+          </div>
+        ) : (
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-stretch justify-end gap-1.5 bg-gradient-to-t from-slate/95 via-slate/40 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
           <button
             type="button"
             onClick={() => onShip(card)}
@@ -44,7 +53,8 @@ function VaultInventoryCard({
           >
             Sell
           </button>
-        </div>
+          </div>
+        )}
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-border bg-slate px-2.5 py-2 sm:px-3">
         <h3 className="line-clamp-2 min-w-0 flex-1 text-[10px] font-bold leading-snug text-white sm:text-xs">
@@ -93,11 +103,18 @@ export function VaultView() {
   );
 
   const revenueAssets = useMemo(
-    () => inventory.filter((card) => card.value >= REVENUE_VALUE_THRESHOLD),
+    () =>
+      inventory.filter(
+        (card) => card.value >= REVENUE_VALUE_THRESHOLD && card.status !== "pending_shipment",
+      ),
     [inventory],
   );
 
   function handleSell(card: VaultedCard) {
+    if (card.status === "pending_shipment") {
+      showCashoutToast("This item is pending shipment and cannot be sold.");
+      return;
+    }
     const credit = exchangeCreditGems(card.value);
     exchangeVaultCard(card.vaultId);
     showCashoutToast(
@@ -105,15 +122,21 @@ export function VaultView() {
     );
   }
 
-  function handleShipAllRevenue() {
-    if (revenueAssets.length === 0) {
-      showCashoutToast("No revenue-tier collectibles in your vault locker.");
+  function handleShip(card: VaultedCard) {
+    if (card.status === "pending_shipment") {
+      showCashoutToast("This item is already pending shipment.");
       return;
     }
-    openVaultShipping(revenueAssets[0]);
-    showCashoutToast(
-      `Bulk delivery bundle initiated — ${revenueAssets.length} high-value assets queued for secure fulfillment.`,
-    );
+    openVaultShipping(card);
+  }
+
+  function handleShipAllRevenue() {
+    const shippableRevenue = revenueAssets.filter((card) => card.status !== "pending_shipment");
+    if (shippableRevenue.length === 0) {
+      showCashoutToast("No shippable revenue-tier collectibles in your vault locker.");
+      return;
+    }
+    openVaultShipping(shippableRevenue[0]!);
   }
 
   return (
@@ -195,7 +218,7 @@ export function VaultView() {
                     key={card.vaultId}
                     card={card}
                     onSell={handleSell}
-                    onShip={openVaultShipping}
+                    onShip={handleShip}
                   />
                 ))}
               </div>

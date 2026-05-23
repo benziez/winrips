@@ -8,6 +8,10 @@ create table if not exists public.vault_items (
   rarity text not null default 'Rare',
   gem_value integer not null check (gem_value >= 0),
   image_url text not null default '',
+  status text not null default 'vaulted',
+  shipping_name text,
+  shipping_address text,
+  tracking_number text,
   created_at timestamptz not null default now()
 );
 

@@ -113,6 +113,11 @@ interface AppContextValue extends AppState {
   shippingVaultItem: VaultedCard | null;
   openVaultShipping: (card: VaultedCard) => void;
   closeVaultShipping: () => void;
+  markVaultItemPendingShipment: (
+    vaultId: string,
+    shippingName: string,
+    shippingAddress: string,
+  ) => void;
   exchangeVaultCard: (vaultId: string) => void;
   removeVaultCard: (vaultId: string) => void;
   addVaultCard: (card: VaultedCard) => void;
@@ -564,12 +569,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const openVaultShipping = useCallback((card: VaultedCard) => {
+    if (card.status === "pending_shipment") return;
     setState((s) => ({ ...s, shippingVaultItem: card }));
   }, []);
 
   const closeVaultShipping = useCallback(() => {
     setState((s) => ({ ...s, shippingVaultItem: null }));
   }, []);
+
+  const markVaultItemPendingShipment = useCallback(
+    (vaultId: string, shippingName: string, shippingAddress: string) => {
+      setState((s) => ({
+        ...s,
+        vaultItems: s.vaultItems.map((item) =>
+          item.vaultId === vaultId
+            ? {
+                ...item,
+                status: "pending_shipment",
+                shippingName,
+                shippingAddress,
+              }
+            : item,
+        ),
+      }));
+    },
+    [],
+  );
 
   const removeVaultCard = useCallback((vaultId: string) => {
     setState((s) => {
@@ -601,7 +626,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const exchangeVaultCard = useCallback((vaultId: string) => {
     setState((s) => {
       const card = s.vaultItems.find((c) => c.vaultId === vaultId);
-      if (!card) return s;
+      if (!card || card.status === "pending_shipment") return s;
       const credit = exchangeCreditGems(card.value);
       const userId = s.userId;
       if (userId) {
@@ -659,6 +684,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       shippingVaultItem: state.shippingVaultItem,
       openVaultShipping,
       closeVaultShipping,
+      markVaultItemPendingShipment,
       exchangeVaultCard,
       removeVaultCard,
       addVaultCard,
@@ -700,6 +726,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       clearCashoutToast,
       openVaultShipping,
       closeVaultShipping,
+      markVaultItemPendingShipment,
       exchangeVaultCard,
       removeVaultCard,
       addVaultCard,

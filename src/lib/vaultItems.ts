@@ -1,4 +1,4 @@
-import type { Card, Rarity, VaultedCard } from "../types";
+import type { Card, Rarity, VaultedCard, VaultItemStatus } from "../types";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
 import type { VaultItemInsert, VaultItemRow } from "../types/database";
 
@@ -6,6 +6,18 @@ const VALID_RARITIES: Rarity[] = ["Common", "Rare", "Ancient Rare"];
 
 function normalizeRarity(value: string): Rarity {
   return VALID_RARITIES.includes(value as Rarity) ? (value as Rarity) : "Rare";
+}
+
+function normalizeVaultStatus(value: string | undefined | null): VaultItemStatus {
+  if (
+    value === "pending_shipment" ||
+    value === "shipped" ||
+    value === "delivered" ||
+    value === "vaulted"
+  ) {
+    return value;
+  }
+  return "vaulted";
 }
 
 function rowToVaultedCard(row: VaultItemRow): VaultedCard {
@@ -17,6 +29,10 @@ function rowToVaultedCard(row: VaultItemRow): VaultedCard {
     value: row.gem_value,
     image: row.image_url,
     acquiredAt: row.created_at,
+    status: normalizeVaultStatus(row.status),
+    shippingName: row.shipping_name ?? undefined,
+    shippingAddress: row.shipping_address ?? undefined,
+    trackingNumber: row.tracking_number ?? undefined,
   };
 }
 
@@ -52,7 +68,9 @@ export async function insertVaultItem(
   const { data, error } = await supabase
     .from("vault_items")
     .insert(payload as never)
-    .select("id, user_id, item_id, item_name, rarity, gem_value, image_url, created_at")
+    .select(
+      "id, user_id, item_id, item_name, rarity, gem_value, image_url, created_at, status, shipping_name, shipping_address, tracking_number",
+    )
     .single();
 
   if (error) {
@@ -72,7 +90,9 @@ export async function fetchVaultItems(userId: string, limit = 120): Promise<Vaul
 
   const { data, error } = await supabase
     .from("vault_items")
-    .select("id, user_id, item_id, item_name, rarity, gem_value, image_url, created_at")
+    .select(
+      "id, user_id, item_id, item_name, rarity, gem_value, image_url, created_at, status, shipping_name, shipping_address, tracking_number",
+    )
     .eq("user_id", userId.trim())
     .order("created_at", { ascending: false })
     .limit(limit);

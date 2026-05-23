@@ -66,9 +66,15 @@ export interface PulledCard extends Card {
   packId: string;
 }
 
+export type VaultItemStatus = "vaulted" | "pending_shipment" | "shipped" | "delivered";
+
 export interface VaultedCard extends Card {
   vaultId: string;
   acquiredAt: string;
+  status?: VaultItemStatus;
+  shippingName?: string;
+  shippingAddress?: string;
+  trackingNumber?: string;
 }
 
 export interface LeaderboardEntry {

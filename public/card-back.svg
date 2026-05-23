@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none">
+  <rect width="200" height="280" rx="12" fill="#121318"/>
+  <rect x="16" y="16" width="168" height="200" rx="8" fill="#0A0A0C" stroke="#1C1D24" stroke-width="2"/>
+  <path
+    d="M56 108c12-18 32-28 44-28s32 10 44 28M72 128h56M100 100v48"
+    stroke="#FF007F"
+    stroke-width="2.5"
+    stroke-linecap="round"
+    opacity="0.35"
+  />
+  <circle cx="100" cy="118" r="22" stroke="#FF007F" stroke-width="1.5" opacity="0.2"/>
+  <text x="100" y="248" text-anchor="middle" fill="#6B7280" font-family="system-ui,sans-serif" font-size="10" font-weight="600" letter-spacing="0.12em">SLAB</text>
+</svg>

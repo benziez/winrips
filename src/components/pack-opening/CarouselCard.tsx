@@ -3,11 +3,12 @@ import { formatGems } from "../../constants/retail";
 import { CollectibleImage } from "../ui/CollectibleImage";
 import { RarityBadge } from "../ui/RarityBadge";
 
-const rarityBorder: Record<Card["rarity"], string> = {
-  Common: "border-border",
-  Rare: "border-fuchsia/60",
-  "Ancient Rare": "border-gold shadow-[0_0_16px_rgba(255,215,0,0.35)]",
-};
+function tierFrameClass(card: Card, highlighted?: boolean): string {
+  if (highlighted) return "glass-card--winner scale-105 z-10";
+  if (card.rarity === "Ancient Rare") return "glass-card tier-glow-grail hover:scale-[1.03]";
+  if (card.rarity === "Rare") return "glass-card tier-glow-legendary hover:scale-[1.03]";
+  return "glass-card hover:scale-[1.03]";
+}
 
 interface CarouselCardProps {
   card: Card;
@@ -25,21 +26,25 @@ export function CarouselCard({
   return (
     <div
       style={{ width }}
-      className={`shrink-0 rounded-lg border-2 bg-[#121318] overflow-hidden transition-all duration-300 ${
-        rarityBorder[card.rarity]
-      } ${dimmed ? "opacity-35 scale-95" : "opacity-100"} ${
-        highlighted ? "ring-2 ring-[#FF007F] scale-105 z-10" : ""
+      className={`shrink-0 overflow-hidden rounded-lg transition-all duration-500 ease-out ${tierFrameClass(card, highlighted)} ${
+        dimmed ? "scale-95 opacity-30" : "opacity-100"
       }`}
     >
       <div
-        className="border-b border-border p-1.5"
-        style={{ height: Math.round(width * 0.86) }}
+        className="border-b border-border/60 bg-slate-elevated/30 p-2"
+        style={{ height: Math.round(width * 0.88) }}
       >
-        <CollectibleImage src={card.image} alt={card.name} />
+        <CollectibleImage
+          src={card.image}
+          alt={card.name}
+          className="h-full w-full object-contain"
+        />
       </div>
-      <div className="px-2 py-1.5 space-y-0.5">
-        <p className="text-[10px] font-semibold text-white truncate">{card.name}</p>
-        <p className="text-[9px] font-bold text-gold tabular-nums">{formatGems(card.value)}</p>
+      <div className="space-y-1 px-2.5 py-2">
+        <p className="truncate text-[10px] font-semibold tracking-tight text-white">
+          {card.name}
+        </p>
+        <p className="text-[9px] font-bold tabular-nums text-gold">{formatGems(card.value)}</p>
         <RarityBadge rarity={card.rarity} />
       </div>
     </div>

@@ -1,5 +1,9 @@
 import type { Pack, PackCategory } from "../types";
 import type { StoreItem } from "../types/store";
+import { isCollectiblePokemonStoreItem } from "../lib/pokemonApi";
+import { sanitizeStoreItemImage } from "../utils/collectibleFallback";
+import { createFloorFillerItems, getFloorFillersForPackId } from "./floorFillers";
+import { applyValueScaledProbabilities } from "../utils/packProbability";
 import { MOCK_ITEMS, storeItemToCard } from "./items";
 
 export { MOCK_ITEMS, storeItemToCard } from "./items";
@@ -11,8 +15,18 @@ function belongsToCategory(item: StoreItem, category: PackCategory): boolean {
   return item.setId === category;
 }
 
+function isStorefrontEligible(item: StoreItem, category: PackCategory): boolean {
+  if (category === "pokemon") {
+    return isCollectiblePokemonStoreItem(item);
+  }
+  return Boolean(item.image?.trim());
+}
+
 export function getCategoryPool(category: PackCategory): StoreItem[] {
-  return (MOCK_ITEMS[category] ?? []).filter((item) => belongsToCategory(item, category));
+  const base = MOCK_ITEMS[category] ?? [];
+  return base.filter(
+    (item) => belongsToCategory(item, category) && isStorefrontEligible(item, category),
+  );
 }
 
 /** Pack pulls only from whitelisted IDs in the same category — never bleeds across sports/TCG. */
@@ -25,7 +39,25 @@ export function getPackStoreItems(pack: Pack): StoreItem[] {
   }
 
   const allowed = new Set(pack.items);
-  return pool.filter((item) => allowed.has(item.id) && belongsToCategory(item, pack.category));
+  const coreItems = pool
+    .filter((item) => allowed.has(item.id) && belongsToCategory(item, pack.category))
+    .map((item) => {
+      const image = sanitizeStoreItemImage(item.image, pack.category, item.id);
+      return image === item.image ? item : { ...item, image };
+    });
+
+  const floorFillers = (
+    getFloorFillersForPackId(pack.id).length > 0
+      ? getFloorFillersForPackId(pack.id)
+      : createFloorFillerItems(pack)
+  ).filter((item) => isStorefrontEligible(item, pack.category));
+  const seen = new Set(coreItems.map((item) => item.id));
+  const packItems = [
+    ...coreItems,
+    ...floorFillers.filter((item) => !seen.has(item.id)),
+  ];
+
+  return applyValueScaledProbabilities(packItems, { spinCost: pack.cost });
 }
 
 export function getPackStoreItemsById(packId: string, packs: Pack[]): StoreItem[] {

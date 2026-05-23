@@ -9,7 +9,7 @@ export function cardPoolForPackCategory(category: PackCategory): Card[] {
 
 /** Union of all category pools — fallback only. */
 export const CARD_POOL: Card[] = (
-  ["pokemon", "nba", "ufc", "nfl", "yugioh"] as PackCategory[]
+  ["pokemon", "nba", "nfl", "mlb", "yugioh"] as PackCategory[]
 ).flatMap((category) => cardPoolForCategory(category));
 
 export {

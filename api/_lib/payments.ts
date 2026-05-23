@@ -1,13 +1,18 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { registerDepositOrder } from "./balancesStore.js";
 import { buildWinripsOrderId } from "./orderId.js";
+import {
+  resolveNowPaymentsIpnCallbackUrl,
+  warnIfMissingDevIpnCallback,
+} from "./nowpaymentsIpnUrl.js";
+import { requireAuthenticatedUserId } from "./verifySupabaseSession.js";
 import type {
   CreateDepositPaymentRequest,
   DepositPayCurrency,
   DepositPaymentResponse,
 } from "./paymentTypes.js";
 
-const PAY_CURRENCIES: DepositPayCurrency[] = ["sol", "ltc"];
+const PAY_CURRENCIES: DepositPayCurrency[] = ["btc", "sol", "ltc"];
 
 function readEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -36,7 +41,9 @@ function parseCreatePaymentBody(body: unknown): CreateDepositPaymentRequest {
   }
 
   if (!isPayCurrency(payCurrency)) {
-    throw new Error("payCurrency must be sol or ltc.");
+    throw new Error(
+      "payCurrency must be one of: btc, sol, ltc.",
+    );
   }
 
   if (!userId) {
@@ -53,6 +60,20 @@ export async function createDepositPayment(
   const apiKey = readEnv("NOWPAYMENTS_API_KEY");
   const apiUrl = readEnv("NOWPAYMENTS_API_URL").replace(/\/$/, "");
   const orderId = buildWinripsOrderId(input.userId);
+  const ipnCallbackUrl = resolveNowPaymentsIpnCallbackUrl();
+  warnIfMissingDevIpnCallback();
+
+  const paymentPayload: Record<string, unknown> = {
+    price_amount: input.priceAmount,
+    price_currency: "usd",
+    pay_currency: input.payCurrency,
+    order_id: orderId,
+    order_description: `WinRips gem deposit for user ${input.userId}`,
+  };
+
+  if (ipnCallbackUrl) {
+    paymentPayload.ipn_callback_url = ipnCallbackUrl;
+  }
 
   const response = await fetch(`${apiUrl}/payment`, {
     method: "POST",
@@ -60,13 +81,7 @@ export async function createDepositPayment(
       "x-api-key": apiKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      price_amount: input.priceAmount,
-      price_currency: "usd",
-      pay_currency: input.payCurrency,
-      order_id: orderId,
-      order_description: `WinRips gem deposit for user ${input.userId}`,
-    }),
+    body: JSON.stringify(paymentPayload),
   });
 
   const raw = await response.text();
@@ -143,12 +158,19 @@ export async function handlePaymentsRoute(
 
   try {
     const body = await readJsonBody(req);
-    const input = parseCreatePaymentBody(body);
-    const payment = await createDepositPayment(input);
+    const parsed = parseCreatePaymentBody(body);
+    const userId = await requireAuthenticatedUserId(req, parsed.userId);
+    const payment = await createDepositPayment({ ...parsed, userId });
     sendJson(res, 200, payment);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Payment creation failed.";
-    sendJson(res, 400, { error: message });
+    const status =
+      message.includes("Authentication") ||
+      message.includes("session") ||
+      message.includes("Sign in")
+        ? 401
+        : 400;
+    sendJson(res, status, { error: message });
   }
 
   return true;

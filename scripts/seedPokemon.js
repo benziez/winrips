@@ -16,7 +16,8 @@ const ROOT = join(__dirname, "..");
 const OUTPUT = join(ROOT, "src/constants/pokemonCatalog.ts");
 
 const API_BASE = "https://api.pokemontcg.io/v2/cards";
-const SET_QUERY = "set.id:sv4";
+/** Pokémon cards only — excludes Trainers, Energy, and Code Cards at the API layer. */
+const SET_QUERY = "set.id:sv4 supertype:Pokémon";
 const GEMS_PER_USD = 100;
 const MIN_COMMON_GEMS = 30;
 const PAGE_SIZE = 250;
@@ -31,6 +32,23 @@ const TIER_WEIGHT_BUDGET = {
 };
 
 const MYTHIC_KEYWORDS = [/charizard/i, /garchomp/i, /iron valiant/i, /roaring moon/i];
+
+const BLOCKED_NAME_PATTERNS = [/code card/i, /\benergy\b/i, /\bbasic energy\b/i, /\bspecial energy\b/i];
+
+/** Mirrors src/lib/pokemonApi.ts — keep in sync when changing storefront rules. */
+function isCollectiblePokemonApiCard(card) {
+  if (card.supertype !== "Pokémon") return false;
+
+  const name = card.name?.trim() ?? "";
+  if (!name || BLOCKED_NAME_PATTERNS.some((pattern) => pattern.test(name))) {
+    return false;
+  }
+
+  const large = card.images?.large?.trim();
+  if (!large) return false;
+
+  return true;
+}
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -180,7 +198,7 @@ async function fetchAllCards() {
     await sleep(350);
   }
 
-  return all;
+  return all.filter(isCollectiblePokemonApiCard);
 }
 
 function buildStoreItems(apiCards) {
@@ -188,8 +206,9 @@ function buildStoreItems(apiCards) {
   const items = [];
 
   for (const card of apiCards) {
-    const image = card.images?.large ?? card.images?.small;
-    if (!image) continue;
+    if (!isCollectiblePokemonApiCard(card)) continue;
+
+    const image = card.images.large.trim();
 
     const marketUsd = getMarketUsd(card);
     const rarity = classifyTier(card, marketUsd);
@@ -282,7 +301,7 @@ async function main() {
   console.log("Seeding Pokémon catalog from", SET_QUERY);
 
   const apiCards = await fetchAllCards();
-  console.log(`Received ${apiCards.length} raw cards from API`);
+  console.log(`Received ${apiCards.length} collectible Pokémon cards from API`);
 
   const items = buildStoreItems(apiCards);
   if (items.length === 0) {

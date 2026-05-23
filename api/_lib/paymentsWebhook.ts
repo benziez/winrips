@@ -98,6 +98,13 @@ function ipnContext(body: NowPaymentsIpnPayload) {
 /**
  * POST /api/payments/webhook — NOWPayments IPN listener.
  * Credits gem_balance when payment_status is finished or confirmed.
+ *
+ * IPN is an inbound POST from NOWPayments only (signature verified locally via
+ * x-nowpayments-sig). We do not call NOWPayments again from this handler.
+ *
+ * Localtunnel shows a browser "reminder" unless the client sends
+ * `Bypass-Tunnel-Reminder: true`. NOWPayments cannot attach custom IPN headers, so
+ * localtunnel will block gem auto-credit. Use ngrok for local dev (`npm run dev:tunnel`).
  */
 export async function handlePaymentsWebhookRoute(
   req: IncomingMessage,

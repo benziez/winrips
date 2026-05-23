@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import type { PackCategory } from "../../types";
 import { POKEMON_CARD_BACK_FALLBACK } from "../../constants/pokemonAssets";
 import {
   isSportsPlaceholderImage,
   SPORTS_PLACEHOLDER_IMAGE,
 } from "../../constants/sportsAssets";
+import { YUGIOH_CARD_BACK_FALLBACK } from "../../constants/yugiohAssets";
+import { resolveCardBackFallback } from "../../utils/collectibleFallback";
 
 function isRenderableSrc(src?: string | null): src is string {
   if (!src?.trim()) return false;
@@ -19,6 +22,8 @@ interface CollectibleImageProps {
   alt?: string;
   className?: string;
   frameClassName?: string;
+  /** Category-aware error fallback — prevents Pokémon backs on Yu-Gi-Oh assets. */
+  category?: PackCategory;
 }
 
 function LuxurySlabFrame({
@@ -30,12 +35,12 @@ function LuxurySlabFrame({
 }) {
   return (
     <div
-      className={`relative mx-auto flex aspect-[2.5/3.5] h-full max-h-full w-full max-w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-neutral-800 bg-[#111115] ${className}`}
+      className={`relative mx-auto flex aspect-[2.5/3.5] h-full max-h-full w-full max-w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-border bg-slate ${className}`}
       role="img"
       aria-label={alt}
     >
       <div
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_32%,rgba(255,0,127,0.08),transparent_62%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_50%_32%,rgba(255,0,122,0.06),transparent_62%)]"
         aria-hidden
       />
       <svg
@@ -65,20 +70,25 @@ function resolveInitialMode(src?: string | null): DisplayMode {
   return "primary";
 }
 
-function srcForMode(src: string | null | undefined, mode: DisplayMode): string {
-  if (mode === "card-back") return POKEMON_CARD_BACK_FALLBACK;
+function srcForMode(
+  src: string | null | undefined,
+  mode: DisplayMode,
+  category?: PackCategory,
+): string {
+  if (mode === "card-back") return resolveCardBackFallback(src, category);
   if (mode === "primary" && isRenderableSrc(src)) return src;
-  return POKEMON_CARD_BACK_FALLBACK;
+  return resolveCardBackFallback(src, category);
 }
 
 /**
- * Renders collectible art on obsidian — pack art, Pokémon card back on 404, then CSS slab frame.
+ * Renders collectible art — category-aware card backs on load failure, then CSS slab frame.
  */
 export function CollectibleImage({
   src,
   alt = "Collectible",
   className = "h-full w-full object-contain",
   frameClassName = "",
+  category,
 }: CollectibleImageProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => resolveInitialMode(src));
 
@@ -95,11 +105,11 @@ export function CollectibleImage({
   }
 
   const showSlab = displayMode === "slab";
-  const imageSrc = srcForMode(src, displayMode);
+  const imageSrc = srcForMode(src, displayMode, category);
 
   return (
     <div
-      className={`flex h-full w-full items-center justify-center overflow-hidden bg-[#0A0A0C] ${frameClassName}`}
+      className={`flex h-full w-full items-center justify-center overflow-hidden bg-slate-elevated/30 ${frameClassName}`}
     >
       {showSlab ? (
         <LuxurySlabFrame alt={alt} className={className} />
@@ -118,4 +128,9 @@ export function CollectibleImage({
   );
 }
 
-export { SPORTS_PLACEHOLDER_IMAGE, isSportsPlaceholderImage, POKEMON_CARD_BACK_FALLBACK };
+export {
+  SPORTS_PLACEHOLDER_IMAGE,
+  isSportsPlaceholderImage,
+  POKEMON_CARD_BACK_FALLBACK,
+  YUGIOH_CARD_BACK_FALLBACK,
+};

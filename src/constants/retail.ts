@@ -26,6 +26,15 @@ export function formatGems(amount: number): string {
   return `${amount.toLocaleString()} Gems`;
 }
 
+/** Gem pill display — compact uses shorthand (e.g. 1.0M) on narrow header layouts. */
+export function formatGemBalanceDisplay(balance: number, compact = false): string {
+  const safe = Number.isFinite(balance) && balance >= 0 ? balance : 0;
+  if (compact && safe >= 1_000_000) {
+    return `${(safe / 1_000_000).toFixed(1)}M`;
+  }
+  return safe.toLocaleString();
+}
+
 /** 90% buyback credit for exchange actions. */
 export function exchangeCreditGems(itemValueGems: number): number {
   return Math.round(itemValueGems * 0.9);

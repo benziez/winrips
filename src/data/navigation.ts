@@ -1,3 +1,4 @@
+import type { NavIconName } from "../components/icons/AppIcons";
 import type { AppView } from "../types";
 
 export type NavItemKind = "route" | "locked" | "group";
@@ -5,41 +6,29 @@ export type NavItemKind = "route" | "locked" | "group";
 export interface NavItem {
   id: string;
   label: string;
-  icon: string;
+  icon: NavIconName;
   kind: NavItemKind;
   view?: AppView;
   children?: { label: string; view: AppView }[];
 }
 
 export const PRIMARY_NAV: NavItem[] = [
-  { id: "lobby", label: "Mystery Drops", icon: "📦", kind: "route", view: "lobby" },
-  {
-    id: "box-battles",
-    label: "Box Battles",
-    icon: "⚔️",
-    kind: "route",
-    view: "battles",
-  },
-  {
-    id: "item-upgrader",
-    label: "Item Upgrader",
-    icon: "🔄",
-    kind: "route",
-    view: "upgrader",
-  },
-  { id: "inventory", label: "Your Vault", icon: "🎒", kind: "route", view: "vault" },
+  { id: "lobby", label: "Mystery Drops", icon: "package", kind: "route", view: "lobby" },
+  { id: "box-battles", label: "Box Battles", icon: "swords", kind: "route", view: "battles" },
+  { id: "item-upgrader", label: "Item Upgrader", icon: "refresh", kind: "route", view: "upgrader" },
+  { id: "inventory", label: "Your Vault", icon: "vault", kind: "route", view: "vault" },
   {
     id: "leaderboard",
     label: "Collector Leaderboard",
-    icon: "🏆",
+    icon: "trophy",
     kind: "route",
     view: "leaderboard",
   },
-  { id: "rewards", label: "Rewards & Clubs", icon: "🎁", kind: "route", view: "rewards" },
+  { id: "rewards", label: "Rewards & Clubs", icon: "gift", kind: "route", view: "rewards" },
   {
     id: "fairness",
     label: "Fairness",
-    icon: "📜",
+    icon: "scroll",
     kind: "group",
     children: [
       { label: "Provably Fair Hub", view: "fairness" },
@@ -48,7 +37,7 @@ export const PRIMARY_NAV: NavItem[] = [
   },
 ];
 
-/** @deprecated Utility links merged into PRIMARY_NAV Fairness group — kept for module compat */
+/** @deprecated Utility links merged into PRIMARY_NAV Fairness group */
 export const UTILITY_NAV: NavItem[] = [];
 
 export const SOCIAL_LINKS = [

@@ -14,11 +14,23 @@ import {
   parseInfoPath,
 } from "../constants/footerContent";
 import { exchangeCreditGems } from "../constants/retail";
-import { VAULT_ITEMS } from "../constants/vaultItems";
-import { persistLoggedIn, readLoggedInFromStorage } from "../constants/userSession";
+import { clearLoggedIn, persistLoggedIn } from "../constants/userSession";
+import {
+  persistActiveCurrency,
+  readPersistedActiveCurrency,
+  DAILY_BONUS_GEMS,
+  STARTER_GEMS_CLAIM_KEY,
+  STARTER_GEMS_GRANT,
+} from "../constants/dualCurrency";
 import type { AppView, AuthModalMode, Currency, Pack, VaultedCard } from "../types";
-import { fetchAccountBalance } from "../lib/paymentsApi";
-import { getOrCreateUserId } from "../utils/userId";
+import type { WalletModalTab } from "../types/wallet";
+import { fetchUserBalances, resolveSyncedGemBalance } from "../lib/userBalances";
+import { fetchProfileUsername } from "../lib/userProfile";
+import {
+  fetchUserVaultInventory,
+  persistVaultAdd,
+  persistVaultRemove,
+} from "../lib/userVault";
 
 interface AppState {
   isLoggedIn: boolean;
@@ -33,12 +45,20 @@ interface AppState {
   mobileMenuOpen: boolean;
   shippingModalOpen: boolean;
   purchaseModalOpen: boolean;
+  /** True when Gem Refill was opened from the wallet modal (shows back to overview). */
+  purchaseOpenedFromWallet: boolean;
   depositModalOpen: boolean;
+  walletModalOpen: boolean;
+  walletModalTab: WalletModalTab;
   userId: string;
+  profileUsername: string | null;
+  profileLoading: boolean;
   authModalOpen: boolean;
   authModalMode: AuthModalMode;
   cashoutToast: string | null;
+  toastVariant: "default" | "deposit";
   vaultItems: VaultedCard[];
+  vaultItemsLoading: boolean;
   shippingVaultItem: VaultedCard | null;
 }
 
@@ -66,15 +86,28 @@ interface AppContextValue extends AppState {
   deductPackCost: (cost: number, quantity: number) => boolean;
   addSweepsCash: (amount: number) => void;
   addGoldVolts: (amount: number) => void;
-  syncGemBalanceFromServer: () => Promise<void>;
+  setGoldVolts: (balance: number) => void;
+  syncGemBalanceFromServer: (authUserId?: string) => Promise<void>;
+  syncUserProfileFromServer: (authUserId?: string) => Promise<void>;
+  syncVaultFromServer: (authUserId?: string) => Promise<void>;
+  setBalanceUserId: (authUserId: string | null) => void;
+  resetWalletBalances: () => void;
+  logout: () => void;
   setMobileMenuOpen: (open: boolean) => void;
   setShippingModalOpen: (open: boolean) => void;
   setPurchaseModalOpen: (open: boolean) => void;
+  openGemRefillFromWallet: () => void;
+  backToWalletFromGemRefill: () => void;
   setDepositModalOpen: (open: boolean) => void;
+  openWalletModal: (tab?: WalletModalTab) => void;
+  closeWalletModal: () => void;
+  claimStarterGems: () => boolean;
+  claimDailyBonusGems: () => boolean;
   completeLogin: () => void;
   openAuthModal: (mode: AuthModalMode, options?: { keepPurchaseModalOpen?: boolean }) => void;
   setAuthModalOpen: (open: boolean) => void;
   showCashoutToast: (message: string) => void;
+  showDepositSuccessToast: (gemsAdded: number) => void;
   clearCashoutToast: () => void;
   vaultItems: VaultedCard[];
   shippingVaultItem: VaultedCard | null;
@@ -92,24 +125,32 @@ function readInfoSlugFromLocation(): FooterPageSlug | null {
 }
 
 const INITIAL_STATE: AppState = {
-  isLoggedIn: typeof window !== "undefined" ? readLoggedInFromStorage() : false,
+  isLoggedIn: false,
   currentView: readInitialView(),
   infoPageSlug: readInfoSlugFromLocation(),
   walletConnected: false,
-  activeCurrency: "sweeps-cash",
+  activeCurrency:
+    typeof window !== "undefined" ? readPersistedActiveCurrency() : "gold-volts",
   goldVolts: 0,
-  gemBalanceLoading: true,
-  sweepsCash: 250,
+  gemBalanceLoading: false,
+  sweepsCash: 0,
   selectedPack: null,
   mobileMenuOpen: false,
   shippingModalOpen: false,
   purchaseModalOpen: false,
+  purchaseOpenedFromWallet: false,
   depositModalOpen: false,
-  userId: typeof window !== "undefined" ? getOrCreateUserId() : "server",
+  walletModalOpen: false,
+  walletModalTab: "overview",
+  userId: "",
+  profileUsername: null,
+  profileLoading: false,
   authModalOpen: false,
   authModalMode: "login",
   cashoutToast: null,
-  vaultItems: [...VAULT_ITEMS],
+  toastVariant: "default",
+  vaultItems: [],
+  vaultItemsLoading: false,
   shippingVaultItem: null,
 };
 
@@ -185,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setActiveCurrency = useCallback((activeCurrency: Currency) => {
+    persistActiveCurrency(activeCurrency);
     setState((s) => ({ ...s, activeCurrency }));
   }, []);
 
@@ -220,23 +262,134 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, goldVolts: s.goldVolts + amount }));
   }, []);
 
-  const syncGemBalanceFromServer = useCallback(async () => {
-    const userId = state.userId;
-    if (!userId) return;
+  const setGoldVolts = useCallback((balance: number) => {
+    const parsed = Number(balance);
+    if (!Number.isFinite(parsed) || parsed < 0) return;
+    setState((s) => ({ ...s, goldVolts: Math.round(parsed) }));
+  }, []);
 
-    setState((s) => ({ ...s, gemBalanceLoading: true }));
+  const resetWalletBalances = useCallback(() => {
+    setState((s) => ({
+      ...s,
+      goldVolts: 0,
+      sweepsCash: 0,
+      gemBalanceLoading: false,
+      userId: "",
+      profileUsername: null,
+      profileLoading: false,
+      isLoggedIn: false,
+      vaultItems: [],
+      vaultItemsLoading: false,
+      shippingVaultItem: null,
+    }));
+  }, []);
 
-    try {
-      const balance = await fetchAccountBalance(userId);
+  const setBalanceUserId = useCallback((authUserId: string | null) => {
+    setState((s) => ({
+      ...s,
+      userId: authUserId ?? "",
+      isLoggedIn: Boolean(authUserId),
+    }));
+    if (authUserId) {
+      persistLoggedIn();
+    }
+  }, []);
+
+  const syncGemBalanceFromServer = useCallback(async (authUserId?: string) => {
+    const userId = authUserId ?? state.userId;
+    if (!userId) {
       setState((s) => ({
         ...s,
-        goldVolts: balance.gemBalance,
+        goldVolts: 0,
+        sweepsCash: 0,
+        gemBalanceLoading: false,
+      }));
+      return;
+    }
+
+    setState((s) => ({ ...s, gemBalanceLoading: true, userId }));
+
+    try {
+      const balances = await fetchUserBalances(userId);
+      setState((s) => ({
+        ...s,
+        goldVolts: resolveSyncedGemBalance(
+          balances.gemBalance,
+          balances.gemBalanceFromProfile,
+        ),
+        sweepsCash: balances.sweepsBalance,
         gemBalanceLoading: false,
       }));
     } catch {
-      setState((s) => ({ ...s, gemBalanceLoading: false }));
+      setState((s) => ({
+        ...s,
+        gemBalanceLoading: false,
+      }));
     }
   }, [state.userId]);
+
+  const syncUserProfileFromServer = useCallback(async (authUserId?: string) => {
+    const userId = authUserId ?? state.userId;
+    if (!userId) {
+      setState((s) => ({
+        ...s,
+        profileUsername: null,
+        profileLoading: false,
+      }));
+      return;
+    }
+
+    setState((s) => ({ ...s, profileLoading: true, userId }));
+
+    try {
+      const username = await fetchProfileUsername(userId);
+      setState((s) => ({
+        ...s,
+        profileUsername: username,
+        profileLoading: false,
+      }));
+    } catch {
+      setState((s) => ({
+        ...s,
+        profileUsername: null,
+        profileLoading: false,
+      }));
+    }
+  }, [state.userId]);
+
+  const syncVaultFromServer = useCallback(async (authUserId?: string) => {
+    const userId = authUserId ?? state.userId;
+    if (!userId) {
+      setState((s) => ({
+        ...s,
+        vaultItems: [],
+        vaultItemsLoading: false,
+      }));
+      return;
+    }
+
+    setState((s) => ({ ...s, vaultItemsLoading: true, userId }));
+
+    try {
+      const items = await fetchUserVaultInventory(userId);
+      setState((s) => ({
+        ...s,
+        vaultItems: items,
+        vaultItemsLoading: false,
+      }));
+    } catch {
+      setState((s) => ({
+        ...s,
+        vaultItems: [],
+        vaultItemsLoading: false,
+      }));
+    }
+  }, [state.userId]);
+
+  const logout = useCallback(() => {
+    clearLoggedIn();
+    resetWalletBalances();
+  }, [resetWalletBalances]);
 
   const setMobileMenuOpen = useCallback((mobileMenuOpen: boolean) => {
     setState((s) => ({ ...s, mobileMenuOpen }));
@@ -247,18 +400,125 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setPurchaseModalOpen = useCallback((purchaseModalOpen: boolean) => {
-    setState((s) => ({ ...s, purchaseModalOpen }));
+    setState((s) => {
+      if (purchaseModalOpen && !s.isLoggedIn) {
+        return {
+          ...s,
+          authModalOpen: true,
+          authModalMode: "login",
+          purchaseModalOpen: false,
+          purchaseOpenedFromWallet: false,
+        };
+      }
+      if (!purchaseModalOpen) {
+        return { ...s, purchaseModalOpen: false, purchaseOpenedFromWallet: false };
+      }
+      return { ...s, purchaseModalOpen: true, purchaseOpenedFromWallet: false };
+    });
   }, []);
 
-  const setDepositModalOpen = useCallback((depositModalOpen: boolean) => {
+  const openGemRefillFromWallet = useCallback(() => {
+    setState((s) => {
+      if (!s.isLoggedIn) {
+        return {
+          ...s,
+          authModalOpen: true,
+          authModalMode: "login",
+          purchaseModalOpen: false,
+          purchaseOpenedFromWallet: false,
+        };
+      }
+      return {
+        ...s,
+        walletModalOpen: false,
+        purchaseModalOpen: true,
+        purchaseOpenedFromWallet: true,
+      };
+    });
+  }, []);
+
+  const backToWalletFromGemRefill = useCallback(() => {
     setState((s) => ({
       ...s,
-      depositModalOpen,
-      purchaseModalOpen: depositModalOpen ? false : s.purchaseModalOpen,
+      purchaseModalOpen: false,
+      purchaseOpenedFromWallet: false,
+      walletModalOpen: true,
+      walletModalTab: "overview",
     }));
   }, []);
 
+  const setDepositModalOpen = useCallback((depositModalOpen: boolean) => {
+    setState((s) => {
+      if (depositModalOpen && !s.isLoggedIn) {
+        return {
+          ...s,
+          authModalOpen: true,
+          authModalMode: "login",
+          depositModalOpen: false,
+        };
+      }
+      return {
+        ...s,
+        depositModalOpen,
+        purchaseModalOpen: depositModalOpen ? false : s.purchaseModalOpen,
+        purchaseOpenedFromWallet: depositModalOpen ? false : s.purchaseOpenedFromWallet,
+        walletModalOpen: depositModalOpen ? false : s.walletModalOpen,
+      };
+    });
+  }, []);
+
+  const openWalletModal = useCallback((tab: WalletModalTab = "overview") => {
+    setState((s) => {
+      if (!s.isLoggedIn) {
+        return {
+          ...s,
+          authModalOpen: true,
+          authModalMode: "login",
+          walletModalOpen: false,
+        };
+      }
+      return {
+        ...s,
+        walletModalOpen: true,
+        walletModalTab: tab,
+        purchaseModalOpen: false,
+        purchaseOpenedFromWallet: false,
+        depositModalOpen: false,
+      };
+    });
+  }, []);
+
+  const closeWalletModal = useCallback(() => {
+    setState((s) => ({ ...s, walletModalOpen: false }));
+  }, []);
+
+  const claimStarterGems = useCallback((): boolean => {
+    let granted = false;
+    setState((s) => {
+      if (s.goldVolts >= 10) return s;
+      try {
+        if (localStorage.getItem(STARTER_GEMS_CLAIM_KEY) === "1") return s;
+        localStorage.setItem(STARTER_GEMS_CLAIM_KEY, "1");
+      } catch {
+        return s;
+      }
+      granted = true;
+      return { ...s, goldVolts: s.goldVolts + STARTER_GEMS_GRANT };
+    });
+    return granted;
+  }, []);
+
+  const claimDailyBonusGems = useCallback((): boolean => {
+    let granted = false;
+    setState((s) => {
+      granted = true;
+      return { ...s, goldVolts: s.goldVolts + DAILY_BONUS_GEMS };
+    });
+    return granted;
+  }, []);
+
   const completeLogin = useCallback(() => {
+    /** UI-only mock login — real balances require Supabase auth via WalletBalanceSync. */
     persistLoggedIn();
     setState((s) => ({ ...s, isLoggedIn: true }));
   }, []);
@@ -270,6 +530,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         authModalOpen: true,
         authModalMode,
         purchaseModalOpen: options?.keepPurchaseModalOpen ? s.purchaseModalOpen : false,
+        purchaseOpenedFromWallet: options?.keepPurchaseModalOpen
+          ? s.purchaseOpenedFromWallet
+          : false,
         mobileMenuOpen: false,
       }));
     },
@@ -281,14 +544,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showCashoutToast = useCallback((cashoutToast: string) => {
-    setState((s) => ({ ...s, cashoutToast }));
+    setState((s) => ({ ...s, cashoutToast, toastVariant: "default" }));
     setTimeout(() => {
-      setState((s) => ({ ...s, cashoutToast: null }));
+      setState((s) => ({ ...s, cashoutToast: null, toastVariant: "default" }));
     }, 4000);
   }, []);
 
+  const showDepositSuccessToast = useCallback((gemsAdded: number) => {
+    const amount = Math.max(0, Math.round(gemsAdded));
+    const cashoutToast = `💎 Success! ${amount.toLocaleString()} Gems have been credited to your locker.`;
+    setState((s) => ({ ...s, cashoutToast, toastVariant: "deposit" }));
+    setTimeout(() => {
+      setState((s) => ({ ...s, cashoutToast: null, toastVariant: "default" }));
+    }, 5500);
+  }, []);
+
   const clearCashoutToast = useCallback(() => {
-    setState((s) => ({ ...s, cashoutToast: null }));
+    setState((s) => ({ ...s, cashoutToast: null, toastVariant: "default" }));
   }, []);
 
   const openVaultShipping = useCallback((card: VaultedCard) => {
@@ -300,31 +572,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeVaultCard = useCallback((vaultId: string) => {
-    setState((s) => ({
-      ...s,
-      vaultItems: s.vaultItems.filter((c) => c.vaultId !== vaultId),
-    }));
+    setState((s) => {
+      const userId = s.userId;
+      if (userId) {
+        void persistVaultRemove(userId, vaultId)
+          .then((items) => setState((current) => ({ ...current, vaultItems: items })))
+          .catch(() => undefined);
+      }
+      return {
+        ...s,
+        vaultItems: s.vaultItems.filter((c) => c.vaultId !== vaultId),
+      };
+    });
   }, []);
 
   const addVaultCard = useCallback((card: VaultedCard) => {
-    setState((s) => ({ ...s, vaultItems: [card, ...s.vaultItems] }));
+    setState((s) => {
+      const userId = s.userId;
+      if (userId) {
+        void persistVaultAdd(userId, card)
+          .then((items) => setState((current) => ({ ...current, vaultItems: items })))
+          .catch(() => undefined);
+      }
+      return { ...s, vaultItems: [card, ...s.vaultItems] };
+    });
   }, []);
 
-  const exchangeVaultCard = useCallback(
-    (vaultId: string) => {
-      setState((s) => {
-        const card = s.vaultItems.find((c) => c.vaultId === vaultId);
-        if (!card) return s;
-        const credit = exchangeCreditGems(card.value);
-        return {
-          ...s,
-          goldVolts: s.goldVolts + credit,
-          vaultItems: s.vaultItems.filter((c) => c.vaultId !== vaultId),
-        };
-      });
-    },
-    [],
-  );
+  const exchangeVaultCard = useCallback((vaultId: string) => {
+    setState((s) => {
+      const card = s.vaultItems.find((c) => c.vaultId === vaultId);
+      if (!card) return s;
+      const credit = exchangeCreditGems(card.value);
+      const userId = s.userId;
+      if (userId) {
+        void persistVaultRemove(userId, vaultId)
+          .then((items) => setState((current) => ({ ...current, vaultItems: items })))
+          .catch(() => undefined);
+      }
+      return {
+        ...s,
+        goldVolts: s.goldVolts + credit,
+        vaultItems: s.vaultItems.filter((c) => c.vaultId !== vaultId),
+      };
+    });
+  }, []);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -341,15 +632,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deductPackCost,
       addSweepsCash,
       addGoldVolts,
+      setGoldVolts,
       syncGemBalanceFromServer,
+      syncUserProfileFromServer,
+      syncVaultFromServer,
+      setBalanceUserId,
+      resetWalletBalances,
+      logout,
       setMobileMenuOpen,
       setShippingModalOpen,
       setPurchaseModalOpen,
+      openGemRefillFromWallet,
+      backToWalletFromGemRefill,
       setDepositModalOpen,
+      openWalletModal,
+      closeWalletModal,
+      claimStarterGems,
+      claimDailyBonusGems,
       completeLogin,
       openAuthModal,
       setAuthModalOpen,
       showCashoutToast,
+      showDepositSuccessToast,
       clearCashoutToast,
       vaultItems: state.vaultItems,
       shippingVaultItem: state.shippingVaultItem,
@@ -371,15 +675,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deductPackCost,
       addSweepsCash,
       addGoldVolts,
+      setGoldVolts,
       syncGemBalanceFromServer,
+      syncUserProfileFromServer,
+      syncVaultFromServer,
+      setBalanceUserId,
+      resetWalletBalances,
+      logout,
       setMobileMenuOpen,
       setShippingModalOpen,
       setPurchaseModalOpen,
+      openGemRefillFromWallet,
+      backToWalletFromGemRefill,
       setDepositModalOpen,
+      openWalletModal,
+      closeWalletModal,
+      claimStarterGems,
+      claimDailyBonusGems,
       completeLogin,
       openAuthModal,
       setAuthModalOpen,
       showCashoutToast,
+      showDepositSuccessToast,
       clearCashoutToast,
       openVaultShipping,
       closeVaultShipping,

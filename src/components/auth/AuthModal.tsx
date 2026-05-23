@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../../context/AppContext";
+import { useAuth } from "../../context/AuthContext";
 
 export function AuthModal() {
   const {
@@ -10,19 +11,27 @@ export function AuthModal() {
     completeLogin,
     showCashoutToast,
   } = useApp();
+  const { signInWithEmail, signUpWithEmail } = useAuth();
+
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const isLogin = authModalMode === "login";
   const title = isLogin ? "Welcome Back" : "Create Account";
   const subtitle = isLogin
-    ? "Sign in to sync your vault and sweeps balance."
-    : "Join WinRips — sweepstakes pack ripping awaits.";
+    ? "Sign in to sync your vault and gem balance."
+    : "Join WinRips — pick a username and start ripping.";
 
   useEffect(() => {
     if (!authModalOpen) {
+      setUsername("");
       setEmail("");
       setPassword("");
+      setFormError(null);
+      setSubmitting(false);
     }
   }, [authModalOpen]);
 
@@ -32,11 +41,44 @@ export function AuthModal() {
     setAuthModalOpen(false);
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    completeLogin();
-    showCashoutToast(isLogin ? "Welcome back!" : "Account created — you're in.");
-    handleClose();
+    if (submitting) return;
+
+    setFormError(null);
+    setSubmitting(true);
+
+    try {
+      if (isLogin) {
+        const { error } = await signInWithEmail(email, password);
+        if (error) {
+          setFormError(error);
+          return;
+        }
+        showCashoutToast("Welcome back!");
+        handleClose();
+        return;
+      }
+
+      const { error, needsEmailConfirmation } = await signUpWithEmail(
+        email,
+        password,
+        username,
+      );
+      if (error) {
+        setFormError(error);
+        return;
+      }
+
+      if (needsEmailConfirmation) {
+        showCashoutToast("Account created — check your email to confirm before signing in.");
+      } else {
+        showCashoutToast("Account created — you're in.");
+      }
+      handleClose();
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function handleSso(provider: string) {
@@ -68,10 +110,34 @@ export function AuthModal() {
         <p className="mt-1 mb-6 text-sm text-muted">{subtitle}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin ? (
+            <div>
+              <label
+                htmlFor="auth-username"
+                className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted"
+              >
+                Username
+              </label>
+              <input
+                id="auth-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="your_handle"
+                required
+                minLength={3}
+                maxLength={24}
+                autoComplete="username"
+                pattern="[a-zA-Z0-9_]{3,24}"
+                className="w-full rounded-lg border border-border bg-obsidian px-4 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-fuchsia/50 focus:outline-none focus:ring-1 focus:ring-fuchsia/30"
+              />
+            </div>
+          ) : null}
+
           <div>
             <label
               htmlFor="auth-email"
-              className="mb-1.5 block text-xs font-semibold text-muted uppercase tracking-wider"
+              className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted"
             >
               Email
             </label>
@@ -82,13 +148,14 @@ export function AuthModal() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               required
+              autoComplete="email"
               className="w-full rounded-lg border border-border bg-obsidian px-4 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-fuchsia/50 focus:outline-none focus:ring-1 focus:ring-fuchsia/30"
             />
           </div>
           <div>
             <label
               htmlFor="auth-password"
-              className="mb-1.5 block text-xs font-semibold text-muted uppercase tracking-wider"
+              className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted"
             >
               Password
             </label>
@@ -100,15 +167,23 @@ export function AuthModal() {
               placeholder="••••••••"
               required
               minLength={6}
+              autoComplete={isLogin ? "current-password" : "new-password"}
               className="w-full rounded-lg border border-border bg-obsidian px-4 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-fuchsia/50 focus:outline-none focus:ring-1 focus:ring-fuchsia/30"
             />
           </div>
 
+          {formError ? (
+            <p className="text-sm text-red-400/90" role="alert">
+              {formError}
+            </p>
+          ) : null}
+
           <button
             type="submit"
-            className="w-full rounded-xl bg-[#FF007F] py-3 text-sm font-bold uppercase tracking-wide text-white hover:brightness-110"
+            disabled={submitting}
+            className="w-full rounded-xl bg-[#FF007F] py-3 text-sm font-bold uppercase tracking-wide text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isLogin ? "Log In" : "Sign Up"}
+            {submitting ? "Please wait…" : isLogin ? "Log In" : "Sign Up"}
           </button>
         </form>
 
@@ -141,7 +216,10 @@ export function AuthModal() {
           {isLogin ? "New here?" : "Already have an account?"}{" "}
           <button
             type="button"
-            onClick={() => openAuthModal(isLogin ? "signup" : "login")}
+            onClick={() => {
+              setFormError(null);
+              openAuthModal(isLogin ? "signup" : "login");
+            }}
             className="font-semibold text-fuchsia hover:underline"
           >
             {isLogin ? "Sign Up" : "Log In"}

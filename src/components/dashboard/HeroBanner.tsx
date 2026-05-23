@@ -21,25 +21,23 @@ const HERO_CARDS = [
 
 export function HeroBanner() {
   return (
-    <section className="relative w-full overflow-hidden rounded-xl border border-border bg-[#0A0A0C]">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_0%_50%,rgba(255,0,127,0.06),transparent_55%)]" />
+    <section className="relative w-full overflow-hidden rounded-xl border border-border bg-slate">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_0%_50%,rgba(255,0,122,0.05),transparent_55%)]" />
 
-      <div className="relative grid grid-cols-1 items-center gap-8 px-5 py-8 sm:px-8 sm:py-10 min-h-[200px] sm:min-h-[240px] lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
+      <div className="relative grid min-h-0 grid-cols-1 items-center gap-5 px-4 py-6 sm:min-h-[200px] sm:gap-8 sm:px-8 sm:py-10 md:min-h-[240px] lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
         <div className="z-10 flex max-w-lg flex-col">
-          <span className="inline-flex w-fit items-center rounded border border-[#FF007F]/50 bg-[#FF007F]/10 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.22em] text-[#FF007F] sm:text-[10px]">
+          <span className="inline-flex w-fit items-center rounded border border-fuchsia/40 bg-fuchsia/10 px-2.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] text-fuchsia sm:px-3 sm:py-1 sm:text-[10px] sm:tracking-[0.22em]">
             Featured Drops Now Active
           </span>
 
-          <h1 className="mt-4 text-2xl font-black uppercase leading-[1.08] tracking-[-0.02em] text-white sm:text-3xl lg:text-[2.125rem]">
-            Unbox the Ultimate
-            <br />
-            Pokémon Grails
+          <h1 className="mt-3 text-2xl font-black uppercase leading-[1.1] tracking-[-0.02em] text-white sm:mt-4 sm:text-3xl lg:text-[2.125rem]">
+            <span className="block sm:inline">Unbox the World&apos;s Most </span>
+            <span className="block sm:inline">Coveted Grails</span>
           </h1>
 
-          <p className="mt-4 max-w-lg text-sm leading-relaxed text-slate-400 sm:text-[15px] sm:leading-[1.65]">
-            Hunt for Scarlet & Violet ultra-rares, classic 151 chase hits, and legendary
-            vintage slabs. Open premium custom-curated mystery packs, secure top-tier cards,
-            and build your dream collection today!
+          <p className="mt-3 max-w-lg text-xs leading-relaxed text-slate-400 sm:mt-4 sm:text-sm sm:leading-relaxed md:text-[15px] md:leading-[1.65]">
+            Curated drops across premium trading cards and authenticated slabs.
+            Acquire grails directly from our secure marketplace vault.
           </p>
         </div>
 

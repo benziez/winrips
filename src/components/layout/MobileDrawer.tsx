@@ -13,13 +13,13 @@ export function MobileDrawer() {
     <>
       <button
         type="button"
-        className="fixed inset-0 z-40 bg-black/80 lg:hidden"
+        className="fixed inset-0 z-[45] bg-black/80 lg:hidden"
         onClick={closeMenu}
         aria-label="Close menu"
       />
-      <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-border bg-[#111115] lg:hidden">
+      <aside className="fixed inset-y-0 left-0 z-[46] flex w-72 max-w-[85vw] flex-col border-r border-border bg-obsidian shadow-2xl lg:hidden">
         <div className="flex shrink-0 items-center justify-between border-b border-border bg-transparent px-5 py-4">
-          <WinRipsLogo variant="sidebar" />
+          <WinRipsLogo />
           <button
             type="button"
             onClick={closeMenu}

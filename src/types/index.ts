@@ -4,7 +4,7 @@ export type Currency = "gold-volts" | "sweeps-cash";
 
 export type PackTheme = "gold" | "fuchsia" | "mystic";
 
-export type PackCategory = "pokemon" | "ufc" | "nba" | "nfl" | "yugioh";
+export type PackCategory = "pokemon" | "ufc" | "nba" | "nfl" | "mlb" | "yugioh";
 
 export type PackVisual = "default" | "ufc-octagon" | "nba-hardwood";
 
@@ -15,6 +15,7 @@ export type AppView =
   | "pack-open"
   | "inventory"
   | "vault"
+  | "play-history"
   | "upgrader"
   | "battles"
   | "leaderboard"
@@ -76,13 +77,4 @@ export interface LeaderboardEntry {
   volume: number;
   pulls: number;
   isGold?: boolean;
-}
-
-export interface RewardTier {
-  id: string;
-  name: string;
-  requirement: string;
-  bonus: string;
-  progress: number;
-  unlocked: boolean;
 }

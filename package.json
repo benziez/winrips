@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 4444",
+    "dev:tunnel": "node scripts/tunnel.mjs ngrok",
+    "dev:tunnel:lt": "node scripts/tunnel.mjs localtunnel",
     "dev:payments": "tsx server/index.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4444",
@@ -11,6 +13,7 @@
     "dev:set-balance": "node scripts/setGemBalance.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.106.1",
     "@upstash/redis": "^1.38.0",
     "@vercel/node": "^5.8.3",
     "react": "^19.1.0",
@@ -22,6 +25,7 @@
     "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
+    "localtunnel": "^2.0.2",
     "tailwindcss": "^4.1.7",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",

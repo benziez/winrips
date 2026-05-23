@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280" fill="none">
+  <rect width="200" height="280" rx="10" fill="#2a1218"/>
+  <rect x="8" y="8" width="184" height="264" rx="8" fill="#1a0a10" stroke="#c9a227" stroke-width="2"/>
+  <rect x="24" y="24" width="152" height="232" rx="6" fill="#3d1824" stroke="#8b6914" stroke-width="1.5"/>
+  <circle cx="100" cy="118" r="36" fill="#4a2030" stroke="#e8c547" stroke-width="2"/>
+  <path d="M100 88 L118 118 L100 148 L82 118 Z" fill="#e8c547" opacity="0.85"/>
+  <path d="M100 98 L110 118 L100 138 L90 118 Z" fill="#2a1218"/>
+  <text x="100" y="200" text-anchor="middle" fill="#e8c547" font-family="system-ui,sans-serif" font-size="9" font-weight="700" letter-spacing="0.12em">YU-GI-OH!</text>
+  <text x="100" y="216" text-anchor="middle" fill="#c9a227" font-family="system-ui,sans-serif" font-size="7" font-weight="600" opacity="0.8">TRADING CARD GAME</text>
+</svg>

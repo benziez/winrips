@@ -3,6 +3,7 @@ import type { AppView } from "../types";
 const VIEW_PATHS: Partial<Record<AppView, string>> = {
   lobby: "/",
   vault: "/vault",
+  "play-history": "/vault/history",
   upgrader: "/upgrader",
   battles: "/battles",
   inventory: "/vault",
@@ -17,6 +18,8 @@ const VIEW_PATHS: Partial<Record<AppView, string>> = {
 const PATH_TO_VIEW: Record<string, AppView> = {
   "/": "lobby",
   "/vault": "vault",
+  "/vault/history": "play-history",
+  "/play-history": "play-history",
   "/upgrader": "upgrader",
   "/battles": "battles",
 };

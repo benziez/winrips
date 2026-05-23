@@ -1,12 +1,13 @@
 import type { LobbyCategoryFilter, PackCategory } from "../types";
 
-/** Categories locked until post-launch — Pokémon is live at launch. */
-export const COMING_SOON_CATEGORIES = [
-  "nba",
-  "nfl",
-  "ufc",
-  "yugioh",
-] as const satisfies readonly PackCategory[];
+/**
+ * Per-pack floor filler injection (3–5 commons @ 10–20% of spin cost) and
+ * house-edge odds live in `packEconomy.ts`, `floorFillers.ts`, and `packProbability.ts`.
+ */
+export const PACK_ECONOMY_ENABLED = true;
+
+/** Post-launch categories — empty while the platform is Pokémon-only at launch. */
+export const COMING_SOON_CATEGORIES = [] as const satisfies readonly PackCategory[];
 
 export type ComingSoonCategory = (typeof COMING_SOON_CATEGORIES)[number];
 
@@ -16,24 +17,15 @@ export function isComingSoonCategory(
   return (COMING_SOON_CATEGORIES as readonly string[]).includes(category);
 }
 
-export const COMING_SOON_HEADLINES: Record<ComingSoonCategory, string> = {
-  nba: "NBA HARDWOOD EXPANSION",
-  nfl: "NFL GRIDIRON EXPANSION",
-  ufc: "UFC OCTAGON EXPANSION",
-  yugioh: "YU-GI-OH! DUELIST EXPANSION",
-};
+export const COMING_SOON_HEADLINES = {} as Record<ComingSoonCategory, string>;
 
 export interface PackCategoryTab {
   id: LobbyCategoryFilter;
   label: string;
-  icon: string;
 }
 
+/** Launch-only: Pokémon storefront — no sports/TCG tabs at launch. */
 export const PACK_CATEGORY_TABS: PackCategoryTab[] = [
-  { id: "all", label: "All Drops", icon: "◈" },
-  { id: "pokemon", label: "Pokémon TCG", icon: "⚡" },
-  { id: "ufc", label: "UFC Slabs & Autographs", icon: "🥊" },
-  { id: "nba", label: "NBA Basketball", icon: "🏀" },
-  { id: "nfl", label: "NFL Football", icon: "🏈" },
-  { id: "yugioh", label: "Yu-Gi-Oh!", icon: "🃏" },
+  { id: "all", label: "All Drops" },
+  { id: "pokemon", label: "Pokémon TCG" },
 ];

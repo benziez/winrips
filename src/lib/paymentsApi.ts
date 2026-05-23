@@ -1,17 +1,69 @@
 import type {
   AccountBalanceResponse,
   CreateDepositPaymentRequest,
+  DepositPayCurrency,
   DepositPaymentResponse,
 } from "../types/payments";
 
+const URI_SCHEME_PREFIXES = new Set([
+  "bitcoin",
+  "btc",
+  "litecoin",
+  "ltc",
+  "solana",
+  "sol",
+]);
+
+/**
+ * Raw QR payload for exchange apps (Coinbase, etc.) — address only, no `bitcoin:` / `solana:` URI.
+ */
+export function normalizeDepositQrAddress(rawAddress: string): string {
+  let value = rawAddress.trim();
+  if (!value) return value;
+
+  const colonIndex = value.indexOf(":");
+  if (colonIndex > 0) {
+    const scheme = value.slice(0, colonIndex).toLowerCase();
+    if (URI_SCHEME_PREFIXES.has(scheme)) {
+      value = value.slice(colonIndex + 1);
+    }
+  }
+
+  return value.split("?")[0]?.split("#")[0]?.trim() ?? value;
+}
+import { supabase } from "./supabaseClient";
+
 const CREATE_PAYMENT_PATH = "/api/payments/create";
+
+async function getDepositAccessToken(): Promise<string> {
+  if (!supabase) {
+    throw new Error("Sign in required to create a deposit.");
+  }
+
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    throw new Error("Unable to read session. Please sign in again.");
+  }
+
+  const token = data.session?.access_token?.trim();
+  if (!token) {
+    throw new Error("Sign in required to create a deposit.");
+  }
+
+  return token;
+}
 
 export async function requestDepositPayment(
   payload: CreateDepositPaymentRequest,
 ): Promise<DepositPaymentResponse> {
+  const accessToken = await getDepositAccessToken();
+
   const response = await fetch(CREATE_PAYMENT_PATH, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
     body: JSON.stringify(payload),
   });
 
@@ -78,11 +130,19 @@ export async function setDevGemBalance(
   return data;
 }
 
-export function depositQrCodeUrl(payAddress: string, size = 220): string {
+export function depositQrCodeUrl(
+  payAddress: string,
+  payCurrency?: DepositPayCurrency,
+  size = 220,
+): string {
+  const shouldStripUri =
+    payCurrency === "btc" || payCurrency === "sol" || payCurrency === "ltc";
+  const qrPayload = shouldStripUri ? normalizeDepositQrAddress(payAddress) : payAddress.trim();
+
   const params = new URLSearchParams({
     size: `${size}x${size}`,
     margin: "12",
-    data: payAddress,
+    data: qrPayload,
   });
   return `https://api.qrserver.com/v1/create-qr-code/?${params.toString()}`;
 }

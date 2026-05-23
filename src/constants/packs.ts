@@ -1,15 +1,22 @@
-import type { Pack, PackCategory } from "../types";
+import type { Pack } from "../types";
 import type { StoreItem } from "../types/store";
-import { NBA_ITEMS, NBA_ITEM_IDS } from "./nbaItems";
-import { NFL_ITEMS, NFL_ITEM_IDS } from "./nflItems";
-import { UFC_ITEMS, UFC_ITEM_IDS } from "./ufcItems";
-import { YUGIOH_POOL, YUGIOH_ITEM_IDS } from "./categoryPools";
-import { SPORTS_PLACEHOLDER_IMAGE } from "./sportsAssets";
+import { getPackStoreItems } from "./catalog";
+import { getFloorFillersForPackId, isFloorFillerItemId } from "./floorFillers";
+import { initializePackFloorEconomy } from "./packEconomy";
 import {
+  computePackExpectedValue,
+  expectedValueBounds,
+  targetPackExpectedValue,
+} from "../utils/packProbability";
+import {
+  EVOLVING_SKIES_ITEM_IDS,
   GOD_PACK_1999_ITEM_IDS,
   LEGENDARY_HUNT_ITEM_IDS,
+  MEGA_EVOLUTION_ITEM_IDS,
   PACK_151_ITEM_IDS,
+  PRISMATIC_SIR_ITEM_IDS,
   TRAINERS_STARTER_ITEM_IDS,
+  WOTC_FIRST_EDITION_ITEM_IDS,
 } from "./packPokemonPools";
 import { POKEMON_ALL_ITEM_IDS, POKEMON_ITEMS } from "./pokemonCatalog";
 
@@ -22,19 +29,19 @@ function coverFromCatalog(catalog: StoreItem[], name: string): string {
   return catalog.find((c) => c.name === name)?.image ?? catalog[0]?.image ?? "";
 }
 
-function allItemIds(catalog: StoreItem[]): string[] {
-  return catalog.map((item) => item.id);
-}
-
 /** Active launch Pokémon packs — unique ~25-card pools per tier. */
 export const ACTIVE_POKEMON_PACK_IDS = [
   "trainers-starter",
   "151-booster-collector",
+  "mega-evolution",
   "legendary-hunt",
+  "prismatic-sir",
+  "evolving-skies",
   "god-pack-1999",
+  "wotc-first-edition",
 ] as const;
 
-/** Pokémon mystery packs — exactly four launch tiers with distinct registries. */
+/** Pokémon mystery packs — eight launch tiers with distinct registries. */
 export function buildPokemonPacks(): CatalogPack[] {
   return [
     {
@@ -62,6 +69,17 @@ export function buildPokemonPacks(): CatalogPack[] {
       accentLabel: "MID TIER",
     },
     {
+      id: "mega-evolution",
+      name: "Mega Evolution EX",
+      cost: 1_500,
+      theme: "gold",
+      description: "Devastating power from classic Mega Evolution EX sets.",
+      category: "pokemon",
+      image: coverFromCatalog(POKEMON_ITEMS, "Mega Rayquaza EX"),
+      items: [...MEGA_EVOLUTION_ITEM_IDS],
+      accentLabel: "MEGA POWER",
+    },
+    {
       id: "legendary-hunt",
       name: "Legendary Hunt",
       cost: 2_500,
@@ -72,6 +90,28 @@ export function buildPokemonPacks(): CatalogPack[] {
       image: coverFromCatalog(POKEMON_ITEMS, "Umbreon VMAX"),
       items: [...LEGENDARY_HUNT_ITEM_IDS],
       accentLabel: "⚡ HIGH VARIANCE",
+    },
+    {
+      id: "prismatic-sir",
+      name: "Prismatic Special SIR",
+      cost: 4_500,
+      theme: "fuchsia",
+      description: "Chasing the premium Eeveelution Stellar Special Illustration Rares.",
+      category: "pokemon",
+      image: coverFromCatalog(POKEMON_ITEMS, "Umbreon SIR"),
+      items: [...PRISMATIC_SIR_ITEM_IDS],
+      accentLabel: "✨ SIR CHASE",
+    },
+    {
+      id: "evolving-skies",
+      name: "Evolving Skies Chase",
+      cost: 6_500,
+      theme: "mystic",
+      description: "The absolute peak of modern alternate art grails.",
+      category: "pokemon",
+      image: coverFromCatalog(POKEMON_ITEMS, "Rayquaza VMAX Alt Art"),
+      items: [...EVOLVING_SKIES_ITEM_IDS],
+      accentLabel: "🔥 ALT ART",
     },
     {
       id: "god-pack-1999",
@@ -85,154 +125,61 @@ export function buildPokemonPacks(): CatalogPack[] {
       items: [...GOD_PACK_1999_ITEM_IDS],
       accentLabel: "1,000x CEILING",
     },
-  ];
-}
-
-/** Sports packs — item IDs are sourced only from the matching catalog array. */
-export function buildSportsAndTcgpPacks(): CatalogPack[] {
-  const playoffNbaIds = NBA_ITEMS.filter(
-    (item) => item.id !== "nba-m-lebron-graded",
-  ).map((item) => item.id);
-
-  const titleFightUfcIds = UFC_ITEMS.filter((item) =>
-    ["Mythic", "Legendary", "Epic"].includes(item.rarity),
-  ).map((item) => item.id);
-
-  const sundayMaxNflIds = NFL_ITEMS.filter((item) =>
-    ["Mythic", "Legendary", "Epic"].includes(item.rarity),
-  ).map((item) => item.id);
-
-  const forbiddenRiteYgoIds = YUGIOH_POOL.filter((item) =>
-    ["Mythic", "Legendary", "Epic"].includes(item.rarity),
-  ).map((item) => item.id);
-
-  return [
     {
-      id: "octagon-legends",
-      name: "Octagon Legends Box",
-      cost: 2_500,
-      theme: "fuchsia",
-      description: "Autographed fight-worn relics and octagon grails.",
-      category: "ufc",
-      visual: "ufc-octagon",
-      image: SPORTS_PLACEHOLDER_IMAGE,
-      items: allItemIds(UFC_ITEMS),
-      accentLabel: "1,000x CEILING",
-    },
-    {
-      id: "title-fight",
-      name: "Title Fight Premium",
-      cost: 7_500,
-      theme: "gold",
-      description: "Championship bout memorabilia drops.",
-      category: "ufc",
-      visual: "ufc-octagon",
-      image: SPORTS_PLACEHOLDER_IMAGE,
-      items: titleFightUfcIds,
-      accentLabel: "⚡ HIGH VARIANCE",
-    },
-    {
-      id: "all-star-hardwood",
-      name: "All-Star Hardwood Drop",
-      cost: 5_000,
-      theme: "gold",
-      description: "Court-ready slabs and signed hardwood hits.",
-      category: "nba",
-      visual: "nba-hardwood",
-      image: SPORTS_PLACEHOLDER_IMAGE,
-      items: allItemIds(NBA_ITEMS),
-      accentLabel: "🔥 TRENDING",
-    },
-    {
-      id: "playoff-pressure",
-      name: "Playoff Pressure Pack",
-      cost: 3_000,
-      theme: "fuchsia",
-      description: "Postseason heat — rookies and legends.",
-      category: "nba",
-      visual: "nba-hardwood",
-      image: SPORTS_PLACEHOLDER_IMAGE,
-      items: playoffNbaIds,
-      accentLabel: "⚡ HIGH VARIANCE",
-    },
-    {
-      id: "gridiron-legends",
-      name: "Gridiron Legends Box",
-      cost: 4_000,
-      theme: "gold",
-      description: "Helmet patches and championship relics.",
-      category: "nfl",
-      image: SPORTS_PLACEHOLDER_IMAGE,
-      items: allItemIds(NFL_ITEMS),
-      accentLabel: "🔥 TRENDING",
-    },
-    {
-      id: "sunday-max",
-      name: "Sunday Max Volatility",
-      cost: 6_500,
+      id: "wotc-first-edition",
+      name: "WOTC 1st Edition Classic",
+      cost: 25_000,
       theme: "mystic",
-      description: "High-variance football grails for serious collectors.",
-      category: "nfl",
-      image: SPORTS_PLACEHOLDER_IMAGE,
-      items: sundayMaxNflIds,
-      accentLabel: "1,000x CEILING",
-    },
-    {
-      id: "duelists-vault",
-      name: "Duelist's Secret Vault",
-      cost: 3_500,
-      theme: "mystic",
-      description: "Ultra rares and ghost rare chase cards.",
-      category: "yugioh",
-      image: coverFromCatalog(YUGIOH_POOL, "LOB 1st Edition Blue-Eyes White Dragon"),
-      items: [...YUGIOH_ITEM_IDS],
-      accentLabel: "⚡ HIGH VARIANCE",
-    },
-    {
-      id: "forbidden-rite",
-      name: "Forbidden Rite Edition",
-      cost: 8_000,
-      theme: "fuchsia",
-      description: "Limited print spell and trap supremacy.",
-      category: "yugioh",
-      image: coverFromCatalog(YUGIOH_POOL, "Dark Magician Ghost Rare"),
-      items: forbiddenRiteYgoIds,
-      accentLabel: "1,000x CEILING",
+      description: "Elite, high-end vintage 1999-2000 first edition holos only.",
+      category: "pokemon",
+      image: coverFromCatalog(POKEMON_ITEMS, "Charizard 1st Ed Holo"),
+      items: [...WOTC_FIRST_EDITION_ITEM_IDS],
+      accentLabel: "VINTAGE GRAIL",
     },
   ];
 }
 
 export function buildCatalogPacks(): CatalogPack[] {
-  return [...buildPokemonPacks(), ...buildSportsAndTcgpPacks()];
+  return initializePackFloorEconomy(buildPokemonPacks());
 }
 
-/** Dev-time guard: every whitelisted ID must exist in its category catalog. */
+/** Dev-time guard: every whitelisted ID must exist in the Pokémon catalog. */
 export function validatePackCatalog(packs: CatalogPack[]): void {
-  const catalogs: Record<PackCategory, readonly string[]> = {
-    pokemon: POKEMON_ALL_ITEM_IDS,
-    nba: NBA_ITEM_IDS,
-    nfl: NFL_ITEM_IDS,
-    ufc: UFC_ITEM_IDS,
-    yugioh: YUGIOH_ITEM_IDS,
-  };
+  const allowed = new Set(POKEMON_ALL_ITEM_IDS);
+  const floorIds = (packId: string) =>
+    new Set(getFloorFillersForPackId(packId).map((item) => item.id));
 
   for (const pack of packs) {
-    const allowed = new Set(catalogs[pack.category]);
+    if (pack.category !== "pokemon") {
+      throw new Error(`Launch catalog must be Pokémon-only — found "${pack.id}" (${pack.category})`);
+    }
+
+    const floors = floorIds(pack.id);
     for (const id of pack.items) {
-      if (!allowed.has(id)) {
-        throw new Error(
-          `Pack "${pack.id}" (${pack.category}) references foreign item id "${id}"`,
-        );
-      }
+      if (allowed.has(id) || floors.has(id) || isFloorFillerItemId(id)) continue;
+      throw new Error(
+        `Pack "${pack.id}" (${pack.category}) references foreign item id "${id}"`,
+      );
     }
   }
 }
 
 export const LOBBY_PACK_CATALOG: CatalogPack[] = buildCatalogPacks();
 
-if (import.meta.env.DEV) {
+if (import.meta.env?.DEV) {
   try {
     validatePackCatalog(LOBBY_PACK_CATALOG);
+    for (const pack of LOBBY_PACK_CATALOG) {
+      const items = getPackStoreItems(pack);
+      const ev = computePackExpectedValue(items);
+      const { min, max } = expectedValueBounds(pack.cost);
+      const target = targetPackExpectedValue(pack.cost);
+      if (ev < min - 1 || ev > max + 1) {
+        console.warn(
+          `[pack economy] ${pack.id}: EV ${ev.toFixed(2)} outside ${min.toFixed(0)}–${max.toFixed(0)} (target ${target.toFixed(0)})`,
+        );
+      }
+    }
   } catch (error) {
     console.error("[pack catalog]", error);
   }

@@ -1,15 +1,30 @@
 import { useState } from "react";
+import { ChevronDown, NavIcon } from "../icons/AppIcons";
 import type { AppView } from "../../types";
 import { PRIMARY_NAV, isNavActive, type NavItem } from "../../data/navigation";
 import { useApp } from "../../context/AppContext";
 import { useNavDrawer } from "./Sidebar";
 
+function navButtonClass(active: boolean, expanded: boolean, locked: boolean): string {
+  const base = expanded
+    ? "w-full gap-3 px-2.5 py-2"
+    : "h-10 w-10 justify-center p-0";
+
+  if (locked) {
+    return `${base} flex items-center rounded-md opacity-40 cursor-not-allowed`;
+  }
+  if (active) {
+    return `${base} flex items-center rounded-md bg-slate-elevated text-white shadow-[inset_2px_0_0_0_#ff007a]`;
+  }
+  return `${base} flex items-center rounded-md text-muted transition-colors duration-200 hover:bg-slate hover:text-white`;
+}
+
 function LockedLabel({ label, expanded }: { label: string; expanded: boolean }) {
   if (!expanded) return null;
   return (
-    <span className="truncate text-left leading-snug">
+    <span className="truncate text-left text-[13px] font-medium leading-snug tracking-tight">
       {label}
-      <span className="ml-1 text-[10px] text-muted/60">· Coming Soon</span>
+      <span className="ml-1 text-[10px] text-muted/70">Soon</span>
     </span>
   );
 }
@@ -39,24 +54,16 @@ function NavButton({
         closeMenu();
         onNavigate(item.view);
       }}
-      className={`flex w-full items-center rounded-lg text-sm font-medium transition-colors ${
-        expanded ? "gap-2.5 px-3 py-2" : "justify-center px-2 py-2.5"
-      } ${
-        locked
-          ? "cursor-not-allowed text-muted/50 opacity-70"
-          : active
-            ? "border border-fuchsia/20 bg-metallic text-fuchsia"
-            : "text-muted hover:bg-metallic hover:text-white"
-      }`}
+      className={navButtonClass(active, expanded, locked)}
     >
-      <span className="shrink-0 text-base">{item.icon}</span>
+      <NavIcon name={item.icon} size={18} className="shrink-0" />
       {locked ? (
         <LockedLabel label={item.label} expanded={expanded} />
       ) : (
         <span
-          className={`truncate text-left leading-snug ${
-            expanded ? "" : "hidden"
-          }`}
+          className={`truncate text-left text-[13px] font-medium leading-snug tracking-tight transition-opacity duration-200 ${
+            expanded ? "opacity-90" : "sr-only"
+          } ${active ? "text-white" : ""}`}
         >
           {item.label}
         </span>
@@ -91,13 +98,9 @@ function FairnessGroup({
         title={item.label}
         aria-label={item.label}
         onClick={() => goTo("fairness")}
-        className={`flex w-full items-center justify-center rounded-lg px-2 py-2.5 text-sm font-medium transition-colors ${
-          active
-            ? "border border-fuchsia/20 bg-metallic text-fuchsia"
-            : "text-muted hover:bg-metallic hover:text-white"
-        }`}
+        className={navButtonClass(active, false, false)}
       >
-        <span className="text-base">{item.icon}</span>
+        <NavIcon name={item.icon} size={18} />
       </button>
     );
   }
@@ -107,29 +110,25 @@ function FairnessGroup({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-          active
-            ? "border border-fuchsia/20 bg-metallic text-fuchsia"
-            : "text-muted hover:bg-metallic hover:text-white"
-        }`}
+        className={`${navButtonClass(active, true, false)} w-full`}
       >
-        <span className="shrink-0 text-base">{item.icon}</span>
-        <span className="flex-1 truncate text-left">{item.label}</span>
-        <span
-          className={`text-[10px] text-muted transition-transform ${open ? "rotate-180" : ""}`}
-          aria-hidden
-        >
-          ▼
+        <NavIcon name={item.icon} size={18} className="shrink-0" />
+        <span className="flex-1 truncate text-left text-[13px] font-medium tracking-tight">
+          {item.label}
         </span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-muted transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+        />
       </button>
       {open && item.children && (
-        <ul className="mt-0.5 ml-3 space-y-0.5 border-l border-border pl-3">
+        <ul className="ml-5 mt-0.5 space-y-0.5 border-l border-border/80 pl-3">
           {item.children.map((child) => (
             <li key={child.view}>
               <button
                 type="button"
                 onClick={() => goTo(child.view)}
-                className="w-full rounded-md px-3 py-1.5 text-left text-xs text-muted transition-colors hover:bg-metallic/50 hover:text-fuchsia"
+                className="w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-muted transition-colors duration-200 hover:bg-slate hover:text-white"
               >
                 {child.label}
               </button>
@@ -145,7 +144,11 @@ export function SidebarNav({ expanded = true }: { expanded?: boolean }) {
   const { currentView, navigateToView } = useApp();
 
   return (
-    <nav className="space-y-0.5">
+    <nav
+      className={`flex w-full flex-col gap-1 ${
+        expanded ? "" : "items-center"
+      }`}
+    >
       {PRIMARY_NAV.map((item) =>
         item.kind === "group" ? (
           <FairnessGroup

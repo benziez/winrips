@@ -38,7 +38,7 @@ export function SocialFooter({ expanded = true }: { expanded?: boolean }) {
           target="_blank"
           rel="noopener noreferrer"
           aria-label={link.label}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-metallic text-muted transition-all hover:border-fuchsia/50 hover:text-fuchsia hover:shadow-[0_0_12px_rgba(255,0,127,0.45)]"
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-slate text-muted transition-all duration-200 hover:border-fuchsia/40 hover:bg-slate-elevated hover:text-fuchsia"
         >
           <SocialIcon id={link.id} />
         </a>

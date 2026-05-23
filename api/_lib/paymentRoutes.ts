@@ -2,8 +2,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleAccountBalanceRoute, handleDevSetBalanceRoute } from "./accountBalance.js";
 import { handlePaymentsRoute } from "./payments.js";
 import { handlePaymentsWebhookRoute } from "./paymentsWebhook.js";
+import {
+  handleVaultInventoryGetRoute,
+  handleVaultInventoryMutateRoute,
+} from "./vaultInventory.js";
 
-/** Dispatches all payment + account balance API routes. */
+/** Dispatches payment, balance, and vault API routes. */
 export async function handlePaymentHttp(
   req: IncomingMessage,
   res: ServerResponse,
@@ -11,6 +15,8 @@ export async function handlePaymentHttp(
   if (await handlePaymentsWebhookRoute(req, res)) return true;
   if (await handleDevSetBalanceRoute(req, res)) return true;
   if (await handleAccountBalanceRoute(req, res)) return true;
+  if (await handleVaultInventoryGetRoute(req, res)) return true;
+  if (await handleVaultInventoryMutateRoute(req, res)) return true;
   if (await handlePaymentsRoute(req, res)) return true;
   return false;
 }

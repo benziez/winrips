@@ -2,6 +2,7 @@ import { useApp } from "../../context/AppContext";
 import { DashboardView } from "../dashboard/DashboardView";
 import { PackOpeningView } from "../pack-opening/PackOpeningView";
 import { VaultView } from "../../views/VaultView";
+import { PlayHistoryView } from "../../views/PlayHistoryView";
 import { UpgraderView } from "../../views/UpgraderView";
 import { BattlesView } from "../../views/BattlesView";
 import { LeaderboardView } from "./LeaderboardView";
@@ -22,6 +23,8 @@ export function ViewRouter() {
     case "inventory":
     case "vault":
       return <VaultView />;
+    case "play-history":
+      return <PlayHistoryView />;
     case "upgrader":
       return <UpgraderView />;
     case "battles":

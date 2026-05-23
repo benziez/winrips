@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { GemIcon } from "../icons/AppIcons";
 import { useApp } from "../../context/AppContext";
 
 export function TokenBalanceWidget() {
@@ -12,25 +13,19 @@ export function TokenBalanceWidget() {
   } = useApp();
 
   useEffect(() => {
-    void syncGemBalanceFromServer();
+    if (!userId) return;
+    void syncGemBalanceFromServer(userId);
   }, [userId, syncGemBalanceFromServer]);
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) return;
-    const intervalId = window.setInterval(() => {
-      void syncGemBalanceFromServer();
-    }, 5000);
-    return () => window.clearInterval(intervalId);
-  }, [syncGemBalanceFromServer]);
-
   return (
-    <div className="flex h-10 max-w-full items-stretch overflow-hidden rounded-md border border-[#2A2D34] bg-[#1A1C20]">
-      <div className="flex min-w-0 flex-1 items-center">
-        <span className="shrink-0 px-3 text-xs font-semibold uppercase tracking-wider text-[#A0A5B5]">
-          GEMS
+    <div className="flex h-9 max-w-full items-stretch overflow-hidden rounded-md border border-border bg-slate sm:h-10">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 pl-2 pr-1 sm:gap-0 sm:pl-0">
+        <GemIcon size={14} className="shrink-0 text-gold md:hidden" aria-hidden />
+        <span className="hidden shrink-0 px-3 text-[10px] font-bold uppercase tracking-[0.14em] text-muted md:inline">
+          Credits
         </span>
         <span
-          className="truncate pr-3 text-sm font-bold tabular-nums text-white"
+          className="truncate text-xs font-bold tabular-nums text-white sm:pr-3 sm:text-sm"
           aria-busy={gemBalanceLoading}
           aria-live="polite"
         >
@@ -40,7 +35,7 @@ export function TokenBalanceWidget() {
       <button
         type="button"
         onClick={() => setDepositModalOpen(true)}
-        className="flex h-full shrink-0 items-center justify-center border-l border-[#2A2D34] bg-[#16181C] px-3 text-[10px] font-bold uppercase tracking-wider text-[#A0A5B5] transition-colors hover:bg-[#1A1C20] hover:text-[#FF007F]"
+        className="hidden h-full shrink-0 items-center justify-center border-l border-border bg-slate-elevated px-3 text-[10px] font-bold uppercase tracking-wider text-muted transition-colors duration-200 hover:text-white md:flex"
         aria-label="Deposit with crypto"
       >
         Crypto
@@ -48,8 +43,8 @@ export function TokenBalanceWidget() {
       <button
         type="button"
         onClick={() => setPurchaseModalOpen(true)}
-        className="flex h-full shrink-0 items-center justify-center bg-[#FF007F] px-4 text-base font-extrabold text-white transition-colors hover:bg-[#FF007F]/90"
-        aria-label="Purchase Gems"
+        className="flex h-full shrink-0 items-center justify-center bg-fuchsia px-3 text-sm font-extrabold text-white transition-all duration-200 hover:brightness-110 sm:px-4"
+        aria-label="Purchase Credits"
       >
         +
       </button>

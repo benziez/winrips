@@ -146,16 +146,140 @@ export const GOD_PACK_1999_POOL: StoreItem[] = [
   defineItem("pk-god-23", "Charizard Holo — BGS 9.5", "base1", "Base", "4", "Mythic", "Ancient Rare", 75000, 0.8, 1200),
 ];
 
+/** Mega Evolution EX — 25 XY-era Mega Evolution chase cards. */
+export const MEGA_EVOLUTION_POOL: StoreItem[] = [
+  defineItem("pk-mega-01", "Honedge", "xy3", "Furious Fists", "59", "Common", "Common", 180, 5.0, 0.45),
+  defineItem("pk-mega-02", "Doublade", "xy3", "Furious Fists", "60", "Common", "Common", 200, 4.8, 0.5),
+  defineItem("pk-mega-03", "Gulpin", "xy4", "Phantom Forces", "34", "Common", "Common", 190, 4.8, 0.48),
+  defineItem("pk-mega-04", "Swirlix", "xy4", "Phantom Forces", "72", "Common", "Common", 210, 4.6, 0.52),
+  defineItem("pk-mega-05", "Electrike", "xy6", "Roaring Skies", "30", "Common", "Common", 220, 4.6, 0.55),
+  defineItem("pk-mega-06", "Manectric", "xy6", "Roaring Skies", "31", "Rare", "Rare", 420, 4.0, 1.1),
+  defineItem("pk-mega-07", "Hawlucha", "xy6", "Roaring Skies", "42", "Rare", "Rare", 480, 3.8, 1.25),
+  defineItem("pk-mega-08", "Gallade EX", "xy3", "Furious Fists", "64", "Rare", "Rare", 550, 3.6, 1.4),
+  defineItem("pk-mega-09", "Lucario EX", "xy3", "Furious Fists", "55", "Epic", "Rare", 950, 3.2, 2.4),
+  defineItem("pk-mega-10", "Gengar EX", "xy4", "Phantom Forces", "34", "Epic", "Rare", 1100, 3.0, 2.8),
+  defineItem("pk-mega-11", "Rayquaza EX", "xy6", "Roaring Skies", "76", "Epic", "Rare", 1400, 2.8, 3.5),
+  defineItem("pk-mega-12", "Gardevoir EX", "xy5", "Primal Clash", "78", "Epic", "Rare", 1250, 2.8, 3.2),
+  defineItem("pk-mega-13", "Ampharos EX", "xy7", "Ancient Origins", "74", "Legendary", "Rare", 2800, 2.4, 8),
+  defineItem("pk-mega-14", "Alakazam EX", "xy10", "Fates Collide", "27", "Legendary", "Rare", 3200, 2.2, 9.5),
+  defineItem("pk-mega-15", "Steelix EX", "xy11", "Steam Siege", "36", "Legendary", "Rare", 2600, 2.4, 7.5),
+  defineItem("pk-mega-16", "Mega Lucario EX", "xy3", "Furious Fists", "55", "Legendary", "Rare", 4500, 2.0, 14),
+  defineItem("pk-mega-17", "Mega Gengar EX", "xy4", "Phantom Forces", "35", "Mythic", "Ancient Rare", 7200, 1.6, 22),
+  defineItem("pk-mega-18", "Mega Rayquaza EX", "xy6", "Roaring Skies", "76", "Mythic", "Ancient Rare", 8500, 1.4, 28),
+  defineItem("pk-mega-19", "Mega Alakazam EX", "xy10", "Fates Collide", "27", "Mythic", "Ancient Rare", 6800, 1.6, 20),
+  defineItem("pk-mega-20", "Mega Gardevoir EX", "xy5", "Primal Clash", "78", "Mythic", "Ancient Rare", 6200, 1.8, 18),
+  defineItem("pk-mega-21", "Mega Ampharos EX", "xy7", "Ancient Origins", "74", "Mythic", "Ancient Rare", 5800, 1.8, 16),
+  defineItem("pk-mega-22", "Mega Charizard EX", "xy12", "Evolutions", "12", "Mythic", "Ancient Rare", 12000, 1.2, 38),
+  defineItem("pk-mega-23", "Mega Blastoise EX", "xy12", "Evolutions", "27", "Mythic", "Ancient Rare", 9500, 1.4, 32),
+  defineItem("pk-mega-24", "Mega Venusaur EX", "xy12", "Evolutions", "89", "Mythic", "Ancient Rare", 8800, 1.4, 30),
+  defineItem("pk-mega-25", "Primal Groudon EX", "xy5", "Primal Clash", "77", "Mythic", "Ancient Rare", 14000, 1.0, 45),
+];
+
+/** Prismatic Evolutions — 25 Eeveelution SIR / premium illustration rares. */
+export const PRISMATIC_SIR_POOL: StoreItem[] = [
+  defineItem("pk-sir-01", "Eevee", "sv8pt5", "Prismatic Evolutions", "1", "Common", "Common", 450, 4.8, 1.2),
+  defineItem("pk-sir-02", "Vaporeon", "sv8pt5", "Prismatic Evolutions", "22", "Common", "Common", 480, 4.6, 1.3),
+  defineItem("pk-sir-03", "Jolteon", "sv8pt5", "Prismatic Evolutions", "29", "Common", "Common", 480, 4.6, 1.3),
+  defineItem("pk-sir-04", "Flareon", "sv8pt5", "Prismatic Evolutions", "13", "Common", "Common", 470, 4.6, 1.25),
+  defineItem("pk-sir-05", "Espeon", "sv8pt5", "Prismatic Evolutions", "33", "Rare", "Rare", 850, 4.0, 2.2),
+  defineItem("pk-sir-06", "Umbreon", "sv8pt5", "Prismatic Evolutions", "59", "Rare", "Rare", 920, 3.8, 2.5),
+  defineItem("pk-sir-07", "Leafeon", "sv8pt5", "Prismatic Evolutions", "40", "Rare", "Rare", 880, 3.8, 2.4),
+  defineItem("pk-sir-08", "Glaceon", "sv8pt5", "Prismatic Evolutions", "25", "Rare", "Rare", 860, 3.8, 2.3),
+  defineItem("pk-sir-09", "Sylveon", "sv8pt5", "Prismatic Evolutions", "45", "Rare", "Rare", 900, 3.8, 2.45),
+  defineItem("pk-sir-10", "Eevee ex", "sv8pt5", "Prismatic Evolutions", "74", "Epic", "Rare", 2200, 3.2, 6.5),
+  defineItem("pk-sir-11", "Vaporeon ex", "sv8pt5", "Prismatic Evolutions", "89", "Epic", "Rare", 2400, 3.0, 7.2),
+  defineItem("pk-sir-12", "Jolteon ex", "sv8pt5", "Prismatic Evolutions", "94", "Epic", "Rare", 2350, 3.0, 7),
+  defineItem("pk-sir-13", "Flareon ex", "sv8pt5", "Prismatic Evolutions", "84", "Epic", "Rare", 2300, 3.0, 6.8),
+  defineItem("pk-sir-14", "Espeon ex", "sv8pt5", "Prismatic Evolutions", "99", "Legendary", "Rare", 5200, 2.4, 16),
+  defineItem("pk-sir-15", "Umbreon ex", "sv8pt5", "Prismatic Evolutions", "104", "Legendary", "Rare", 5800, 2.2, 18),
+  defineItem("pk-sir-16", "Leafeon ex", "sv8pt5", "Prismatic Evolutions", "109", "Legendary", "Rare", 5100, 2.4, 15),
+  defineItem("pk-sir-17", "Glaceon ex", "sv8pt5", "Prismatic Evolutions", "114", "Legendary", "Rare", 5000, 2.4, 14.5),
+  defineItem("pk-sir-18", "Sylveon ex", "sv8pt5", "Prismatic Evolutions", "119", "Legendary", "Rare", 5400, 2.2, 16.5),
+  defineItem("pk-sir-19", "Eevee SIR", "sv8pt5", "Prismatic Evolutions", "144", "Mythic", "Ancient Rare", 12000, 1.6, 38),
+  defineItem("pk-sir-20", "Vaporeon SIR", "sv8pt5", "Prismatic Evolutions", "149", "Mythic", "Ancient Rare", 13500, 1.4, 42),
+  defineItem("pk-sir-21", "Jolteon SIR", "sv8pt5", "Prismatic Evolutions", "154", "Mythic", "Ancient Rare", 13000, 1.4, 40),
+  defineItem("pk-sir-22", "Flareon SIR", "sv8pt5", "Prismatic Evolutions", "159", "Mythic", "Ancient Rare", 12800, 1.4, 39),
+  defineItem("pk-sir-23", "Espeon SIR", "sv8pt5", "Prismatic Evolutions", "164", "Mythic", "Ancient Rare", 16000, 1.2, 52),
+  defineItem("pk-sir-24", "Umbreon SIR", "sv8pt5", "Prismatic Evolutions", "169", "Mythic", "Ancient Rare", 22000, 1.0, 72),
+  defineItem("pk-sir-25", "Sylveon SIR", "sv8pt5", "Prismatic Evolutions", "174", "Mythic", "Ancient Rare", 18000, 1.2, 58),
+];
+
+/** Evolving Skies Chase — 25 alternate-art grail chase cards from swsh7. */
+export const EVOLVING_SKIES_POOL: StoreItem[] = [
+  defineItem("pk-es-01", "Eevee", "swsh7", "Evolving Skies", "125", "Common", "Common", 650, 4.6, 1.6),
+  defineItem("pk-es-02", "Teddiursa", "swsh7", "Evolving Skies", "126", "Common", "Common", 620, 4.6, 1.5),
+  defineItem("pk-es-03", "Lilligant", "swsh7", "Evolving Skies", "10", "Common", "Common", 600, 4.8, 1.45),
+  defineItem("pk-es-04", "Dwebble", "swsh7", "Evolving Skies", "11", "Common", "Common", 580, 4.8, 1.4),
+  defineItem("pk-es-05", "Gossifleur", "swsh7", "Evolving Skies", "15", "Common", "Common", 590, 4.8, 1.42),
+  defineItem("pk-es-06", "Flareon V", "swsh7", "Evolving Skies", "18", "Rare", "Rare", 1400, 3.6, 3.5),
+  defineItem("pk-es-07", "Vaporeon V", "swsh7", "Evolving Skies", "22", "Rare", "Rare", 1450, 3.6, 3.6),
+  defineItem("pk-es-08", "Jolteon V", "swsh7", "Evolving Skies", "28", "Rare", "Rare", 1420, 3.6, 3.55),
+  defineItem("pk-es-09", "Espeon V", "swsh7", "Evolving Skies", "35", "Epic", "Rare", 2800, 3.0, 7.5),
+  defineItem("pk-es-10", "Umbreon V", "swsh7", "Evolving Skies", "94", "Epic", "Rare", 3200, 2.8, 8.5),
+  defineItem("pk-es-11", "Leafeon V", "swsh7", "Evolving Skies", "7", "Epic", "Rare", 2600, 3.0, 7),
+  defineItem("pk-es-12", "Glaceon V", "swsh7", "Evolving Skies", "40", "Epic", "Rare", 2550, 3.0, 6.8),
+  defineItem("pk-es-13", "Sylveon V", "swsh7", "Evolving Skies", "74", "Epic", "Rare", 2700, 3.0, 7.2),
+  defineItem("pk-es-14", "Dragonite V", "swsh7", "Evolving Skies", "192", "Legendary", "Rare", 6500, 2.2, 18),
+  defineItem("pk-es-15", "Rayquaza V", "swsh7", "Evolving Skies", "110", "Legendary", "Rare", 7200, 2.0, 20),
+  defineItem("pk-es-16", "Duraludon VMAX", "swsh7", "Evolving Skies", "123", "Legendary", "Rare", 5800, 2.2, 16),
+  defineItem("pk-es-17", "Leafeon VMAX", "swsh7", "Evolving Skies", "205", "Mythic", "Ancient Rare", 14000, 1.4, 42),
+  defineItem("pk-es-18", "Glaceon VMAX", "swsh7", "Evolving Skies", "209", "Mythic", "Ancient Rare", 13500, 1.4, 40),
+  defineItem("pk-es-19", "Sylveon VMAX", "swsh7", "Evolving Skies", "212", "Mythic", "Ancient Rare", 15000, 1.2, 45),
+  defineItem("pk-es-20", "Rayquaza VMAX", "swsh7", "Evolving Skies", "217", "Mythic", "Ancient Rare", 18000, 1.0, 55),
+  defineItem("pk-es-21", "Umbreon VMAX", "swsh7", "Evolving Skies", "215", "Mythic", "Ancient Rare", 28000, 0.8, 85),
+  defineItem("pk-es-22", "Dragonite V Alt Art", "swsh7", "Evolving Skies", "192", "Mythic", "Ancient Rare", 16000, 1.2, 48),
+  defineItem("pk-es-23", "Rayquaza V Alt Art", "swsh7", "Evolving Skies", "110", "Mythic", "Ancient Rare", 20000, 1.0, 62),
+  defineItem("pk-es-24", "Umbreon V Alt Art", "swsh7", "Evolving Skies", "94", "Mythic", "Ancient Rare", 24000, 0.8, 75),
+  defineItem("pk-es-25", "Rayquaza VMAX Alt Art", "swsh7", "Evolving Skies", "218", "Mythic", "Ancient Rare", 32000, 0.6, 98),
+];
+
+/** WOTC 1st Edition Classic — 25 vintage 1999–2000 first edition holos only. */
+export const WOTC_FIRST_EDITION_POOL: StoreItem[] = [
+  defineItem("pk-wotc-01", "Machop 1st Ed", "base1", "Base Set 1st Ed", "52", "Rare", "Rare", 3500, 5.0, 28),
+  defineItem("pk-wotc-02", "Magikarp 1st Ed", "base1", "Base Set 1st Ed", "35", "Rare", "Rare", 3200, 5.2, 25),
+  defineItem("pk-wotc-03", "Poliwhirl 1st Ed", "base1", "Base Set 1st Ed", "38", "Rare", "Rare", 3400, 5.0, 26),
+  defineItem("pk-wotc-04", "Nidorino 1st Ed", "base1", "Base Set 1st Ed", "33", "Rare", "Rare", 3300, 5.0, 25.5),
+  defineItem("pk-wotc-05", "Growlithe 1st Ed", "base1", "Base Set 1st Ed", "28", "Rare", "Rare", 3100, 5.2, 24),
+  defineItem("pk-wotc-06", "Machoke 1st Ed", "base1", "Base Set 1st Ed", "42", "Epic", "Rare", 6500, 4.2, 48),
+  defineItem("pk-wotc-07", "Magneton 1st Ed", "base1", "Base Set 1st Ed", "11", "Epic", "Rare", 7200, 4.0, 52),
+  defineItem("pk-wotc-08", "Raichu 1st Ed", "base1", "Base Set 1st Ed", "14", "Epic", "Rare", 8500, 3.8, 62),
+  defineItem("pk-wotc-09", "Ninetales 1st Ed Holo", "base1", "Base Set 1st Ed", "12", "Legendary", "Rare", 18000, 2.8, 130),
+  defineItem("pk-wotc-10", "Poliwrath 1st Ed Holo", "base1", "Base Set 1st Ed", "13", "Legendary", "Rare", 17500, 2.8, 125),
+  defineItem("pk-wotc-11", "Clefairy 1st Ed Holo", "base1", "Base Set 1st Ed", "5", "Legendary", "Rare", 22000, 2.4, 160),
+  defineItem("pk-wotc-12", "Nidoking 1st Ed Holo", "base1", "Base Set 1st Ed", "11", "Legendary", "Rare", 24000, 2.2, 175),
+  defineItem("pk-wotc-13", "Gyarados 1st Ed Holo", "base1", "Base Set 1st Ed", "6", "Mythic", "Ancient Rare", 42000, 1.6, 310),
+  defineItem("pk-wotc-14", "Alakazam 1st Ed Holo", "base1", "Base Set 1st Ed", "1", "Mythic", "Ancient Rare", 48000, 1.4, 360),
+  defineItem("pk-wotc-15", "Machamp 1st Ed Holo", "base1", "Base Set 1st Ed", "8", "Mythic", "Ancient Rare", 38000, 1.6, 285),
+  defineItem("pk-wotc-16", "Zapdos 1st Ed Holo", "base1", "Base Set 1st Ed", "16", "Mythic", "Ancient Rare", 52000, 1.2, 390),
+  defineItem("pk-wotc-17", "Mewtwo 1st Ed Holo", "base1", "Base Set 1st Ed", "10", "Mythic", "Ancient Rare", 65000, 1.0, 490),
+  defineItem("pk-wotc-18", "Venusaur 1st Ed Holo", "base1", "Base Set 1st Ed", "15", "Mythic", "Ancient Rare", 85000, 0.8, 650),
+  defineItem("pk-wotc-19", "Blastoise 1st Ed Holo", "base1", "Base Set 1st Ed", "2", "Mythic", "Ancient Rare", 95000, 0.7, 720),
+  defineItem("pk-wotc-20", "Charizard 1st Ed Holo", "base1", "Base Set 1st Ed", "4", "Mythic", "Ancient Rare", 180000, 0.4, 1400),
+  defineItem("pk-wotc-21", "Chansey 1st Ed Holo", "base1", "Base Set 1st Ed", "3", "Mythic", "Ancient Rare", 55000, 1.2, 420),
+  defineItem("pk-wotc-22", "Hitmonlee 1st Ed Holo", "base1", "Base Set 1st Ed", "7", "Mythic", "Ancient Rare", 48000, 1.4, 360),
+  defineItem("pk-wotc-23", "Jungle 1st Ed Snorlax Holo", "base2", "Jungle 1st Ed", "27", "Mythic", "Ancient Rare", 42000, 1.6, 310),
+  defineItem("pk-wotc-24", "Fossil 1st Ed Gengar Holo", "base3", "Fossil 1st Ed", "5", "Mythic", "Ancient Rare", 58000, 1.2, 440),
+  defineItem("pk-wotc-25", "Charizard 1st Ed Holo — PSA 9", "base1", "Base Set 1st Ed", "4", "Mythic", "Ancient Rare", 220000, 0.3, 1750),
+];
+
 export const TRAINERS_STARTER_ITEM_IDS = TRAINERS_STARTER_POOL.map((i) => i.id);
 export const PACK_151_ITEM_IDS = PACK_151_POOL.map((i) => i.id);
 export const LEGENDARY_HUNT_ITEM_IDS = LEGENDARY_HUNT_POOL.map((i) => i.id);
 export const GOD_PACK_1999_ITEM_IDS = GOD_PACK_1999_POOL.map((i) => i.id);
+export const MEGA_EVOLUTION_ITEM_IDS = MEGA_EVOLUTION_POOL.map((i) => i.id);
+export const PRISMATIC_SIR_ITEM_IDS = PRISMATIC_SIR_POOL.map((i) => i.id);
+export const EVOLVING_SKIES_ITEM_IDS = EVOLVING_SKIES_POOL.map((i) => i.id);
+export const WOTC_FIRST_EDITION_ITEM_IDS = WOTC_FIRST_EDITION_POOL.map((i) => i.id);
 
 export const ALL_PACK_POKEMON_ITEMS: StoreItem[] = [
   ...TRAINERS_STARTER_POOL,
   ...PACK_151_POOL,
   ...LEGENDARY_HUNT_POOL,
   ...GOD_PACK_1999_POOL,
+  ...MEGA_EVOLUTION_POOL,
+  ...PRISMATIC_SIR_POOL,
+  ...EVOLVING_SKIES_POOL,
+  ...WOTC_FIRST_EDITION_POOL,
 ];
 
 export function storeItemToCard(item: StoreItem) {

@@ -14,6 +14,11 @@ import {
   getNowPaymentsSignatureHeader,
   verifyNowPaymentsIpnSignature,
 } from "./nowpaymentsIpnSignature.mjs";
+import { requireAuthenticatedUserId } from "../api/_lib/verifySupabaseSession.ts";
+import {
+  resolveNowPaymentsIpnCallbackUrl,
+  warnIfMissingDevIpnCallback,
+} from "../api/_lib/nowpaymentsIpnUrl.ts";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const CREDIT_STATUSES = new Set(["finished", "confirmed"]);
@@ -61,19 +66,28 @@ async function createDepositPayment(input) {
   if (!apiKey || !apiUrl) throw new Error("NOWPayments is not configured.");
 
   const orderId = `winrips-${input.userId}-${Date.now()}`;
+  const ipnCallbackUrl = resolveNowPaymentsIpnCallbackUrl();
+  warnIfMissingDevIpnCallback();
+
+  const paymentPayload = {
+    price_amount: input.priceAmount,
+    price_currency: "usd",
+    pay_currency: input.payCurrency,
+    order_id: orderId,
+    order_description: `WinRips gem deposit for user ${input.userId}`,
+  };
+
+  if (ipnCallbackUrl) {
+    paymentPayload.ipn_callback_url = ipnCallbackUrl;
+  }
+
   const response = await fetch(`${apiUrl}/payment`, {
     method: "POST",
     headers: {
       "x-api-key": apiKey,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      price_amount: input.priceAmount,
-      price_currency: "usd",
-      pay_currency: input.payCurrency,
-      order_id: orderId,
-      order_description: `WinRips gem deposit for user ${input.userId}`,
-    }),
+    body: JSON.stringify(paymentPayload),
   });
 
   const raw = await response.text();
@@ -104,20 +118,22 @@ async function createDepositPayment(input) {
   };
 }
 
+const PAY_CURRENCIES = new Set(["btc", "sol", "ltc"]);
+
 async function handleCreate(req, res) {
   const body = await readJsonBody(req);
   const priceAmount = Number(body.priceAmount);
   const payCurrency = body.payCurrency;
-  const userId = String(body.userId ?? "").trim();
+  const claimedUserId = String(body.userId ?? "").trim();
 
   if (!Number.isFinite(priceAmount) || priceAmount < 1) {
     throw new Error("priceAmount must be at least $1.00 USD.");
   }
-  if (payCurrency !== "sol" && payCurrency !== "ltc") {
-    throw new Error("payCurrency must be sol or ltc.");
+  if (!PAY_CURRENCIES.has(payCurrency)) {
+    throw new Error("payCurrency must be one of: btc, sol, ltc.");
   }
-  if (!userId) throw new Error("userId is required.");
 
+  const userId = await requireAuthenticatedUserId(req, claimedUserId);
   const payment = await createDepositPayment({ priceAmount, payCurrency, userId });
   sendJson(res, 200, payment);
 }
@@ -215,7 +231,18 @@ export async function handlePaymentHttp(req, res) {
     }
 
     if (pathname === "/api/payments/create" && req.method === "POST") {
-      await handleCreate(req, res);
+      try {
+        await handleCreate(req, res);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Request failed.";
+        const status =
+          message.includes("Authentication") ||
+          message.includes("session") ||
+          message.includes("Sign in")
+            ? 401
+            : 400;
+        sendJson(res, status, { error: message });
+      }
       return true;
     }
   } catch (error) {

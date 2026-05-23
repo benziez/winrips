@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import { MOCK_VAULT } from "../data/vault";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
+import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { UPGRADER_TARGET_POOL } from "../constants/upgraderTargets";
 import { formatGems } from "../constants/retail";
 import { RarityBadge } from "../components/ui/RarityBadge";
@@ -167,22 +168,73 @@ function TargetGrailTile({
   );
 }
 
+function UpgraderEmptyInventory() {
+  const { navigateToView } = useApp();
+
+  return (
+    <div className="rounded-xl border border-[#2A2D34] bg-[#121318] px-8 py-20 text-center">
+      <p className="text-base font-semibold text-white">
+        No inventory items available to upgrade.
+      </p>
+      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#A0A5B5]">
+        Open some packs first!
+      </p>
+      <button
+        type="button"
+        onClick={() => navigateToView("lobby")}
+        className="mt-6 text-sm font-semibold text-[#FF007F] transition-colors hover:underline"
+      >
+        Browse packs in the lobby
+      </button>
+    </div>
+  );
+}
+
 export function UpgraderView() {
-  const { vaultItems, removeVaultCard, addVaultCard, showCashoutToast, navigateToView } =
-    useApp();
+  const {
+    isLoggedIn,
+    userId,
+    vaultItems,
+    vaultItemsLoading,
+    syncVaultFromServer,
+    removeVaultCard,
+    addVaultCard,
+    showCashoutToast,
+  } = useApp();
+  const { user, authLoading, isAuthenticated } = useAuth();
 
   const [selectedDepositCard, setSelectedDepositCard] = useState<VaultedCard | null>(null);
   const [targetGrailCard, setTargetGrailCard] = useState<VaultedCard | null>(null);
   const [executing, setExecuting] = useState(false);
 
-  const depositInventory = vaultItems.length > 0 ? vaultItems : MOCK_VAULT;
+  const hasUpgraderAccess =
+    !authLoading &&
+    isAuthenticated &&
+    Boolean(user?.id) &&
+    isLoggedIn &&
+    Boolean(userId) &&
+    user!.id === userId;
+
+  useEffect(() => {
+    if (!hasUpgraderAccess || !userId) return;
+    void syncVaultFromServer(userId);
+  }, [hasUpgraderAccess, userId, syncVaultFromServer]);
+
+  const depositInventory = hasUpgraderAccess ? vaultItems : [];
+  const isLoadingInventory = hasUpgraderAccess && vaultItemsLoading;
 
   const successPercent = useMemo(() => {
     if (!selectedDepositCard || !targetGrailCard) return 0;
     return computeUpgradeOddsPercent(selectedDepositCard, targetGrailCard);
   }, [selectedDepositCard, targetGrailCard]);
 
-  const canExecute = Boolean(selectedDepositCard && targetGrailCard && !executing);
+  const canExecute = Boolean(
+    hasUpgraderAccess &&
+      depositInventory.length > 0 &&
+      selectedDepositCard &&
+      targetGrailCard &&
+      !executing,
+  );
 
   function handleExecute() {
     if (!selectedDepositCard || !targetGrailCard || executing) return;
@@ -213,38 +265,41 @@ export function UpgraderView() {
     }, 900);
   }
 
+  const header = (
+    <header className="mb-6 max-w-3xl border-b border-border pb-5 sm:mb-8 sm:pb-6">
+      <h1 className="text-xl font-black uppercase tracking-tight text-white sm:text-3xl">
+        Collection Upgrader
+      </h1>
+      <p className="mt-3 text-sm leading-relaxed text-slate-300">
+        Trade in your low-tier inventory to unlock premium, high-value collection assets.
+      </p>
+    </header>
+  );
+
   return (
     <div className="mx-auto w-full max-w-[1600px] overflow-x-hidden px-3 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <header className="mb-6 max-w-3xl border-b border-border pb-5 sm:mb-8 sm:pb-6">
-        <h1 className="text-xl font-black uppercase tracking-tight text-white sm:text-3xl">
-          Collection Upgrader
-        </h1>
-        <p className="mt-3 text-sm leading-relaxed text-slate-300">
-          Trade in your low-tier inventory to unlock premium, high-value collection assets.
-        </p>
-      </header>
+      {header}
 
-      <div className="grid w-full grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)_minmax(0,1fr)] xl:items-stretch">
-        <section className="flex min-h-0 flex-col rounded-xl border border-border bg-[#121318] p-3 sm:min-h-[420px] sm:p-5">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-white">
-            Inventory Deposit
-          </h2>
-          <p className="mt-1 mb-4 text-[11px] leading-relaxed text-muted">
-            Tap a vaulted card to assign it as your active trade-in deposit.
+      {authLoading || isLoadingInventory ? (
+        <div className="rounded-xl border border-[#2A2D34] bg-[#121318] px-6 py-16 text-center">
+          <p className="text-sm text-[#A0A5B5]">
+            {authLoading ? "Verifying session…" : "Loading your vault inventory…"}
           </p>
+        </div>
+      ) : !hasUpgraderAccess ? (
+        <SessionAuthWall description="Sign in with an active account to use the Collection Upgrader. Deposit inventory is tied to your verified session and is never shown to guests." />
+      ) : depositInventory.length === 0 ? (
+        <UpgraderEmptyInventory />
+      ) : (
+        <div className="grid w-full grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)_minmax(0,1fr)] xl:items-stretch">
+          <section className="flex min-h-0 flex-col rounded-xl border border-border bg-[#121318] p-3 sm:min-h-[420px] sm:p-5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-white">
+              Inventory Deposit
+            </h2>
+            <p className="mt-1 mb-4 text-[11px] leading-relaxed text-muted">
+              Tap a vaulted card to assign it as your active trade-in deposit.
+            </p>
 
-          {depositInventory.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
-              <p className="text-sm text-muted">No vaulted inventory available.</p>
-              <button
-                type="button"
-                onClick={() => navigateToView("vault")}
-                className="mt-3 text-sm font-semibold text-[#FF007F] hover:underline"
-              >
-                Open Your Vault
-              </button>
-            </div>
-          ) : (
             <div
               className="grid max-h-[min(420px,50vh)] flex-1 grid-cols-2 gap-2 overflow-y-auto overflow-x-hidden pr-0 sm:max-h-[min(520px,58vh)] sm:grid-cols-3 sm:pr-1 xl:grid-cols-2 2xl:grid-cols-3"
               role="list"
@@ -263,53 +318,53 @@ export function UpgraderView() {
                 />
               ))}
             </div>
-          )}
-        </section>
+          </section>
 
-        <section className="flex flex-col items-center rounded-xl border border-border bg-[#111115] px-3 py-5 sm:px-6 sm:py-6">
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <CircularProgressGauge deposit={selectedDepositCard} target={targetGrailCard} />
-          </div>
+          <section className="flex flex-col items-center rounded-xl border border-border bg-[#111115] px-3 py-5 sm:px-6 sm:py-6">
+            <div className="flex flex-1 flex-col items-center justify-center">
+              <CircularProgressGauge deposit={selectedDepositCard} target={targetGrailCard} />
+            </div>
 
-          <div className="mt-6 w-full max-w-[280px]">
-            <button
-              type="button"
-              disabled={!canExecute}
-              onClick={handleExecute}
-              className="w-full rounded-lg bg-[#FF007F] py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-[#FF007F]/90 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {executing ? "PROCESSING…" : "EXECUTE COLLECTIBLE UPGRADE"}
-            </button>
-            <p className="mt-4 text-center text-[10px] leading-relaxed text-muted">
-              Trade-in items are processed instantly upon execution. All outcomes are
-              deterministic and verified via our Provably Fair cryptographic auditing hub.
+            <div className="mt-6 w-full max-w-[280px]">
+              <button
+                type="button"
+                disabled={!canExecute}
+                onClick={handleExecute}
+                className="w-full rounded-lg bg-[#FF007F] py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-[#FF007F]/90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {executing ? "PROCESSING…" : "EXECUTE COLLECTIBLE UPGRADE"}
+              </button>
+              <p className="mt-4 text-center text-[10px] leading-relaxed text-muted">
+                Trade-in items are processed instantly upon execution. All outcomes are
+                deterministic and verified via our Provably Fair cryptographic auditing hub.
+              </p>
+            </div>
+          </section>
+
+          <section className="flex min-h-[420px] flex-col rounded-xl border border-border bg-[#121318] p-4 sm:p-5">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-white">
+              Target Selection
+            </h2>
+            <p className="mt-1 mb-4 text-[11px] leading-relaxed text-muted">
+              Choose a premium grail from the master catalog pool.
             </p>
-          </div>
-        </section>
-
-        <section className="flex min-h-[420px] flex-col rounded-xl border border-border bg-[#121318] p-4 sm:p-5">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-white">
-            Target Selection
-          </h2>
-          <p className="mt-1 mb-4 text-[11px] leading-relaxed text-muted">
-            Choose a premium grail from the master catalog pool.
-          </p>
-          <div className="grid max-h-[min(520px,58vh)] flex-1 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
-            {UPGRADER_TARGET_POOL.map((card) => (
-              <TargetGrailTile
-                key={card.vaultId}
-                card={card}
-                selected={targetGrailCard?.vaultId === card.vaultId}
-                onSelect={() =>
-                  setTargetGrailCard((current) =>
-                    current?.vaultId === card.vaultId ? null : card,
-                  )
-                }
-              />
-            ))}
-          </div>
-        </section>
-      </div>
+            <div className="grid max-h-[min(520px,58vh)] flex-1 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
+              {UPGRADER_TARGET_POOL.map((card) => (
+                <TargetGrailTile
+                  key={card.vaultId}
+                  card={card}
+                  selected={targetGrailCard?.vaultId === card.vaultId}
+                  onSelect={() =>
+                    setTargetGrailCard((current) =>
+                      current?.vaultId === card.vaultId ? null : card,
+                    )
+                  }
+                />
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

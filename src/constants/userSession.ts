@@ -15,3 +15,11 @@ export function persistLoggedIn(): void {
     /* storage unavailable */
   }
 }
+
+export function clearLoggedIn(): void {
+  try {
+    localStorage.removeItem(USER_SESSION_STORAGE_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+}

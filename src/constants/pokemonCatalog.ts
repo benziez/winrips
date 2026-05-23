@@ -1,5 +1,5 @@
 /**
- * Launch Pokémon catalog — four pack-specific registries (~25 cards each).
+ * Launch Pokémon catalog — pack-specific registries (~25 cards each).
  * Card data lives in `packPokemonPools.ts`; packs whitelist IDs in `packs.ts`.
  */
 export {
@@ -8,10 +8,18 @@ export {
   PACK_151_POOL,
   LEGENDARY_HUNT_POOL,
   GOD_PACK_1999_POOL,
+  MEGA_EVOLUTION_POOL,
+  PRISMATIC_SIR_POOL,
+  EVOLVING_SKIES_POOL,
+  WOTC_FIRST_EDITION_POOL,
   TRAINERS_STARTER_ITEM_IDS,
   PACK_151_ITEM_IDS,
   LEGENDARY_HUNT_ITEM_IDS,
   GOD_PACK_1999_ITEM_IDS,
+  MEGA_EVOLUTION_ITEM_IDS,
+  PRISMATIC_SIR_ITEM_IDS,
+  EVOLVING_SKIES_ITEM_IDS,
+  WOTC_FIRST_EDITION_ITEM_IDS,
   POKEMON_CARD_POOL,
   POKEMON_ALL_ITEM_IDS,
   POKEMON_MYTHIC_LEGENDARY_IDS,

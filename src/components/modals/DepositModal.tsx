@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { depositQrCodeUrl, requestDepositPayment } from "../../lib/paymentsApi";
+import { CRYPTO_DEPOSIT_OPTIONS } from "../../constants/cryptoDeposit";
 import type { DepositPayCurrency, DepositPaymentResponse } from "../../types/payments";
+import { CheckoutAuthGate } from "../wallet/CheckoutAuthGate";
 
 const USD_PRESETS = [25, 50, 100, 250] as const;
 
-const ASSET_OPTIONS: { id: DepositPayCurrency; label: string; hint: string }[] = [
-  { id: "sol", label: "Solana", hint: "SOL" },
-  { id: "ltc", label: "Litecoin", hint: "LTC" },
-];
-
 export function DepositModal() {
-  const { depositModalOpen, setDepositModalOpen, userId, showCashoutToast, syncGemBalanceFromServer } =
-    useApp();
+  const {
+    depositModalOpen,
+    setDepositModalOpen,
+    isLoggedIn,
+    userId,
+    showCashoutToast,
+    syncGemBalanceFromServer,
+  } = useApp();
 
   const [usdAmount, setUsdAmount] = useState(50);
   const [selectedAsset, setSelectedAsset] = useState<DepositPayCurrency | null>(null);
@@ -51,6 +54,8 @@ export function DepositModal() {
   }
 
   async function handleSelectAsset(payCurrency: DepositPayCurrency) {
+    if (!isLoggedIn || !userId) return;
+
     setSelectedAsset(payCurrency);
     setLoading(true);
     setError(null);
@@ -83,6 +88,21 @@ export function DepositModal() {
   }
 
   if (!depositModalOpen) return null;
+
+  if (!isLoggedIn || !userId) {
+    return (
+      <div
+        className="fixed inset-0 z-[75] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="deposit-modal-title"
+      >
+        <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-[#22242B] bg-[#0D0E12]/95 p-5 shadow-[0_0_50px_rgba(0,0,0,0.85)]">
+          <CheckoutAuthGate />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -149,7 +169,7 @@ export function DepositModal() {
                   Select asset
                 </p>
                 <div className="grid grid-cols-2 gap-3">
-                  {ASSET_OPTIONS.map((asset) => (
+                  {CRYPTO_DEPOSIT_OPTIONS.map((asset) => (
                     <button
                       key={asset.id}
                       type="button"
@@ -161,9 +181,9 @@ export function DepositModal() {
                           : "border-[#22242B] bg-[#111215] hover:border-[#FF007F]/50"
                       }`}
                     >
-                      <p className="text-sm font-bold text-white">{asset.label}</p>
+                      <p className="text-sm font-bold text-white">{asset.ticker}</p>
                       <p className="mt-0.5 text-[10px] font-mono uppercase tracking-wider text-[#FF007F]">
-                        {asset.hint}
+                        {asset.network}
                       </p>
                     </button>
                   ))}
@@ -187,7 +207,7 @@ export function DepositModal() {
 
               <div className="mx-auto inline-block rounded-xl border border-[#22242B] bg-white p-3">
                 <img
-                  src={depositQrCodeUrl(payment.payAddress, 220)}
+                  src={depositQrCodeUrl(payment.payAddress, payment.payCurrency, 220)}
                   alt={`QR code for ${payment.payCurrency} deposit`}
                   width={220}
                   height={220}

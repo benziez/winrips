@@ -1,4 +1,4 @@
-export type DepositPayCurrency = "sol" | "ltc";
+export type DepositPayCurrency = "btc" | "sol" | "ltc";
 
 export interface CreateDepositPaymentRequest {
   priceAmount: number;

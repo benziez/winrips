@@ -42,8 +42,11 @@ export function finalizeSportsPool(
 
   const sum = items.reduce((a, i) => a + i.probability, 0);
   const drift = Math.round((100 - sum) * 1000) / 1000;
-  const common = items.find((i) => i.rarity === "Common");
-  if (common && drift !== 0) common.probability += drift;
+  if (drift !== 0 && items.length > 0) {
+    const adjustTarget =
+      items.find((i) => i.rarity === "Common") ?? items[items.length - 1]!;
+    adjustTarget.probability = Math.round((adjustTarget.probability + drift) * 1000) / 1000;
+  }
 
   return items;
 }

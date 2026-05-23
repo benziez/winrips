@@ -1,0 +1,72 @@
+[
+  {
+    "id": "snk-adidas-yeezy-foam-rnr-onyx",
+    "item_name": "adidas Yeezy Foam RNR Onyx",
+    "market_value": 86,
+    "image_url": "https://images.stockx.com/images/adidas-Yeezy-Foam-RNNR-Onyx-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358",
+    "category": "Sneakers",
+    "category_id": "sneakers",
+    "updated_at": "2026-05-20T15:20:32.685Z",
+    "pack_bucket": "yeezy-essentials"
+  },
+  {
+    "id": "snk-adidas-yeezy-boost-350-v2-onyx",
+    "item_name": "adidas Yeezy Boost 350 V2 Onyx",
+    "market_value": 108,
+    "image_url": "https://images.stockx.com/images/adidas-Yeezy-Boost-350-V2-Onyx-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358",
+    "category": "Sneakers",
+    "category_id": "sneakers",
+    "updated_at": "2026-05-20T15:20:32.823Z",
+    "pack_bucket": "the-vault"
+  },
+  {
+    "id": "snk-adidas-yeezy-boost-350-v2-bone",
+    "item_name": "adidas Yeezy Boost 350 V2 Bone",
+    "market_value": 117,
+    "image_url": "https://images.stockx.com/images/adidas-Yeezy-Boost-350-V2-Pure-Oat-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358",
+    "category": "Sneakers",
+    "category_id": "sneakers",
+    "updated_at": "2026-05-20T15:20:32.965Z",
+    "pack_bucket": "the-vault"
+  },
+  {
+    "id": "snk-adidas-yeezy-boost-350-v2-carbon-beluga",
+    "item_name": "adidas Yeezy Boost 350 V2 Carbon Beluga",
+    "market_value": 71,
+    "image_url": "https://images.stockx.com/images/adidas-Yeezy-350-V2-Carbon-Beluga-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358",
+    "category": "Sneakers",
+    "category_id": "sneakers",
+    "updated_at": "2026-05-20T15:20:33.144Z",
+    "pack_bucket": "yeezy-essentials"
+  },
+  {
+    "id": "snk-adidas-yeezy-700-v3-dark-glow",
+    "item_name": "adidas Yeezy 700 V3 Dark Glow",
+    "market_value": 119,
+    "image_url": "https://images.stockx.com/images/adidas-Yeezy-700-V3-Blue-Glow-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358",
+    "category": "Sneakers",
+    "category_id": "sneakers",
+    "updated_at": "2026-05-20T15:20:33.285Z",
+    "pack_bucket": "the-vault"
+  },
+  {
+    "id": "snk-adidas-yeezy-boost-350-v2-mx-dark-salt",
+    "item_name": "adidas Yeezy Boost 350 V2 MX Dark Salt",
+    "market_value": 83,
+    "image_url": "https://images.stockx.com/images/adidas-Yeezy-Boost-350-V2-MX-Dark-Salt-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358",
+    "category": "Sneakers",
+    "category_id": "sneakers",
+    "updated_at": "2026-05-20T15:20:33.440Z",
+    "pack_bucket": "yeezy-essentials"
+  },
+  {
+    "id": "snk-adidas-yeezy-slide-onyx",
+    "item_name": "adidas Yeezy Slide Onyx",
+    "market_value": 122,
+    "image_url": "https://images.stockx.com/images/adidas-Yeezy-Slide-Black-Product.jpg?fit=fill&bg=FFFFFF&w=700&h=500&fm=webp&auto=compress&q=90&dpr=2&trim=color&updated_at=1738193358",
+    "category": "Sneakers",
+    "category_id": "sneakers",
+    "updated_at": "2026-05-20T15:20:33.579Z",
+    "pack_bucket": "the-vault"
+  }
+]

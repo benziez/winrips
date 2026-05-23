@@ -11,10 +11,15 @@ import { WinParticles } from "./WinParticles";
 
 export interface RevealModalProps {
   card: Card;
+  isGuest?: boolean;
   onBurn: () => void;
+  onSendToVault: () => void;
   onShip: () => void;
   onClose: () => void;
 }
+
+const GUEST_DISABLED_ACTION =
+  "cursor-not-allowed opacity-40 pointer-events-none";
 
 const BORDER_BY_RARITY: Record<Card["rarity"], string> = {
   Common: "border-border",
@@ -32,7 +37,14 @@ function isCeilingPull(card: Card): boolean {
   return card.rarity === "Ancient Rare" || card.value >= 10_000;
 }
 
-export function RevealModal({ card, onBurn, onShip, onClose }: RevealModalProps) {
+export function RevealModal({
+  card,
+  isGuest = false,
+  onBurn,
+  onSendToVault,
+  onShip,
+  onClose,
+}: RevealModalProps) {
   const ceilingPull = isCeilingPull(card);
   const borderClass = BORDER_BY_RARITY[card.rarity];
   const glowClass = ceilingPull ? "mega-win-glow" : GLOW_BY_RARITY[card.rarity];
@@ -106,21 +118,37 @@ export function RevealModal({ card, onBurn, onShip, onClose }: RevealModalProps)
           <button
             type="button"
             onClick={onBurn}
-            className="w-full rounded-lg bg-[#FF007F] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-white transition-all hover:brightness-110 sm:text-xs"
+            disabled={isGuest}
+            className={`w-full rounded-lg bg-[#FF007F] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-white transition-all hover:brightness-110 sm:text-xs ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
           >
             {exchangeButtonLabel(card.value)}
           </button>
           <button
             type="button"
+            onClick={onSendToVault}
+            disabled={isGuest}
+            className={`w-full rounded-lg px-3 py-3.5 text-[11px] font-bold uppercase tracking-[0.12em] sm:text-xs ${
+              isGuest
+                ? "border border-border bg-slate-elevated/60 text-muted"
+                : "border border-fuchsia/50 bg-[#1A1C20] text-fuchsia shadow-[0_0_18px_rgba(255,0,127,0.12)] transition-all hover:border-fuchsia hover:bg-fuchsia/10"
+            } ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
+          >
+            {isGuest ? "DEMO SPIN ONLY" : "Send to Vault"}
+          </button>
+          <button
+            type="button"
             onClick={onShip}
-            className="w-full rounded-lg bg-[#FFD700] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-black transition-all hover:brightness-105 sm:text-xs"
+            disabled={isGuest}
+            className={`w-full rounded-lg bg-[#FFD700] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-black transition-all hover:brightness-105 sm:text-xs ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
           >
             {SHIP_BUTTON_LABEL}
           </button>
         </div>
 
         <p className="relative z-20 mt-4 text-center text-[9px] uppercase tracking-wider text-muted">
-          Unopened pulls remain secured in climate-controlled retail vaults
+          {isGuest
+            ? "Preview pull — create an account to vault, exchange, or ship"
+            : "Unopened pulls remain secured in climate-controlled retail vaults"}
         </p>
       </div>
     </div>

@@ -84,20 +84,20 @@ export function UnboxingCarousel({
 
   return (
     <div
-      className={`relative w-full max-w-full overflow-hidden rounded-xl border border-border bg-[#121318] ${
-        isCompactPreview ? "min-h-[200px]" : "min-h-[220px] sm:min-h-[280px]"
+      className={`relative w-full max-w-full ${
+        isCompactPreview ? "min-h-[200px]" : "min-h-[220px] sm:min-h-[300px]"
       }`}
     >
-      <div className="pointer-events-none absolute left-1/2 top-0 bottom-0 z-20 w-[3px] -translate-x-1/2 bg-[#FF007F] shadow-[0_0_12px_#FF007F]" />
+      <div className="spin-center-line pointer-events-none absolute bottom-0 left-1/2 top-0 z-20 -translate-x-1/2" />
 
       <div
-        className={`pointer-events-none absolute inset-y-0 left-0 z-10 bg-gradient-to-r from-[#121318] to-transparent ${
-          isCompactPreview ? "w-8" : "w-16 sm:w-24"
+        className={`pointer-events-none absolute inset-y-0 left-0 z-10 bg-gradient-to-r from-slate to-transparent ${
+          isCompactPreview ? "w-10" : "w-16 sm:w-28"
         }`}
       />
       <div
-        className={`pointer-events-none absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-[#121318] to-transparent ${
-          isCompactPreview ? "w-8" : "w-16 sm:w-24"
+        className={`pointer-events-none absolute inset-y-0 right-0 z-10 bg-gradient-to-l from-slate to-transparent ${
+          isCompactPreview ? "w-10" : "w-16 sm:w-28"
         }`}
       />
 
@@ -106,22 +106,22 @@ export function UnboxingCarousel({
         className="absolute inset-0 flex items-center overflow-hidden"
         style={{
           maskImage: isCompactPreview
-            ? "linear-gradient(to right, transparent, black 8%, black 92%, transparent)"
-            : "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
+            ? "linear-gradient(to right, transparent, black 6%, black 94%, transparent)"
+            : "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",
           WebkitMaskImage: isCompactPreview
-            ? "linear-gradient(to right, transparent, black 8%, black 92%, transparent)"
-            : "linear-gradient(to right, transparent, black 12%, black 88%, transparent)",
+            ? "linear-gradient(to right, transparent, black 6%, black 94%, transparent)"
+            : "linear-gradient(to right, transparent, black 10%, black 90%, transparent)",
         }}
       >
         <div
           ref={trackRef}
-          className={`flex gap-3 py-4 will-change-transform ${isSpinning && isAnimating ? "blur-[1.5px]" : ""} ${
+          className={`flex gap-3 py-5 will-change-transform ${isSpinning && isAnimating ? "blur-[1px] opacity-95" : ""} ${
             isCompactPreview ? "mx-auto" : ""
           }`}
           style={{
             transform: `translateX(-${translateX}px)`,
             transition: isAnimating
-              ? `transform ${ROULETTE_SPIN_MS}ms cubic-bezier(0.1, 0.8, 0.1, 1)`
+              ? `transform ${ROULETTE_SPIN_MS}ms var(--ease-spin-heavy, cubic-bezier(0.08, 0.82, 0.17, 1))`
               : "none",
           }}
         >
@@ -136,10 +136,6 @@ export function UnboxingCarousel({
           ))}
         </div>
       </div>
-
-      <p className="pointer-events-none absolute bottom-2 left-0 right-0 z-10 text-center font-mono text-[9px] uppercase tracking-widest text-muted">
-        Provably fair unboxing · HMAC-SHA512 verified
-      </p>
     </div>
   );
 }

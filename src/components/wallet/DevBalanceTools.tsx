@@ -63,7 +63,7 @@ export function DevBalanceTools() {
         Refresh from API
       </button>
       <p className="text-[9px] leading-snug text-[#A0A5B5]">
-        Polls every 5s in dev. Set DEV_BALANCE_SECRET + VITE_DEV_BALANCE_SECRET in .env.
+        Set DEV_BALANCE_SECRET + VITE_DEV_BALANCE_SECRET in .env to use KV dev balance API.
       </p>
     </div>
   );

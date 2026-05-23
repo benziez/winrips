@@ -2,11 +2,11 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { WinRipsLogo } from "../brand/WinRipsLogo";
 import { SidebarHubNav } from "../NavigationDrawer";
 import { SidebarNav } from "./SidebarNav";
 import { SocialFooter } from "./SocialFooter";
@@ -23,7 +23,6 @@ const NavDrawerContext = createContext<NavDrawerContextValue | null>(null);
 export function NavDrawerProvider({ children }: { children: ReactNode }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  /** Closes the mobile overlay drawer; does not collapse the desktop sidebar rail. */
   const closeMenu = useCallback(() => {
     if (typeof window === "undefined") {
       setIsMenuOpen(false);
@@ -34,6 +33,18 @@ export function NavDrawerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   const toggleMenu = useCallback(() => setIsMenuOpen((open) => !open), []);
+
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    if (!mq.matches) return;
+
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [isMenuOpen]);
 
   const value = useMemo(
     () => ({
@@ -85,28 +96,22 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`hidden shrink-0 flex-col border-r border-neutral-800 bg-[#111115] transition-[width] duration-300 ease-out lg:sticky lg:top-0 lg:flex lg:h-screen lg:max-h-screen lg:overflow-hidden ${
-        isMenuOpen ? "w-64" : "w-20"
+      className={`fixed inset-y-0 left-0 z-30 hidden h-screen shrink-0 flex-col border-r border-border bg-obsidian transition-[width] duration-300 ease-out lg:z-40 lg:flex ${
+        isMenuOpen ? "w-60" : "w-16"
       }`}
     >
       <div
         className={`flex shrink-0 items-center border-b border-border ${
-          isMenuOpen ? "justify-between gap-2 px-4 py-4" : "justify-center px-2 py-4"
+          isMenuOpen ? "justify-end px-4 py-3" : "justify-center px-0 py-3"
         }`}
       >
-        <div className={`min-w-0 bg-transparent transition-opacity duration-300 ${isMenuOpen ? "" : "hidden"}`}>
-          <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted">
-            Collectibles
-          </p>
-          <WinRipsLogo variant="sidebar" className="mt-1" />
-        </div>
         <button
           type="button"
           onClick={toggleMenu}
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-all duration-200 ${
             isMenuOpen
-              ? "border-fuchsia/40 bg-fuchsia/10 text-fuchsia"
-              : "border-border bg-metallic text-muted hover:border-fuchsia/30 hover:text-white"
+              ? "border-fuchsia/35 bg-fuchsia/10 text-fuchsia"
+              : "border-border bg-slate text-muted hover:bg-slate-elevated hover:text-white"
           }`}
           aria-label={isMenuOpen ? "Collapse navigation" : "Expand navigation"}
           aria-expanded={isMenuOpen}
@@ -115,7 +120,11 @@ export function Sidebar() {
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-2">
+      <div
+        className={`flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto ${
+          isMenuOpen ? "px-2 py-3" : "items-center px-1 py-2"
+        }`}
+      >
         <SidebarNav expanded={isMenuOpen} />
         <SidebarHubNav expanded={isMenuOpen} />
       </div>

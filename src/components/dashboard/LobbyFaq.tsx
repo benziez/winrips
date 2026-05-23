@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronDown } from "../icons/AppIcons";
 
 const FAQ_ITEMS = [
   {
@@ -25,34 +26,44 @@ export function LobbyFaq() {
   const [openId, setOpenId] = useState<string | null>(null);
 
   return (
-    <section className="rounded-xl border border-border bg-[#121318] overflow-hidden">
-      <header className="px-4 sm:px-5 py-4 border-b border-border">
-        <h2 className="text-lg sm:text-xl font-bold text-white">Still Have Questions?</h2>
-        <p className="text-xs text-muted mt-1">Quick answers about sweepstakes play and claims</p>
+    <section className="w-full pt-2">
+      <header className="mb-6">
+        <h2 className="text-lg font-bold tracking-tight text-white sm:text-xl">
+          Still Have Questions?
+        </h2>
+        <p className="mt-1 text-xs text-slate-400">
+          Quick answers about sweepstakes play and claims
+        </p>
       </header>
 
-      <ul className="divide-y divide-border">
+      <ul className="border-t border-[#213743]">
         {FAQ_ITEMS.map((item) => {
           const isOpen = openId === item.id;
           return (
-            <li key={item.id}>
+            <li key={item.id} className="border-b border-[#213743]">
               <button
                 type="button"
                 onClick={() => setOpenId(isOpen ? null : item.id)}
-                className="flex w-full items-center justify-between gap-4 px-4 sm:px-5 py-4 text-left transition-colors hover:bg-metallic/50"
+                className="group flex w-full items-center justify-between gap-4 bg-transparent py-4 text-left transition-colors duration-200"
                 aria-expanded={isOpen}
               >
-                <span className="text-sm sm:text-base font-semibold text-white">
+                <span
+                  className={`text-sm font-semibold tracking-tight transition-colors duration-200 sm:text-base ${
+                    isOpen
+                      ? "text-white"
+                      : "text-slate-400 group-hover:text-white"
+                  }`}
+                >
                   {item.question}
                 </span>
-                <span
-                  className={`shrink-0 text-muted transition-transform duration-200 ${
-                    isOpen ? "rotate-180" : ""
+                <ChevronDown
+                  size={18}
+                  className={`shrink-0 transition-all duration-300 ease-out ${
+                    isOpen
+                      ? "rotate-180 text-[#ff007a]"
+                      : "rotate-0 text-slate-500 group-hover:text-slate-300"
                   }`}
-                  aria-hidden
-                >
-                  ▼
-                </span>
+                />
               </button>
               <div
                 className={`grid transition-[grid-template-rows] duration-300 ease-out ${
@@ -60,7 +71,7 @@ export function LobbyFaq() {
                 }`}
               >
                 <div className="overflow-hidden">
-                  <p className="px-4 sm:px-5 pb-4 text-sm text-muted leading-relaxed bg-metallic/30 border-t border-border/50">
+                  <p className="max-w-3xl pb-5 pr-8 text-sm leading-relaxed text-slate-400">
                     {item.answer}
                   </p>
                 </div>

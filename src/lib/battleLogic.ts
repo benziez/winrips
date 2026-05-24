@@ -1,5 +1,6 @@
 import { RETAIL_COPY } from "../constants/retail";
 import type { Database, Json } from "../types/database";
+import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 export type BattleStatus = "waiting" | "in_progress" | "completed";
@@ -299,9 +300,7 @@ export async function createBattle(boxIds: string[]): Promise<CreateBattleResult
   const { data, error } = await client.rpc("create_battle", args);
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[create_battle] RPC failed:", error.message);
-    }
+    logger.warn("[create_battle] RPC failed:", error.message);
     return { ok: false, error: mapBattleError(error.message, "create") };
   }
 
@@ -344,9 +343,7 @@ export async function joinBattle(battleId: string): Promise<JoinBattleResult> {
   const { data, error } = await client.rpc("join_battle", { p_battle_id: normalizedId });
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[join_battle] RPC failed:", error.message);
-    }
+    logger.warn("[join_battle] RPC failed:", error.message);
     return { ok: false, error: mapBattleError(error.message, "join") };
   }
 
@@ -389,9 +386,7 @@ export async function resolveBattle(battleId: string): Promise<ResolveBattleResu
   const { data, error } = await client.rpc("resolve_battle", { p_battle_id: normalizedId });
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[resolve_battle] RPC failed:", error.message);
-    }
+    logger.warn("[resolve_battle] RPC failed:", error.message);
     return { ok: false, error: mapBattleError(error.message, "resolve") };
   }
 
@@ -417,9 +412,7 @@ export async function fetchBattleById(battleId: string): Promise<BattleDetail | 
     .maybeSingle();
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[battles] fetch by id failed:", error.message);
-    }
+    logger.warn("[battles] fetch by id failed:", error.message);
     return null;
   }
 
@@ -438,9 +431,7 @@ export async function fetchWaitingBattles(): Promise<BattleLobbyItem[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[battles] fetch waiting failed:", error.message);
-    }
+    logger.warn("[battles] fetch waiting failed:", error.message);
     return [];
   }
 

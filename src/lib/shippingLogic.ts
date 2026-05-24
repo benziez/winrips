@@ -1,5 +1,6 @@
 import { RETAIL_COPY } from "../constants/retail";
 import type { Database, Json } from "../types/database";
+import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 type ProcessShippingRequestArgs =
@@ -100,9 +101,7 @@ export async function processShippingRequest(
   const { data, error } = await client.rpc("process_shipping_request", args);
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[process_shipping_request] RPC failed:", error.message);
-    }
+    logger.warn("[process_shipping_request] RPC failed:", error.message);
     return mapShippingError(error.message);
   }
 

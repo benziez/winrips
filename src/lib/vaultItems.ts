@@ -1,4 +1,5 @@
 import type { Card, Rarity, VaultedCard, VaultItemStatus } from "../types";
+import { logger } from "./logger";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
 import type { VaultItemInsert, VaultItemRow } from "../types/database";
 
@@ -76,9 +77,7 @@ export async function insertVaultItem(
     .single();
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[vault_items] insert failed:", error.message);
-    }
+    logger.warn("[vault_items] insert failed:", error.message);
     return null;
   }
 
@@ -102,9 +101,7 @@ export async function fetchVaultItems(userId: string, limit = 120): Promise<Vaul
     .limit(limit);
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[vault_items] fetch failed:", error.message);
-    }
+    logger.warn("[vault_items] fetch failed:", error.message);
     return [];
   }
 
@@ -124,8 +121,8 @@ export async function deleteVaultItem(userId: string, vaultId: string): Promise<
     .eq("user_id", userId.trim())
     .eq("id", vaultId.trim());
 
-  if (error && import.meta.env.DEV) {
-    console.warn("[vault_items] delete failed:", error.message);
+  if (error) {
+    logger.warn("[vault_items] delete failed:", error.message);
   }
 
   return !error;

@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
+import { logger } from "./logger";
 import type { PlayHistoryInsert, PlayHistoryRow } from "../types/database";
 
 export type { PlayHistoryRow };
@@ -73,8 +74,8 @@ export async function recordPlayHistory(input: RecordPlayHistoryInput): Promise<
     .from("play_history")
     .insert(payload as never);
 
-  if (error && import.meta.env.DEV) {
-    console.warn("[play_history] insert failed:", error.message);
+  if (error) {
+    logger.warn("[play_history] insert failed:", error.message);
   }
 }
 
@@ -95,9 +96,7 @@ export async function fetchPlayHistory(
     .limit(limit);
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[play_history] fetch failed:", error.message);
-    }
+    logger.warn("[play_history] fetch failed:", error.message);
     return [];
   }
 

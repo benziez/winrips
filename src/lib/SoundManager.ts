@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 const SPIN_LOOP_SRC = "/sounds/spin_loop.mp3";
 const REVEAL_CHIME_SRC = "/sounds/reveal_chime.mp3";
 
@@ -50,9 +52,7 @@ export function isSoundManagerUnlocked(): boolean {
 
 function canPlay(): boolean {
   if (!userHasInteracted) {
-    if (import.meta.env.DEV) {
-      console.warn("[SoundManager] Skipping playback — waiting for user interaction.");
-    }
+    logger.warn("[SoundManager] Skipping playback — waiting for user interaction.");
     return false;
   }
   return true;
@@ -68,9 +68,7 @@ export function playSpin(): void {
   spin.currentTime = 0;
   spin.playbackRate = 1.5;
   void spin.play().catch((error) => {
-    if (import.meta.env.DEV) {
-      console.warn("[SoundManager] playSpin blocked:", error);
-    }
+    logger.warn("[SoundManager] playSpin blocked:", error);
   });
 }
 
@@ -111,9 +109,7 @@ export function stopSpinAndPlayReveal(): void {
   if (reveal) {
     reveal.currentTime = 0;
     void reveal.play().catch((error) => {
-      if (import.meta.env.DEV) {
-        console.warn("[SoundManager] reveal chime blocked:", error);
-      }
+      logger.warn("[SoundManager] reveal chime blocked:", error);
     });
   }
 }

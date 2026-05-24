@@ -1,5 +1,7 @@
 import { Redis } from "@upstash/redis";
 
+import { logger } from "./logger.js";
+
 const STORE_KEY = "winrips:balances";
 
 let redisClient: Redis | null = null;
@@ -74,7 +76,7 @@ function normalizeStore(raw: unknown): BalanceStore {
 
 async function loadStore(): Promise<BalanceStore> {
   if (!isKvConfigured()) {
-    console.warn(
+    logger.warn(
       "[balancesStore] KV_REST_API_URL / KV_REST_API_TOKEN not set — using in-memory store for local dev.",
     );
     return memoryStore;
@@ -86,7 +88,7 @@ async function loadStore(): Promise<BalanceStore> {
     memoryStore = store;
     return store;
   } catch (error) {
-    console.warn("[balancesStore] KV read failed, using in-memory cache:", error);
+    logger.warn("[balancesStore] KV read failed, using in-memory cache:", error);
     return memoryStore;
   }
 }

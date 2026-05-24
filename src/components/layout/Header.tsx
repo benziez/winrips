@@ -4,6 +4,7 @@ import { HeaderWalletControls } from "../wallet/HeaderWalletControls";
 import { WinRipsLogo } from "../brand/WinRipsLogo";
 import { HeaderProfileMenu } from "./HeaderProfileMenu";
 import { useNavDrawer } from "./Sidebar";
+import { BRAND_FUCHSIA } from "../../constants/theme";
 
 function MenuToggleIcon({ open }: { open: boolean }) {
   return (
@@ -40,9 +41,18 @@ export function Header() {
             onClick={toggleMenu}
             className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md border p-2 transition-all duration-200 lg:hidden ${
               isMenuOpen
-                ? "border-fuchsia/35 bg-fuchsia/10 text-fuchsia"
+                ? ""
                 : "border-border bg-slate text-muted hover:bg-slate-elevated hover:text-white"
             }`}
+            style={
+              isMenuOpen
+                ? {
+                    borderColor: `color-mix(in srgb, ${BRAND_FUCHSIA} 35%, transparent)`,
+                    backgroundColor: `color-mix(in srgb, ${BRAND_FUCHSIA} 10%, transparent)`,
+                    color: BRAND_FUCHSIA,
+                  }
+                : undefined
+            }
             aria-label={isMenuOpen ? "Close platform menu" : "Open platform menu"}
             aria-expanded={isMenuOpen}
           >
@@ -80,7 +90,8 @@ export function Header() {
               <button
                 type="button"
                 onClick={() => openAuthModal("signup")}
-                className="rounded-md bg-[#ff007a] px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white transition-all duration-200 hover:brightness-110 sm:px-3 sm:text-xs"
+                className="rounded-md px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-white transition-all duration-200 hover:brightness-110 sm:px-3 sm:text-xs"
+                style={{ backgroundColor: BRAND_FUCHSIA }}
               >
                 Register
               </button>

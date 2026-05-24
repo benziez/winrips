@@ -1,4 +1,5 @@
 import type { Database, Json } from "../types/database";
+import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 type FetchPendingShipmentsClient = {
@@ -109,9 +110,7 @@ export async function fetchPendingShipmentsAdmin(): Promise<FetchPendingShipment
   const { data, error } = await client.rpc("fetch_pending_shipments_admin");
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[fetch_pending_shipments_admin] RPC failed:", error.message);
-    }
+    logger.warn("[fetch_pending_shipments_admin] RPC failed:", error.message);
     return { ok: false, error: mapAdminError(error.message) };
   }
 
@@ -156,9 +155,7 @@ export async function markVaultItemShipped(
   const { data, error } = await client.rpc("mark_vault_item_shipped", args);
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[mark_vault_item_shipped] RPC failed:", error.message);
-    }
+    logger.warn("[mark_vault_item_shipped] RPC failed:", error.message);
     return { ok: false, error: mapAdminError(error.message) };
   }
 

@@ -1,5 +1,6 @@
 import { formatGems } from "../constants/retail";
 import type { Json } from "../types/database";
+import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 export type ExchangeVaultItemResult =
@@ -78,13 +79,13 @@ export async function exchangeVaultItem(vaultItemId: string): Promise<ExchangeVa
     return { ok: false, error: "Vault item not found." };
   }
 
-  console.log("[exchange_vault_item] cleanId:", cleanId);
+  logger.log("[exchange_vault_item] RPC request");
 
   // @ts-expect-error Database RPC typings omit exchange_vault_item args.
   const { data, error } = await supabase.rpc("exchange_vault_item", { p_item_id: cleanId });
 
   if (error) {
-    console.warn("[exchange_vault_item] RPC failed. cleanId:", cleanId, error.message);
+    logger.warn("[exchange_vault_item] RPC failed:", error.message);
     return { ok: false, error: mapTransportError(error.message) };
   }
 
@@ -92,12 +93,12 @@ export async function exchangeVaultItem(vaultItemId: string): Promise<ExchangeVa
 
   if (payload?.success === false) {
     const dbError = resolveDbError(payload, "Unable to exchange this item.");
-    console.warn("[exchange_vault_item] success=false. cleanId:", cleanId, dbError);
+    logger.warn("[exchange_vault_item] success=false:", dbError);
     return { ok: false, error: dbError };
   }
 
   if (payload?.success !== true) {
-    console.warn("[exchange_vault_item] Invalid response. cleanId:", cleanId, data);
+    logger.warn("[exchange_vault_item] Invalid response");
     return {
       ok: false,
       error: resolveDbError(payload, "Exchange returned an invalid response."),
@@ -109,10 +110,9 @@ export async function exchangeVaultItem(vaultItemId: string): Promise<ExchangeVa
   const normalizedAdded = Number.isFinite(gemsAdded) ? Math.round(gemsAdded) : 0;
   const normalizedBalance = Number.isFinite(gemsBalance) ? Math.round(gemsBalance) : 0;
 
-  console.log("[exchange_vault_item] credit fields:", {
+  logger.log("[exchange_vault_item] credit applied:", {
     gemsAdded: normalizedAdded,
     gemsBalance: normalizedBalance,
-    rawPayload: payload,
   });
 
   return {
@@ -138,8 +138,7 @@ export async function exchangeVaultItemInUi(
     return;
   }
 
-  console.log("[exchangeVaultItemInUi] applying exchange:", {
-    vaultItemId: result.vaultItemId,
+  logger.log("[exchangeVaultItemInUi] applying exchange:", {
     gemsAdded: result.gemsAdded,
     gemsBalance: result.gemsBalance,
   });

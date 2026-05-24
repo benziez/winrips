@@ -1,4 +1,4 @@
-import type { Card, VaultItemStatus } from "../../types";
+import type { Card } from "../../types";
 import {
   ceilingDropHeadline,
   exchangeButtonLabel,
@@ -14,9 +14,6 @@ export interface RevealModalProps {
   isGuest?: boolean;
   isExchanging?: boolean;
   canExchange?: boolean;
-  userId?: string | null;
-  itemStatus?: VaultItemStatus | "vault_pending" | null;
-  vaultItemId?: string | null;
   onBurn: () => void;
   onSendToVault: () => void;
   onShip: () => void;
@@ -47,9 +44,6 @@ export function RevealModal({
   isGuest = false,
   isExchanging = false,
   canExchange = true,
-  userId = null,
-  itemStatus = null,
-  vaultItemId = null,
   onBurn,
   onSendToVault,
   onShip,
@@ -128,18 +122,6 @@ export function RevealModal({
         </p>
 
         <div className="relative z-20 flex flex-col gap-3">
-          {(() => {
-            console.log("[RevealModal] Exchange for Gems gate:", {
-              itemStatus,
-              userId,
-              vaultItemId,
-              canExchange,
-              isGuest,
-              isExchanging,
-              exchangeDisabled,
-            });
-            return null;
-          })()}
           <button
             type="button"
             onClick={onBurn}

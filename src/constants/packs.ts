@@ -8,6 +8,7 @@ import {
   expectedValueBounds,
   targetPackExpectedValue,
 } from "../utils/packProbability";
+import { logger } from "../lib/logger";
 import {
   EVOLVING_SKIES_ITEM_IDS,
   GOD_PACK_1999_ITEM_IDS,
@@ -175,12 +176,12 @@ if (import.meta.env?.DEV) {
       const { min, max } = expectedValueBounds(pack.cost);
       const target = targetPackExpectedValue(pack.cost);
       if (ev < min - 1 || ev > max + 1) {
-        console.warn(
+        logger.warn(
           `[pack economy] ${pack.id}: EV ${ev.toFixed(2)} outside ${min.toFixed(0)}–${max.toFixed(0)} (target ${target.toFixed(0)})`,
         );
       }
     }
   } catch (error) {
-    console.error("[pack catalog]", error);
+    logger.error("[pack catalog]", error);
   }
 }

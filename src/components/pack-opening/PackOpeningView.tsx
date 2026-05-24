@@ -446,7 +446,6 @@ export function PackOpeningView() {
   const carouselWinnerIndex = isPreviewStrip ? MOBILE_PREVIEW_WINNER_INDEX : ROULETTE_WINNER_INDEX;
   const carouselCardWidth = isNarrow && isPreviewStrip ? MOBILE_CARD_WIDTH : undefined;
   const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
-  const revealItemStatus = activeVaultItemId ? "vaulted" : "vault_pending";
   const canExchangeReveal = !isGuest && Boolean(activeVaultItemId);
 
   return (
@@ -518,9 +517,6 @@ export function PackOpeningView() {
           isGuest={isGuest}
           isExchanging={isExchanging}
           canExchange={canExchangeReveal}
-          userId={userId || null}
-          itemStatus={revealItemStatus}
-          vaultItemId={activeVaultItemId}
           onBurn={() => void handleBurn()}
           onSendToVault={handleSendToVault}
           onShip={handleShip}

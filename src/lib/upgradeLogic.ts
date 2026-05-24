@@ -1,4 +1,5 @@
 import type { Database, Json } from "../types/database";
+import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 type ProcessUpgradeRollArgs = Database["public"]["Functions"]["process_upgrade_roll"]["Args"];
@@ -77,9 +78,7 @@ export async function processUpgradeRoll(
   const { data, error } = await client.rpc("process_upgrade_roll", args);
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[process_upgrade_roll] RPC failed:", error.message);
-    }
+    logger.warn("[process_upgrade_roll] RPC failed:", error.message);
     return { ok: false, error: mapUpgradeError(error.message) };
   }
 

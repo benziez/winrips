@@ -13,6 +13,7 @@ import { WalletModal } from "../wallet/WalletModal";
 import { VAULT_SHIPPING_COST } from "../../constants/shipping";
 import { processShippingRequest } from "../../lib/shippingLogic";
 import { useApp } from "../../context/AppContext";
+import { AgeGate } from "../compliance/AgeGate";
 
 function AppLayoutFrame({ children }: { children: ReactNode }) {
   const {
@@ -30,7 +31,9 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
   const { isMenuOpen } = useNavDrawer();
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-obsidian">
+    <>
+      <AgeGate />
+      <div className="min-h-screen w-full overflow-x-hidden bg-obsidian">
       <Sidebar />
 
       <div
@@ -116,7 +119,8 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
           )}
         </div>
       ) : null}
-    </div>
+      </div>
+    </>
   );
 }
 

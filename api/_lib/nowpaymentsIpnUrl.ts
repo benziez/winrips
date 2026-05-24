@@ -5,6 +5,8 @@
  * - `NOWPAYMENTS_IPN_CALLBACK_URL` — full URL, e.g. https://abc.ngrok-free.app/api/payments/webhook
  * - `NOWPAYMENTS_TUNNEL_URL` — tunnel origin only; `/api/payments/webhook` is appended
  */
+import { logger } from "./logger.js";
+
 export function resolveNowPaymentsIpnCallbackUrl(): string | undefined {
   const explicit = process.env.NOWPAYMENTS_IPN_CALLBACK_URL?.trim();
   if (explicit) {
@@ -29,7 +31,7 @@ export function warnIfMissingDevIpnCallback(): void {
   if (!isLocalDevelopment()) return;
   if (resolveNowPaymentsIpnCallbackUrl()) return;
 
-  console.warn(
+  logger.warn(
     "[payments] No NOWPAYMENTS_IPN_CALLBACK_URL or NOWPAYMENTS_TUNNEL_URL — local deposits will not auto-credit. Run `npm run dev:tunnel` (ngrok) and set the printed URL in .env. Do not use localtunnel for IPN; NOWPayments cannot bypass its reminder page.",
   );
 }

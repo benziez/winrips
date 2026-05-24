@@ -1,5 +1,6 @@
 import { RETAIL_COPY } from "../constants/retail";
 import type { Database, Json } from "../types/database";
+import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
 type ProcessSpinTransactionArgs =
@@ -131,9 +132,7 @@ export async function handleSpin(
     });
 
     if (spinError) {
-      if (import.meta.env.DEV) {
-        console.warn("[process_spin_transaction] RPC failed:", spinError.message);
-      }
+      logger.warn("[process_spin_transaction] RPC failed:", spinError.message);
       throw new Error(mapSpinChargeError(spinError.message));
     }
 
@@ -166,9 +165,7 @@ export async function handleSpin(
       const vaultItemId = normalizeVaultItemId(vaultPayload?.vault_item_id);
 
       if (vaultItemId) {
-        if (import.meta.env.DEV) {
-          console.log("[add_to_vault] vault_item_id:", vaultItemId);
-        }
+        logger.log("[add_to_vault] vault item registered");
         return {
           ok: true,
           gemsBalance: Math.round(gemsBalance),
@@ -177,9 +174,7 @@ export async function handleSpin(
       }
 
       if (vaultError) {
-        if (import.meta.env.DEV) {
-          console.warn("[add_to_vault] RPC failed:", vaultError.message, vaultData);
-        }
+        logger.warn("[add_to_vault] RPC failed:", vaultError.message);
         return {
           ok: true,
           gemsBalance: Math.round(gemsBalance),
@@ -193,9 +188,7 @@ export async function handleSpin(
           typeof vaultPayload.error === "string" && vaultPayload.error.trim()
             ? vaultPayload.error.trim()
             : "Vault registration did not complete.";
-        if (import.meta.env.DEV) {
-          console.warn("[add_to_vault] returned failure:", vaultErrorMessage, vaultData);
-        }
+        logger.warn("[add_to_vault] returned failure:", vaultErrorMessage);
         return {
           ok: true,
           gemsBalance: Math.round(gemsBalance),
@@ -204,9 +197,7 @@ export async function handleSpin(
         };
       }
 
-      if (import.meta.env.DEV) {
-        console.warn("[add_to_vault] missing vault_item_id in response:", vaultData);
-      }
+      logger.warn("[add_to_vault] missing vault item id in response");
       return {
         ok: true,
         gemsBalance: Math.round(gemsBalance),
@@ -218,9 +209,7 @@ export async function handleSpin(
         vaultUnexpectedError instanceof Error
           ? vaultUnexpectedError.message
           : "Vault registration failed.";
-      if (import.meta.env.DEV) {
-        console.warn("[add_to_vault] unexpected error:", message);
-      }
+      logger.warn("[add_to_vault] unexpected error:", message);
       return {
         ok: true,
         gemsBalance: Math.round(gemsBalance),

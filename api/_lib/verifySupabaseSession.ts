@@ -1,5 +1,7 @@
 import type { IncomingMessage } from "node:http";
 
+import { logger } from "./logger.js";
+
 /**
  * Supabase env vars checked (first match wins per field):
  * - URL: `SUPABASE_URL`, then `VITE_SUPABASE_URL`
@@ -52,8 +54,8 @@ function requireDevFallbackUserId(
     throw new Error("userId is required for local deposit testing.");
   }
 
-  console.warn(
-    `[verifySupabaseSession] DEV fallback: using request userId "${claimed}" (Supabase URL/key not in process.env).`,
+  logger.warn(
+    "[verifySupabaseSession] DEV fallback: using request userId (Supabase URL/key not in process.env).",
   );
 
   return claimed;
@@ -91,7 +93,7 @@ export async function requireAuthenticatedUserId(
 
   if (!response.ok) {
     if (isLocalDevelopment() && claimedUserId?.trim()) {
-      console.warn(
+      logger.warn(
         "[verifySupabaseSession] Supabase rejected token; falling back to request userId in development.",
       );
       return requireDevFallbackUserId(req, claimedUserId);

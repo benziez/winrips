@@ -25,6 +25,7 @@ import {
 import type { AppView, AuthModalMode, Currency, Pack, VaultedCard } from "../types";
 import type { WalletModalTab } from "../types/wallet";
 import { fetchUserBalances, resolveSyncedGemBalance } from "../lib/userBalances";
+import { logger } from "../lib/logger";
 import { fetchProfileUsername } from "../lib/userProfile";
 import {
   fetchUserVaultInventory,
@@ -411,9 +412,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const syncVaultFromServer = useCallback(async (authUserId?: string) => {
     if (spinInProgressRef.current) {
-      if (import.meta.env.DEV) {
-        console.warn("[vault] Skipping server sync while a spin is in progress.");
-      }
+      logger.warn("[vault] Skipping server sync while a spin is in progress.");
       return;
     }
 
@@ -436,9 +435,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return { ...s, vaultItemsLoading: false };
         }
         if (items.length === 0 && s.vaultItems.length > 0) {
-          if (import.meta.env.DEV) {
-            console.warn("[vault] Ignoring empty vault fetch — keeping local vault state.");
-          }
+          logger.warn("[vault] Ignoring empty vault fetch — keeping local vault state.");
           return { ...s, vaultItemsLoading: false };
         }
         return {
@@ -723,10 +720,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           ? Math.round(serverGemsBalance)
           : currentBalance + normalizedAdded;
 
-        console.log("[applyVaultExchange] balance update:", {
-          currentBalance,
+        logger.log("[applyVaultExchange] balance update:", {
           gemsAdded: normalizedAdded,
-          serverGemsBalance,
           newBalance,
         });
 

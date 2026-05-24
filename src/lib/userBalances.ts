@@ -1,5 +1,6 @@
 import { fetchAccountBalance } from "./paymentsApi";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
+import { logger } from "./logger";
 
 export interface UserBalances {
   gemBalance: number;
@@ -65,7 +66,7 @@ function logProfilesFallbackOnce(reason: string): void {
   if (loggedProfilesFallback) return;
   loggedProfilesFallback = true;
   if (import.meta.env.DEV) {
-    console.info(`[balances] Using /api/account/balance (${reason}).`);
+    logger.log(`[balances] Using /api/account/balance (${reason}).`);
   }
 }
 

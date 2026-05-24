@@ -3,6 +3,7 @@ import type { StoreItem, StoreRarity } from "../types/store";
 import type { BoxItemRow, BoxRow, CatalogPack } from "../types/box";
 import { resolveLobbyPackCover } from "../constants/lobbyPackCovers";
 import { isCollectiblePokemonStoreItem } from "../lib/pokemonApi";
+import { logger } from "./logger";
 import { sanitizeStoreItemImage } from "../utils/collectibleFallback";
 import { supabase } from "./supabaseClient";
 
@@ -149,7 +150,7 @@ export async function fetchRemoteBoxCatalog(): Promise<RemoteBoxCatalog | null> 
     .limit(1000);
 
   if (boxesError) {
-    console.error("[boxes] fetch boxes", boxesError.message);
+    logger.error("[boxes] fetch boxes failed");
     return null;
   }
 
@@ -168,7 +169,7 @@ export async function fetchRemoteBoxCatalog(): Promise<RemoteBoxCatalog | null> 
     .limit(10000);
 
   if (itemsError) {
-    console.error("[boxes] fetch box_items", itemsError.message);
+    logger.error("[boxes] fetch box_items failed");
     return null;
   }
 

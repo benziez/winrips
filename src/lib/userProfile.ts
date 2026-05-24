@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
+import { logger } from "./logger";
 
 export interface CurrentUserProfile {
   username: string | null;
@@ -20,9 +21,7 @@ export async function fetchCurrentUserProfile(
     .single();
 
   if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[profiles] profile fetch failed:", error.message);
-    }
+    logger.warn("[profiles] profile fetch failed:", error.message);
     return null;
   }
 

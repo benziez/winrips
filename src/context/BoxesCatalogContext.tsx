@@ -17,6 +17,7 @@ import {
 } from "../data/boxCatalog";
 import { LOBBY_PACK_CATALOG } from "../constants/packs";
 import { fetchRemoteBoxCatalog } from "../lib/boxesApi";
+import { logger } from "../lib/logger";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
 import type { CatalogPack } from "../types/box";
 import type { StoreItem } from "../types/store";
@@ -71,22 +72,18 @@ export function BoxesCatalogProvider({ children }: { children: ReactNode }) {
     (nextPacks: CatalogPack[], nextStoreItems: Record<string, StoreItem[]>, remote: boolean) => {
       setPacks((previousPacks) => {
         if (nextPacks.length === 0 && previousPacks.length > 0) {
-          if (import.meta.env.DEV) {
-            console.warn(
-              "[boxes-catalog] Ignoring empty catalog fetch — keeping previous packs.",
-            );
-          }
+          logger.warn(
+            "[boxes-catalog] Ignoring empty catalog fetch — keeping previous packs.",
+          );
           return previousPacks;
         }
         if (remote && nextPacks.length > 0 && previousPacks.length > 0) {
           const nextIds = new Set(nextPacks.map((pack) => pack.id));
           const missingFromPrevious = previousPacks.some((pack) => !nextIds.has(pack.id));
           if (missingFromPrevious && nextPacks.length < previousPacks.length) {
-            if (import.meta.env.DEV) {
-              console.warn(
-                "[boxes-catalog] Ignoring partial catalog fetch — keeping previous packs.",
-              );
-            }
+            logger.warn(
+              "[boxes-catalog] Ignoring partial catalog fetch — keeping previous packs.",
+            );
             return previousPacks;
           }
         }
@@ -98,11 +95,9 @@ export function BoxesCatalogProvider({ children }: { children: ReactNode }) {
         const nextKeys = Object.keys(nextStoreItems);
 
         if (nextKeys.length === 0 && previousKeys.length > 0 && remote) {
-          if (import.meta.env.DEV) {
-            console.warn(
-              "[boxes-catalog] Ignoring empty store-items fetch — keeping previous items.",
-            );
-          }
+          logger.warn(
+            "[boxes-catalog] Ignoring empty store-items fetch — keeping previous items.",
+          );
           return previousStoreItems;
         }
 

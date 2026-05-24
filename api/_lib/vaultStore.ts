@@ -1,5 +1,7 @@
 import { Redis } from "@upstash/redis";
 
+import { logger } from "./logger.js";
+
 const STORE_KEY = "winrips:vault";
 
 export interface StoredVaultCard {
@@ -86,7 +88,7 @@ function isStoredVaultCard(value: unknown): value is StoredVaultCard {
 
 async function loadStore(): Promise<VaultStore> {
   if (!isKvConfigured()) {
-    console.warn(
+    logger.warn(
       "[vaultStore] KV_REST_API_URL / KV_REST_API_TOKEN not set — using in-memory store for local dev.",
     );
     return memoryStore;
@@ -98,7 +100,7 @@ async function loadStore(): Promise<VaultStore> {
     memoryStore = store;
     return store;
   } catch (error) {
-    console.warn("[vaultStore] KV read failed, using in-memory cache:", error);
+    logger.warn("[vaultStore] KV read failed, using in-memory cache:", error);
     return memoryStore;
   }
 }

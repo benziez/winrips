@@ -1,5 +1,7 @@
 /** Web Audio coin chime — no external asset required. Failures are non-blocking. */
 
+import { logger } from "./logger";
+
 const AUTOPLAY_BLOCKED_MESSAGE = "Audio autoplay blocked until user interaction";
 
 let audioContext: AudioContext | null = null;
@@ -7,13 +9,13 @@ let unlocked = false;
 
 function warnDepositSound(message: string, error?: unknown): void {
   const detail = error instanceof Error ? error.message : error != null ? String(error) : "";
-  console.warn(
+  logger.warn(
     `[depositSound] ${message}${detail ? ` (${detail})` : ""}`,
   );
 }
 
 function warnAutoplayBlocked(error?: unknown): void {
-  console.warn(AUTOPLAY_BLOCKED_MESSAGE, error ?? "");
+  logger.warn(AUTOPLAY_BLOCKED_MESSAGE, error ?? "");
 }
 
 function getContext(): AudioContext | null {

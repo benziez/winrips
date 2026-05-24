@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import type { PackCategory } from "../../types";
-import { POKEMON_CARD_BACK_FALLBACK } from "../../constants/pokemonAssets";
+import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
 import {
   isSportsPlaceholderImage,
   SPORTS_PLACEHOLDER_IMAGE,
 } from "../../constants/sportsAssets";
-import { YUGIOH_CARD_BACK_FALLBACK } from "../../constants/yugiohAssets";
-import { resolveCardBackFallback } from "../../utils/collectibleFallback";
 
 function isRenderableSrc(src?: string | null): src is string {
   if (!src?.trim()) return false;
@@ -22,7 +20,7 @@ interface CollectibleImageProps {
   alt?: string;
   className?: string;
   frameClassName?: string;
-  /** Category-aware error fallback — prevents Pokémon backs on Yu-Gi-Oh assets. */
+  /** @deprecated Category no longer affects fallback — placeholder is always local. */
   category?: PackCategory;
 }
 
@@ -62,33 +60,28 @@ function LuxurySlabFrame({
   );
 }
 
-type DisplayMode = "primary" | "card-back" | "slab";
+type DisplayMode = "primary" | "placeholder" | "slab";
 
 function resolveInitialMode(src?: string | null): DisplayMode {
   if (isSportsPlaceholderImage(src)) return "slab";
-  if (!isRenderableSrc(src)) return "card-back";
+  if (!isRenderableSrc(src)) return "placeholder";
   return "primary";
 }
 
-function srcForMode(
-  src: string | null | undefined,
-  mode: DisplayMode,
-  category?: PackCategory,
-): string {
-  if (mode === "card-back") return resolveCardBackFallback(src, category);
+function srcForMode(src: string | null | undefined, mode: DisplayMode): string {
+  if (mode === "placeholder") return CARD_PLACEHOLDER_IMAGE;
   if (mode === "primary" && isRenderableSrc(src)) return src;
-  return resolveCardBackFallback(src, category);
+  return CARD_PLACEHOLDER_IMAGE;
 }
 
 /**
- * Renders collectible art — category-aware card backs on load failure, then CSS slab frame.
+ * Renders collectible art — missing or failed loads use a local placeholder, not card backs.
  */
 export function CollectibleImage({
   src,
   alt = "Collectible",
   className = "h-full w-full object-contain",
   frameClassName = "",
-  category,
 }: CollectibleImageProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => resolveInitialMode(src));
 
@@ -98,14 +91,14 @@ export function CollectibleImage({
 
   function handleImageError() {
     setDisplayMode((current) => {
-      if (current === "primary") return "card-back";
-      if (current === "card-back") return "slab";
+      if (current === "primary") return "placeholder";
+      if (current === "placeholder") return "slab";
       return current;
     });
   }
 
   const showSlab = displayMode === "slab";
-  const imageSrc = srcForMode(src, displayMode, category);
+  const imageSrc = srcForMode(src, displayMode);
 
   return (
     <div
@@ -128,9 +121,4 @@ export function CollectibleImage({
   );
 }
 
-export {
-  SPORTS_PLACEHOLDER_IMAGE,
-  isSportsPlaceholderImage,
-  POKEMON_CARD_BACK_FALLBACK,
-  YUGIOH_CARD_BACK_FALLBACK,
-};
+export { SPORTS_PLACEHOLDER_IMAGE, isSportsPlaceholderImage };

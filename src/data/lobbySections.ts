@@ -1,6 +1,5 @@
 import type { Pack, PackCategory } from "../types";
 import { ACTIVE_POKEMON_PACK_IDS, LOBBY_PACK_CATALOG } from "../constants/packs";
-import { getLobbyPackCatalog } from "./boxCatalog";
 
 export interface LobbySection {
   id: string;
@@ -44,15 +43,15 @@ function isPokemonPack(pack: Pack): boolean {
   return true;
 }
 
-export function packsForLobbySection(section: LobbySection): Pack[] {
+export function packsForLobbySection(section: LobbySection, catalog: Pack[]): Pack[] {
   if (section.id !== "pokemon") return [];
 
-  const catalog = getLobbyPackCatalog().filter(isPokemonPack);
-  if (catalog.length === 0) {
+  const pokemonCatalog = catalog.filter(isPokemonPack);
+  if (pokemonCatalog.length === 0) {
     return LOBBY_PACK_CATALOG.filter(
       (pack) => isPokemonPack(pack) && ACTIVE_POKEMON_PACK_ID_SET.has(pack.id),
     );
   }
 
-  return catalog.filter(isPokemonPack);
+  return pokemonCatalog;
 }

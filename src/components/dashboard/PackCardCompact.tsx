@@ -18,6 +18,12 @@ interface PackCardCompactProps {
 
 export function PackCardCompact({ pack }: PackCardCompactProps) {
   const { selectPack } = useApp();
+
+  const dropsSignature = useMemo(
+    () => getTopValueDropImages(pack).join("\u0000"),
+    [pack.id, pack.cost],
+  );
+
   const cycleSlides = useMemo(() => {
     const drops = getTopValueDropImages(pack);
     const slides = [pack.image];
@@ -25,13 +31,13 @@ export function PackCardCompact({ pack }: PackCardCompactProps) {
       if (!slides.includes(url)) slides.push(url);
     }
     return slides;
-  }, [pack.id, pack.image]);
+  }, [pack.id, pack.image, dropsSignature]);
 
   const [cycleIndex, setCycleIndex] = useState(0);
 
   useEffect(() => {
     setCycleIndex(0);
-  }, [pack.id]);
+  }, [pack.id, dropsSignature]);
 
   useEffect(() => {
     if (cycleSlides.length <= 1) return;
@@ -41,7 +47,7 @@ export function PackCardCompact({ pack }: PackCardCompactProps) {
     }, CYCLE_MS);
 
     return () => clearInterval(intervalId);
-  }, [cycleSlides.length, pack.id]);
+  }, [cycleSlides.length, dropsSignature]);
 
   return (
     <article

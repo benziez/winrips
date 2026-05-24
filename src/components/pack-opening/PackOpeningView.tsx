@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Card } from "../../types";
 import { useApp } from "../../context/AppContext";
 import { recordPlayHistory } from "../../lib/playHistory";
-import { processSpinTransaction } from "../../lib/spinLogic";
-import { cardToVaultedCard } from "../../lib/vaultItems";
+import { handleSpin } from "../../lib/spinLogic";
+import {
+  exchangeVaultItemInUi,
+  formatExchangeSuccessToast,
+} from "../../lib/exchangeLogic";
 import {
   rollMultipleWithRoll,
   buildCarouselStrip,
@@ -18,7 +21,7 @@ import { UnboxingCarousel } from "./UnboxingCarousel";
 import { RevealModal } from "./RevealModal";
 import { ShippingModal } from "./ShippingModal";
 import { DropTableMatrix } from "./DropTableMatrix";
-import { exchangeCreditGems, formatGems, RETAIL_COPY } from "../../constants/retail";
+import { formatGems, RETAIL_COPY } from "../../constants/retail";
 import { useIsNarrowViewport } from "../../hooks/useIsNarrowViewport";
 import { FairnessVerifiedBadge } from "./FairnessVerifiedBadge";
 import { FairnessVerifyModal } from "./FairnessVerifyModal";
@@ -28,6 +31,7 @@ import {
   type FairnessSession,
 } from "../../utils/provablyFair";
 import { CardDetailModalProvider } from "../../context/CardDetailModalContext";
+import { SoundManager } from "../../lib/SoundManager";
 
 const SPIN_DURATION_MS = ROULETTE_SPIN_MS;
 const MOBILE_PREVIEW_LENGTH = 3;
@@ -40,13 +44,16 @@ export function PackOpeningView() {
     goToLobby,
     setGoldVolts,
     showCashoutToast,
-    addGoldVolts,
-    addVaultCard,
+    showErrorToast,
     shippingModalOpen,
     setShippingModalOpen,
     goldVolts,
     userId,
     navigateToView,
+    appendVaultPullFromSpin,
+    setSpinInProgress,
+    applyVaultExchange,
+    syncGemBalanceFromServer,
   } = useApp();
 
   const isGuest = !userId;
@@ -64,10 +71,13 @@ export function PackOpeningView() {
   const [spinKey, setSpinKey] = useState(0);
   const [queue, setQueue] = useState<Card[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
+  const [pullVaultIds, setPullVaultIds] = useState<string[]>([]);
+  const [isExchanging, setIsExchanging] = useState(false);
   const [fairnessSession, setFairnessSession] = useState<FairnessSession | null>(null);
   const [fairnessModalOpen, setFairnessModalOpen] = useState(false);
 
   const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spinRafRef = useRef<number | null>(null);
 
   const buildIdlePreviewStrip = useCallback((packId: string) => {
     return isNarrowRef.current
@@ -83,14 +93,55 @@ export function PackOpeningView() {
     window.scrollTo(0, 0);
   }, []);
 
+  const clearSpinSpeedLoop = useCallback(() => {
+    if (spinRafRef.current != null) {
+      cancelAnimationFrame(spinRafRef.current);
+      spinRafRef.current = null;
+    }
+  }, []);
+
   const clearSpinTimer = useCallback(() => {
     if (spinTimerRef.current) {
       clearTimeout(spinTimerRef.current);
       spinTimerRef.current = null;
     }
-  }, []);
+    clearSpinSpeedLoop();
+  }, [clearSpinSpeedLoop]);
 
-  useEffect(() => () => clearSpinTimer(), [clearSpinTimer]);
+  const startSpinSpeedLoop = useCallback(() => {
+    clearSpinSpeedLoop();
+    const startedAt = performance.now();
+
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / SPIN_DURATION_MS);
+      SoundManager.updateSpinSpeed(progress);
+      if (progress < 1) {
+        spinRafRef.current = requestAnimationFrame(tick);
+      }
+    };
+
+    SoundManager.updateSpinSpeed(0);
+    spinRafRef.current = requestAnimationFrame(tick);
+  }, [clearSpinSpeedLoop]);
+
+  const beginCarouselSpin = useCallback(() => {
+    clearSpinTimer();
+    SoundManager.playSpin();
+    startSpinSpeedLoop();
+    spinTimerRef.current = setTimeout(() => {
+      clearSpinSpeedLoop();
+      SoundManager.updateSpinSpeed(1);
+      setIsSpinning(false);
+      setShowModal(true);
+      spinTimerRef.current = null;
+      SoundManager.stopSpinAndPlayReveal();
+    }, SPIN_DURATION_MS);
+  }, [clearSpinTimer, clearSpinSpeedLoop, startSpinSpeedLoop]);
+
+  useEffect(() => () => {
+    clearSpinTimer();
+    SoundManager.stopAll();
+  }, [clearSpinTimer]);
 
   useEffect(() => {
     if (!selectedPack) {
@@ -105,6 +156,8 @@ export function PackOpeningView() {
     setWinnerItem(null);
     setQueue([]);
     setQueueIndex(0);
+    setPullVaultIds([]);
+    setIsExchanging(false);
     setFairnessModalOpen(false);
     void buildPendingFairnessSession(selectedPack.id).then(setFairnessSession);
   }, [selectedPack?.id, buildIdlePreviewStrip]);
@@ -118,6 +171,8 @@ export function PackOpeningView() {
   const handleOpenPack = useCallback(async () => {
     if (isSpinning || isChargingSpin || !selectedPack) return;
 
+    SoundManager.unlock();
+
     const totalCost = selectedPack.cost * quantity;
     if (!isGuest && goldVolts < totalCost) {
       showCashoutToast(`Insufficient ${RETAIL_COPY.currency} for this opening.`);
@@ -126,16 +181,90 @@ export function PackOpeningView() {
 
     if (!isGuest && userId) {
       setIsChargingSpin(true);
+      setSpinInProgress(true);
+      const vaultIds: string[] = [];
       try {
-        const chargeResult = await processSpinTransaction(userId, totalCost);
-        if (!chargeResult.ok) {
-          showCashoutToast(chargeResult.error);
-          return;
+        const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
+        const pulled = rollResults.map((result) =>
+          resolveWinnerItem(selectedPack.id, result.card),
+        );
+
+        for (let index = 0; index < pulled.length; index += 1) {
+          const won = pulled[index]!;
+          const spinResult = await handleSpin(selectedPack.cost, {
+            itemId: won.id,
+            itemName: won.name,
+            gemValue: won.value,
+            imageUrl: won.image,
+          });
+          if (!spinResult.ok) {
+            showCashoutToast(spinResult.error);
+            setSpinInProgress(false);
+            return;
+          }
+          setGoldVolts(spinResult.gemsBalance);
+
+          if (spinResult.vaultItemId) {
+            appendVaultPullFromSpin({
+              vaultId: spinResult.vaultItemId,
+              id: won.id,
+              name: won.name,
+              rarity: won.rarity,
+              value: won.value,
+              image: won.image,
+              acquiredAt: new Date().toISOString(),
+              status: "vaulted",
+            });
+            vaultIds.push(spinResult.vaultItemId);
+          } else if (spinResult.vaultPending) {
+            showCashoutToast(
+              spinResult.vaultPendingMessage ??
+                "Spin succeeded but vaulting is pending.",
+            );
+          }
         }
-        setGoldVolts(chargeResult.gemsBalance);
+
+        setPullVaultIds(vaultIds);
+
+        void commitFairnessSession(selectedPack.id, rollResults[0]!.rolledNumber).then(
+          setFairnessSession,
+        );
+
+        if (userId) {
+          for (const result of rollResults) {
+            const won = resolveWinnerItem(selectedPack.id, result.card);
+            void recordPlayHistory({
+              userId,
+              packName: selectedPack.name,
+              spinCost: selectedPack.cost,
+              wonItemName: won.name,
+              wonItemValue: won.value,
+              wonItemImage: won.image,
+              rolledNumber: result.rolledNumber,
+            }).then(() => {
+              window.dispatchEvent(new Event("winrips:play-history-updated"));
+            });
+          }
+        }
+
+        const activeWinner = pulled[0];
+        const { strip, winnerItem: centerWinner } = buildCarouselStrip(
+          activeWinner,
+          selectedPack.id,
+        );
+
+        setQueue(pulled);
+        setQueueIndex(0);
+        setWinnerItem(centerWinner);
+        setCarouselCards(strip);
+        setShowModal(false);
+        setSpinKey((k) => k + 1);
+        setIsSpinning(true);
+        beginCarouselSpin();
       } finally {
         setIsChargingSpin(false);
       }
+      return;
     }
 
     clearSpinTimer();
@@ -179,12 +308,7 @@ export function PackOpeningView() {
     setShowModal(false);
     setSpinKey((k) => k + 1);
     setIsSpinning(true);
-
-    spinTimerRef.current = setTimeout(() => {
-      setIsSpinning(false);
-      setShowModal(true);
-      spinTimerRef.current = null;
-    }, SPIN_DURATION_MS);
+    beginCarouselSpin();
   }, [
     isSpinning,
     isChargingSpin,
@@ -194,8 +318,11 @@ export function PackOpeningView() {
     goldVolts,
     setGoldVolts,
     clearSpinTimer,
+    beginCarouselSpin,
     showCashoutToast,
     userId,
+    appendVaultPullFromSpin,
+    setSpinInProgress,
   ]);
 
   const finishReveal = useCallback(() => {
@@ -216,18 +343,15 @@ export function PackOpeningView() {
       setSpinKey((k) => k + 1);
       setIsSpinning(true);
       setShippingModalOpen(false);
-
-      spinTimerRef.current = setTimeout(() => {
-        setIsSpinning(false);
-        setShowModal(true);
-        spinTimerRef.current = null;
-      }, SPIN_DURATION_MS);
+      beginCarouselSpin();
     } else {
       setWinnerItem(null);
       setQueue([]);
       setQueueIndex(0);
+      setPullVaultIds([]);
       setIsSpinning(false);
       setShippingModalOpen(false);
+      setSpinInProgress(false);
       if (selectedPack) {
         setCarouselCards(buildIdlePreviewStrip(selectedPack.id));
         setSpinKey((k) => k + 1);
@@ -235,25 +359,54 @@ export function PackOpeningView() {
         setCarouselCards([]);
       }
     }
-  }, [queue, queueIndex, clearSpinTimer, setShippingModalOpen, selectedPack, buildIdlePreviewStrip]);
+  }, [queue, queueIndex, clearSpinTimer, setShippingModalOpen, selectedPack, buildIdlePreviewStrip, setSpinInProgress, beginCarouselSpin]);
 
-  const handleBurn = useCallback(() => {
-    if (!winnerItem) return;
-    const payout = exchangeCreditGems(winnerItem.value);
-    addGoldVolts(payout);
-    showCashoutToast(
-      `Exchanged ${winnerItem.name} — +${formatGems(payout)} credited (90% buyback)`,
-    );
-    finishReveal();
-  }, [winnerItem, addGoldVolts, showCashoutToast, finishReveal]);
+  const handleBurn = useCallback(async () => {
+    if (!winnerItem || isGuest || isExchanging) return;
+
+    const vaultItemId = pullVaultIds[queueIndex];
+    if (!vaultItemId) {
+      showCashoutToast("Unable to exchange this pull.");
+      return;
+    }
+
+    setIsExchanging(true);
+    try {
+      await exchangeVaultItemInUi(vaultItemId, {
+        removeVaultItem: (id, gemsAdded, serverGemsBalance) => {
+          applyVaultExchange(id, gemsAdded, serverGemsBalance);
+        },
+        syncGemBalance: userId
+          ? () => syncGemBalanceFromServer(userId)
+          : undefined,
+        closeModal: finishReveal,
+        toastError: showErrorToast,
+        toastSuccess: (gemsAdded) => {
+          showCashoutToast(formatExchangeSuccessToast(gemsAdded));
+        },
+      });
+    } finally {
+      setIsExchanging(false);
+    }
+  }, [
+    winnerItem,
+    isGuest,
+    isExchanging,
+    pullVaultIds,
+    queueIndex,
+    showCashoutToast,
+    showErrorToast,
+    applyVaultExchange,
+    syncGemBalanceFromServer,
+    finishReveal,
+    userId,
+  ]);
 
   const handleSendToVault = useCallback(() => {
-    if (!winnerItem || isGuest) return;
-    const vaulted = cardToVaultedCard(winnerItem);
-    addVaultCard(vaulted);
+    if (!winnerItem || isGuest || isExchanging) return;
     showCashoutToast(`${winnerItem.name} secured in your vault locker.`);
     finishReveal();
-  }, [winnerItem, isGuest, addVaultCard, showCashoutToast, finishReveal]);
+  }, [winnerItem, isGuest, isExchanging, showCashoutToast, finishReveal]);
 
   const handleShip = useCallback(() => {
     setShippingModalOpen(true);
@@ -292,6 +445,9 @@ export function PackOpeningView() {
   const isPreviewStrip = !isSpinning && carouselCards.length <= MOBILE_PREVIEW_LENGTH;
   const carouselWinnerIndex = isPreviewStrip ? MOBILE_PREVIEW_WINNER_INDEX : ROULETTE_WINNER_INDEX;
   const carouselCardWidth = isNarrow && isPreviewStrip ? MOBILE_CARD_WIDTH : undefined;
+  const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
+  const revealItemStatus = activeVaultItemId ? "vaulted" : "vault_pending";
+  const canExchangeReveal = !isGuest && Boolean(activeVaultItemId);
 
   return (
     <CardDetailModalProvider>
@@ -360,7 +516,12 @@ export function PackOpeningView() {
           key={winnerItem.id}
           card={winnerItem}
           isGuest={isGuest}
-          onBurn={handleBurn}
+          isExchanging={isExchanging}
+          canExchange={canExchangeReveal}
+          userId={userId || null}
+          itemStatus={revealItemStatus}
+          vaultItemId={activeVaultItemId}
+          onBurn={() => void handleBurn()}
           onSendToVault={handleSendToVault}
           onShip={handleShip}
           onClose={finishReveal}

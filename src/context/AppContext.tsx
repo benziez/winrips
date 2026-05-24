@@ -4,16 +4,16 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { parseAppPath, pathForView } from "../constants/appRoutes";
+import { parseAppPath, parseBattleIdFromPath, pathForView } from "../constants/appRoutes";
 import type { FooterPageSlug } from "../constants/footerContent";
 import {
   infoPathForSlug,
   parseInfoPath,
 } from "../constants/footerContent";
-import { exchangeCreditGems } from "../constants/retail";
 import { clearLoggedIn, persistLoggedIn } from "../constants/userSession";
 import {
   persistActiveCurrency,
@@ -31,6 +31,7 @@ import {
   persistVaultAdd,
   persistVaultRemove,
 } from "../lib/userVault";
+import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
 
 interface AppState {
   isLoggedIn: boolean;
@@ -56,14 +57,19 @@ interface AppState {
   authModalOpen: boolean;
   authModalMode: AuthModalMode;
   cashoutToast: string | null;
-  toastVariant: "default" | "deposit";
+  toastVariant: "default" | "deposit" | "error";
   vaultItems: VaultedCard[];
   vaultItemsLoading: boolean;
   shippingVaultItem: VaultedCard | null;
+  selectedBattleId: string | null;
 }
 
 function normalizeView(view: AppView): AppView {
   return view === "inventory" ? "vault" : view;
+}
+
+function readInitialBattleId(): string | null {
+  return parseBattleIdFromPath(window.location.pathname);
 }
 
 function readInitialView(): AppView {
@@ -76,6 +82,7 @@ interface AppContextValue extends AppState {
   /** @deprecated use currentView */
   view: AppView;
   navigateToView: (view: AppView) => void;
+  navigateToBattle: (battleId: string) => void;
   setView: (view: AppView) => void;
   goToLobby: () => void;
   infoPageSlug: FooterPageSlug | null;
@@ -107,6 +114,7 @@ interface AppContextValue extends AppState {
   openAuthModal: (mode: AuthModalMode, options?: { keepPurchaseModalOpen?: boolean }) => void;
   setAuthModalOpen: (open: boolean) => void;
   showCashoutToast: (message: string) => void;
+  showErrorToast: (message: string) => void;
   showDepositSuccessToast: (gemsAdded: number) => void;
   clearCashoutToast: () => void;
   vaultItems: VaultedCard[];
@@ -118,9 +126,11 @@ interface AppContextValue extends AppState {
     shippingName: string,
     shippingAddress: string,
   ) => void;
-  exchangeVaultCard: (vaultId: string) => void;
+  applyVaultExchange: (vaultId: string, gemsAdded: number, serverGemsBalance?: number) => void;
   removeVaultCard: (vaultId: string) => void;
   addVaultCard: (card: VaultedCard) => void;
+  appendVaultPullFromSpin: (card: VaultedCard) => void;
+  setSpinInProgress: (active: boolean) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -157,10 +167,12 @@ const INITIAL_STATE: AppState = {
   vaultItems: [],
   vaultItemsLoading: false,
   shippingVaultItem: null,
+  selectedBattleId: readInitialBattleId(),
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
+  const spinInProgressRef = useRef(false);
 
   useEffect(() => {
     const syncFromUrl = () => {
@@ -169,9 +181,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setState((s) => ({ ...s, infoPageSlug: slug, currentView: "lobby" }));
         return;
       }
+      const battleId = parseBattleIdFromPath(window.location.pathname);
+      if (battleId) {
+        setState((s) => ({
+          ...s,
+          infoPageSlug: null,
+          currentView: "battle-arena",
+          selectedBattleId: battleId,
+        }));
+        return;
+      }
       const view = parseAppPath(window.location.pathname);
       if (view) {
-        setState((s) => ({ ...s, infoPageSlug: null, currentView: view }));
+        setState((s) => ({
+          ...s,
+          infoPageSlug: null,
+          currentView: view,
+          selectedBattleId: null,
+        }));
       }
     };
 
@@ -187,7 +214,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...s,
       currentView,
       infoPageSlug: null,
+      selectedBattleId: null,
       selectedPack: currentView === "pack-open" ? s.selectedPack : null,
+      mobileMenuOpen: false,
+      shippingModalOpen: false,
+      shippingVaultItem: null,
+    }));
+    window.scrollTo(0, 0);
+  }, []);
+
+  const navigateToBattle = useCallback((battleId: string) => {
+    const normalizedId = battleId.trim();
+    if (!normalizedId) return;
+
+    const path = pathForView("battle-arena", normalizedId);
+    window.history.pushState({ view: "battle-arena", battleId: normalizedId }, "", path);
+    setState((s) => ({
+      ...s,
+      currentView: "battle-arena",
+      selectedBattleId: normalizedId,
+      infoPageSlug: null,
+      selectedPack: null,
       mobileMenuOpen: false,
       shippingModalOpen: false,
       shippingVaultItem: null,
@@ -363,6 +410,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [state.userId]);
 
   const syncVaultFromServer = useCallback(async (authUserId?: string) => {
+    if (spinInProgressRef.current) {
+      if (import.meta.env.DEV) {
+        console.warn("[vault] Skipping server sync while a spin is in progress.");
+      }
+      return;
+    }
+
     const userId = authUserId ?? state.userId;
     if (!userId) {
       setState((s) => ({
@@ -377,15 +431,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       const items = await fetchUserVaultInventory(userId);
-      setState((s) => ({
-        ...s,
-        vaultItems: items,
-        vaultItemsLoading: false,
-      }));
+      setState((s) => {
+        if (spinInProgressRef.current) {
+          return { ...s, vaultItemsLoading: false };
+        }
+        if (items.length === 0 && s.vaultItems.length > 0) {
+          if (import.meta.env.DEV) {
+            console.warn("[vault] Ignoring empty vault fetch — keeping local vault state.");
+          }
+          return { ...s, vaultItemsLoading: false };
+        }
+        return {
+          ...s,
+          vaultItems: items,
+          vaultItemsLoading: false,
+        };
+      });
     } catch {
       setState((s) => ({
         ...s,
-        vaultItems: [],
         vaultItemsLoading: false,
       }));
     }
@@ -555,6 +619,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 4000);
   }, []);
 
+  const showErrorToast = useCallback((cashoutToast: string) => {
+    setState((s) => ({ ...s, cashoutToast, toastVariant: "error" }));
+    setTimeout(() => {
+      setState((s) => ({ ...s, cashoutToast: null, toastVariant: "default" }));
+    }, 4500);
+  }, []);
+
   const showDepositSuccessToast = useCallback((gemsAdded: number) => {
     const amount = Math.max(0, Math.round(gemsAdded));
     const cashoutToast = `💎 Success! ${amount.toLocaleString()} Gems have been credited to your locker.`;
@@ -596,6 +667,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const setSpinInProgress = useCallback((active: boolean) => {
+    spinInProgressRef.current = active;
+  }, []);
+
+  const appendVaultPullFromSpin = useCallback((card: VaultedCard) => {
+    setState((s) => {
+      if (s.vaultItems.some((item) => item.vaultId === card.vaultId)) {
+        return s;
+      }
+      return { ...s, vaultItems: [card, ...s.vaultItems] };
+    });
+  }, []);
+
   const removeVaultCard = useCallback((vaultId: string) => {
     setState((s) => {
       const userId = s.userId;
@@ -614,39 +698,94 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addVaultCard = useCallback((card: VaultedCard) => {
     setState((s) => {
       const userId = s.userId;
-      if (userId) {
+      if (userId && !spinInProgressRef.current) {
         void persistVaultAdd(userId, card)
-          .then((items) => setState((current) => ({ ...current, vaultItems: items })))
+          .then((items) => {
+            if (spinInProgressRef.current) return;
+            setState((current) => ({ ...current, vaultItems: items }));
+          })
           .catch(() => undefined);
       }
       return { ...s, vaultItems: [card, ...s.vaultItems] };
     });
   }, []);
 
-  const exchangeVaultCard = useCallback((vaultId: string) => {
-    setState((s) => {
-      const card = s.vaultItems.find((c) => c.vaultId === vaultId);
-      if (!card || card.status === "pending_shipment") return s;
-      const credit = exchangeCreditGems(card.value);
-      const userId = s.userId;
-      if (userId) {
-        void persistVaultRemove(userId, vaultId)
-          .then((items) => setState((current) => ({ ...current, vaultItems: items })))
-          .catch(() => undefined);
+  const applyVaultExchange = useCallback(
+    (vaultId: string, gemsAdded: number, serverGemsBalance?: number) => {
+      setState((s) => {
+        const currentBalance = s.goldVolts;
+        const normalizedAdded = Math.max(0, Math.round(gemsAdded));
+        const hasServerBalance =
+          serverGemsBalance != null &&
+          Number.isFinite(serverGemsBalance) &&
+          serverGemsBalance > 0;
+        const newBalance = hasServerBalance
+          ? Math.round(serverGemsBalance)
+          : currentBalance + normalizedAdded;
+
+        console.log("[applyVaultExchange] balance update:", {
+          currentBalance,
+          gemsAdded: normalizedAdded,
+          serverGemsBalance,
+          newBalance,
+        });
+
+        return {
+          ...s,
+          goldVolts: newBalance,
+          vaultItems: s.vaultItems.filter((c) => c.vaultId !== vaultId),
+        };
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isSupabaseConfigured() || !supabase || !state.userId) return;
+
+    const client = supabase;
+    const userId = state.userId;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleVaultRefresh = () => {
+      if (spinInProgressRef.current) return;
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
       }
-      return {
-        ...s,
-        goldVolts: s.goldVolts + credit,
-        vaultItems: s.vaultItems.filter((c) => c.vaultId !== vaultId),
-      };
-    });
-  }, []);
+      debounceTimer = setTimeout(() => {
+        if (spinInProgressRef.current) return;
+        void syncVaultFromServer(userId);
+      }, 400);
+    };
+
+    const channel = client
+      .channel(`vault-items-${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "vault_items",
+          filter: `user_id=eq.${userId}`,
+        },
+        scheduleVaultRefresh,
+      )
+      .subscribe();
+
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      void client.removeChannel(channel);
+    };
+  }, [state.userId, syncVaultFromServer]);
 
   const value = useMemo<AppContextValue>(
     () => ({
       ...state,
       view: state.currentView,
       navigateToView,
+      navigateToBattle,
       setView,
       goToLobby,
       infoPageSlug: state.infoPageSlug,
@@ -678,6 +817,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       openAuthModal,
       setAuthModalOpen,
       showCashoutToast,
+      showErrorToast,
       showDepositSuccessToast,
       clearCashoutToast,
       vaultItems: state.vaultItems,
@@ -685,13 +825,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
       openVaultShipping,
       closeVaultShipping,
       markVaultItemPendingShipment,
-      exchangeVaultCard,
+      applyVaultExchange,
       removeVaultCard,
       addVaultCard,
+      appendVaultPullFromSpin,
+      setSpinInProgress,
     }),
     [
       state,
       navigateToView,
+      navigateToBattle,
       setView,
       goToLobby,
       openInfoPage,
@@ -722,14 +865,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       openAuthModal,
       setAuthModalOpen,
       showCashoutToast,
+      showErrorToast,
       showDepositSuccessToast,
       clearCashoutToast,
       openVaultShipping,
       closeVaultShipping,
       markVaultItemPendingShipment,
-      exchangeVaultCard,
+      applyVaultExchange,
       removeVaultCard,
       addVaultCard,
+      appendVaultPullFromSpin,
+      setSpinInProgress,
     ],
   );
 

@@ -92,7 +92,9 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
           className={
             toastVariant === "deposit"
               ? "app-toast app-deposit-toast deposit-success-toast rounded-xl border border-gold/35 bg-[#1a2c38] px-5 py-3.5 text-sm font-semibold text-white shadow-[0_0_40px_rgba(255,0,122,0.25),0_12px_40px_rgba(0,0,0,0.5)]"
-              : "app-toast app-default-toast rounded-lg border border-fuchsia/40 bg-slate px-5 py-3.5 text-sm font-semibold text-white shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
+              : toastVariant === "error"
+                ? "app-toast app-default-toast rounded-lg border border-red-500/50 bg-[#1a1218] px-5 py-3.5 text-sm font-semibold text-red-100 shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
+                : "app-toast app-default-toast rounded-lg border border-fuchsia/40 bg-slate px-5 py-3.5 text-sm font-semibold text-white shadow-[0_8px_32px_rgba(0,0,0,0.45)]"
           }
           role="status"
           aria-live="polite"

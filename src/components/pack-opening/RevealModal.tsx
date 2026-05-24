@@ -1,4 +1,4 @@
-import type { Card } from "../../types";
+import type { Card, VaultItemStatus } from "../../types";
 import {
   ceilingDropHeadline,
   exchangeButtonLabel,
@@ -12,6 +12,11 @@ import { WinParticles } from "./WinParticles";
 export interface RevealModalProps {
   card: Card;
   isGuest?: boolean;
+  isExchanging?: boolean;
+  canExchange?: boolean;
+  userId?: string | null;
+  itemStatus?: VaultItemStatus | "vault_pending" | null;
+  vaultItemId?: string | null;
   onBurn: () => void;
   onSendToVault: () => void;
   onShip: () => void;
@@ -40,6 +45,11 @@ function isCeilingPull(card: Card): boolean {
 export function RevealModal({
   card,
   isGuest = false,
+  isExchanging = false,
+  canExchange = true,
+  userId = null,
+  itemStatus = null,
+  vaultItemId = null,
   onBurn,
   onSendToVault,
   onShip,
@@ -49,6 +59,8 @@ export function RevealModal({
   const borderClass = BORDER_BY_RARITY[card.rarity];
   const glowClass = ceilingPull ? "mega-win-glow" : GLOW_BY_RARITY[card.rarity];
   const headline = ceilingDropHeadline(card.value);
+  const actionsLocked = isExchanging;
+  const exchangeDisabled = isGuest || actionsLocked || !canExchange;
 
   return (
     <div
@@ -67,7 +79,8 @@ export function RevealModal({
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 z-30 text-xl text-muted hover:text-white"
+          disabled={actionsLocked}
+          className="absolute top-4 right-4 z-30 text-xl text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
           aria-label="Close reveal"
         >
           ×
@@ -115,19 +128,31 @@ export function RevealModal({
         </p>
 
         <div className="relative z-20 flex flex-col gap-3">
+          {(() => {
+            console.log("[RevealModal] Exchange for Gems gate:", {
+              itemStatus,
+              userId,
+              vaultItemId,
+              canExchange,
+              isGuest,
+              isExchanging,
+              exchangeDisabled,
+            });
+            return null;
+          })()}
           <button
             type="button"
             onClick={onBurn}
-            disabled={isGuest}
-            className={`w-full rounded-lg bg-[#FF007F] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-white transition-all hover:brightness-110 sm:text-xs ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
+            disabled={exchangeDisabled}
+            className={`w-full rounded-lg bg-[#FF007F] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-white transition-all hover:brightness-110 sm:text-xs disabled:cursor-not-allowed disabled:opacity-50 ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
           >
-            {exchangeButtonLabel(card.value)}
+            {isExchanging ? "Exchanging…" : exchangeButtonLabel(card.value)}
           </button>
           <button
             type="button"
             onClick={onSendToVault}
-            disabled={isGuest}
-            className={`w-full rounded-lg px-3 py-3.5 text-[11px] font-bold uppercase tracking-[0.12em] sm:text-xs ${
+            disabled={isGuest || actionsLocked}
+            className={`w-full rounded-lg px-3 py-3.5 text-[11px] font-bold uppercase tracking-[0.12em] sm:text-xs disabled:cursor-not-allowed disabled:opacity-50 ${
               isGuest
                 ? "border border-border bg-slate-elevated/60 text-muted"
                 : "border border-fuchsia/50 bg-[#1A1C20] text-fuchsia shadow-[0_0_18px_rgba(255,0,127,0.12)] transition-all hover:border-fuchsia hover:bg-fuchsia/10"
@@ -138,8 +163,8 @@ export function RevealModal({
           <button
             type="button"
             onClick={onShip}
-            disabled={isGuest}
-            className={`w-full rounded-lg bg-[#FFD700] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-black transition-all hover:brightness-105 sm:text-xs ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
+            disabled={isGuest || actionsLocked}
+            className={`w-full rounded-lg bg-[#FFD700] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-black transition-all hover:brightness-105 sm:text-xs disabled:cursor-not-allowed disabled:opacity-50 ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
           >
             {SHIP_BUTTON_LABEL}
           </button>

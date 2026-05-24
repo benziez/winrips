@@ -35,15 +35,15 @@ export function formatGemBalanceDisplay(balance: number, compact = false): strin
   return safe.toLocaleString();
 }
 
-/** 90% buyback credit for exchange actions. */
+/** 65% buyback credit for exchange actions. */
 export function exchangeCreditGems(itemValueGems: number): number {
-  return Math.round(itemValueGems * 0.9);
+  return Math.floor(itemValueGems * 0.65);
 }
 
-/** e.g. EXCHANGE FOR 27 GEMS (90% CREDIT) */
+/** e.g. EXCHANGE FOR 27 GEMS (65% CREDIT) */
 export function exchangeButtonLabel(itemValueGems: number): string {
   const credit = exchangeCreditGems(itemValueGems);
-  return `EXCHANGE FOR ${credit.toLocaleString()} GEMS (90% CREDIT)`;
+  return `EXCHANGE FOR ${credit.toLocaleString()} GEMS (65% CREDIT)`;
 }
 
 export const SHIP_BUTTON_LABEL = "REQUEST PHYSICAL SHIPPING";

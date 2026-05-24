@@ -145,7 +145,8 @@ export async function fetchRemoteBoxCatalog(): Promise<RemoteBoxCatalog | null> 
     )
     .eq("is_active", true)
     .order("sort_order", { ascending: true })
-    .order("cost", { ascending: true });
+    .order("cost", { ascending: true })
+    .limit(1000);
 
   if (boxesError) {
     console.error("[boxes] fetch boxes", boxesError.message);
@@ -163,7 +164,8 @@ export async function fetchRemoteBoxCatalog(): Promise<RemoteBoxCatalog | null> 
       "id, box_id, item_id, item_name, store_rarity, gem_value, image_url, probability, sort_order",
     )
     .in("box_id", boxIds)
-    .order("sort_order", { ascending: true });
+    .order("sort_order", { ascending: true })
+    .limit(10000);
 
   if (itemsError) {
     console.error("[boxes] fetch box_items", itemsError.message);

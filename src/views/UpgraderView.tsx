@@ -3,44 +3,52 @@ import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { UPGRADER_TARGET_POOL } from "../constants/upgraderTargets";
+import {
+  computeUpgradeWinPercent,
+  formatUpgradeWinPercent,
+} from "../constants/upgraderMath";
 import { formatGems } from "../constants/retail";
+import { processUpgradeRoll } from "../lib/upgradeLogic";
 import { RarityBadge } from "../components/ui/RarityBadge";
 import { CollectibleImage } from "../components/ui/CollectibleImage";
 import type { VaultedCard } from "../types";
 
-function formatUpgradeOdds(deposit: VaultedCard | null, target: VaultedCard | null): string {
-  if (!deposit || !target || target.value <= 0) {
-    return "Select assets to compute upgrade probability.";
-  }
-  const odds = Math.min((deposit.value / target.value) * 100, 100);
-  return `${odds.toFixed(2)}%`;
-}
+const GLASS_CARD =
+  "relative overflow-hidden bg-white/5 backdrop-blur-md border border-white/10";
+const GLASS_GRADIENT =
+  "pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 to-transparent";
+const GLASS_PANEL =
+  "relative overflow-hidden rounded-xl border border-white/10 bg-white/5 shadow-2xl backdrop-blur-md";
+const GLASS_PANEL_GRADIENT =
+  "pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 to-transparent";
+const FUCHSIA_BLOOM =
+  "shadow-[0_0_20px_rgba(255,0,127,0.4)]";
 
-function computeUpgradeOddsPercent(deposit: VaultedCard, target: VaultedCard): number {
-  return Math.min((deposit.value / target.value) * 100, 100);
-}
+type RollPhase = "idle" | "spinning" | "won" | "lost";
 
 function CircularProgressGauge({
   deposit,
   target,
+  spinning = false,
 }: {
   deposit: VaultedCard | null;
   target: VaultedCard | null;
+  spinning?: boolean;
 }) {
   const percent =
     deposit && target && target.value > 0
-      ? computeUpgradeOddsPercent(deposit, target)
+      ? computeUpgradeWinPercent(deposit.value, target.value)
       : 0;
   const radius = 56;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percent / 100) * circumference;
-  const oddsLabel = formatUpgradeOdds(deposit, target);
+  const oddsLabel = formatUpgradeWinPercent(deposit?.value ?? 0, target?.value ?? 0);
   const hasSelection = Boolean(deposit && target);
 
   return (
     <div className="relative flex h-44 w-44 items-center justify-center sm:h-48 sm:w-48">
       <svg
-        className="h-full w-full -rotate-90"
+        className={`h-full w-full -rotate-90 ${spinning ? "animate-spin" : ""}`}
         viewBox="0 0 128 128"
         aria-hidden
       >
@@ -76,10 +84,10 @@ function CircularProgressGauge({
               : "text-[11px] font-semibold normal-case tracking-normal text-slate-300"
           }`}
         >
-          {oddsLabel}
+          {spinning ? "Rolling…" : oddsLabel}
         </span>
-        {hasSelection && (
-          <span className="mt-2 text-[9px] font-bold uppercase tracking-[0.2em] text-[#FF007F]">
+        {hasSelection && !spinning && (
+          <span className={`mt-2 text-[9px] font-bold uppercase tracking-[0.2em] text-[#FF007F] drop-shadow-[0_0_10px_rgba(255,0,127,0.5)]`}>
             Success Probability
           </span>
         )}
@@ -88,41 +96,110 @@ function CircularProgressGauge({
   );
 }
 
+function RollResultPanel({
+  won,
+  target,
+  deposit,
+  onDismiss,
+}: {
+  won: boolean;
+  target: VaultedCard;
+  deposit: VaultedCard;
+  onDismiss: () => void;
+}) {
+  return (
+    <div
+      className={`relative flex w-full max-w-[280px] flex-col items-center overflow-hidden rounded-xl border px-5 py-6 text-center shadow-2xl ${
+        won
+          ? "border-yellow-500/50 bg-gradient-to-b from-yellow-900/30 to-[#0A0A0C] shadow-[0_0_40px_rgba(234,179,8,0.15),inset_0_0_50px_rgba(234,179,8,0.08)]"
+          : "border-red-900/50 bg-gradient-to-b from-red-950/40 to-[#0A0A0C] shadow-[0_0_30px_rgba(127,29,29,0.35)]"
+      }`}
+    >
+      <div
+        className={`pointer-events-none absolute inset-0 ${
+          won
+            ? "bg-gradient-to-b from-yellow-400/10 via-transparent to-transparent"
+            : "bg-gradient-to-b from-red-500/10 via-transparent to-transparent"
+        }`}
+        aria-hidden
+      />
+      <p
+        className={`relative text-lg font-black uppercase tracking-[0.18em] ${
+          won
+            ? "text-gold drop-shadow-[0_0_12px_rgba(234,179,8,0.55)]"
+            : "text-white [text-shadow:0_0_14px_rgba(239,68,68,0.65),0_2px_8px_rgba(0,0,0,0.8)]"
+        }`}
+      >
+        {won ? "Upgrade Won" : "Upgrade Lost"}
+      </p>
+      <p className="relative mt-3 text-sm leading-relaxed text-slate-200/90">
+        {won
+          ? `${target.name} has been secured in your vault locker.`
+          : `${deposit.name} was consumed. The target asset was not acquired this attempt.`}
+      </p>
+      {won ? (
+        <div className="relative mt-4 w-28 overflow-hidden rounded-lg border border-yellow-500/30 bg-white/5 p-2 shadow-[inset_0_0_20px_rgba(234,179,8,0.12)] backdrop-blur-sm">
+          <CollectibleImage
+            src={target.image}
+            alt={target.name}
+            className="aspect-[2.5/3.5] w-full object-contain"
+          />
+        </div>
+      ) : null}
+      <button
+        type="button"
+        onClick={onDismiss}
+        className={`relative mt-5 w-full rounded-lg bg-[#FF007F] py-3 text-xs font-bold uppercase tracking-wide text-white transition-all hover:brightness-110 ${FUCHSIA_BLOOM}`}
+      >
+        Continue
+      </button>
+    </div>
+  );
+}
+
 function DepositMapTile({
   card,
   selected,
+  disabled,
   onSelect,
 }: {
   card: VaultedCard;
   selected: boolean;
+  disabled?: boolean;
   onSelect: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
+      disabled={disabled}
       aria-pressed={selected}
-      className={`group relative flex flex-col overflow-hidden rounded-xl border transition-all ${
+      className={`group relative flex flex-col overflow-hidden rounded-xl transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 ${
         selected
-          ? "border-[#FF007F]/60 bg-[#FF007F]/10 shadow-[0_0_24px_rgba(255,0,127,0.28)] ring-2 ring-[#FF007F]/40"
-          : "border-border bg-[#0A0A0C]/80 hover:border-[#FF007F]/30 hover:bg-metallic/40"
+          ? "border-amber-500/50 bg-amber-950/20 shadow-[0_0_20px_rgba(234,179,8,0.35)] ring-1 ring-yellow-500/50 backdrop-blur-md"
+          : `${GLASS_CARD} hover:border-white/20 hover:bg-white/[0.07]`
       }`}
     >
-      <div className="flex h-20 items-center justify-center border-b border-border bg-[#0A0A0C] p-1.5 sm:h-28 sm:p-2">
+      <div className={GLASS_GRADIENT} aria-hidden />
+      <div className="relative flex h-24 items-center justify-center border-b border-white/10 p-2 sm:h-32 sm:p-3">
         <CollectibleImage
           src={card.image}
           alt={card.name}
-          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"
+          className={`h-full w-full object-contain transition-all duration-300 group-hover:scale-[1.03] ${
+            selected ? "opacity-100" : "opacity-60 group-hover:opacity-95"
+          }`}
         />
       </div>
-      <div className="space-y-0.5 p-2.5 text-left">
-        <p className="line-clamp-2 text-[11px] font-semibold leading-tight text-white">
+      <div className="relative space-y-1 p-3 text-left sm:p-4">
+        <p className="line-clamp-2 text-[11px] font-semibold leading-tight text-white sm:text-xs">
           {card.name}
         </p>
-        <p className="text-[10px] font-bold tabular-nums text-gold">{formatGems(card.value)}</p>
+        <p className="text-[10px] font-bold tabular-nums tracking-wide text-amber-400/90 sm:text-[11px]">
+          {formatGems(card.value)}
+        </p>
       </div>
       {selected && (
-        <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#FF007F] text-[10px] font-bold text-white">
+        <span className="absolute right-2.5 top-2.5 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-black shadow-[0_0_10px_rgba(234,179,8,0.45)]">
           ✓
         </span>
       )}
@@ -133,35 +210,43 @@ function DepositMapTile({
 function TargetGrailTile({
   card,
   selected,
+  disabled,
   onSelect,
 }: {
   card: VaultedCard;
   selected: boolean;
+  disabled?: boolean;
   onSelect: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
+      disabled={disabled}
       aria-pressed={selected}
-      className={`flex w-full flex-col overflow-hidden rounded-xl border text-left transition-all ${
+      className={`group relative flex w-full flex-col overflow-hidden rounded-xl text-left transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 ${
         selected
-          ? "border-[#FF007F]/60 bg-[#FF007F]/5 shadow-[0_0_24px_rgba(255,0,127,0.28)] ring-2 ring-[#FF007F]/40"
-          : "border-border bg-[#0A0A0C]/60 hover:border-[#FF007F]/25"
+          ? "border-amber-500/50 bg-amber-950/20 shadow-[0_0_20px_rgba(234,179,8,0.35)] ring-1 ring-yellow-500/50 backdrop-blur-md"
+          : `${GLASS_CARD} hover:border-white/20 hover:bg-white/[0.07]`
       }`}
     >
-      <div className="flex h-24 items-center justify-center border-b border-border bg-[#0A0A0C] p-2 sm:h-36 sm:p-3">
+      <div className={GLASS_GRADIENT} aria-hidden />
+      <div className="relative flex h-28 items-center justify-center border-b border-white/10 p-3 sm:h-40 sm:p-4">
         <CollectibleImage
           src={card.image}
           alt={card.name}
-          className="h-full w-full object-contain"
+          className={`h-full w-full object-contain transition-all duration-300 group-hover:scale-[1.03] ${
+            selected ? "opacity-100" : "opacity-60 group-hover:opacity-95"
+          }`}
         />
       </div>
-      <div className="space-y-1.5 p-3">
-        <p className="line-clamp-2 text-xs font-semibold leading-snug text-white">
+      <div className="relative space-y-2 p-4 sm:p-5">
+        <p className="line-clamp-2 text-xs font-semibold leading-snug text-white sm:text-sm">
           {card.name}
         </p>
-        <p className="text-xs font-bold tabular-nums text-gold">{formatGems(card.value)}</p>
+        <p className="text-xs font-bold tabular-nums tracking-wide text-amber-400/90 sm:text-sm">
+          {formatGems(card.value)}
+        </p>
         <RarityBadge rarity={card.rarity} />
       </div>
     </button>
@@ -172,22 +257,27 @@ function UpgraderEmptyInventory() {
   const { navigateToView } = useApp();
 
   return (
-    <div className="rounded-xl border border-[#2A2D34] bg-[#121318] px-8 py-20 text-center">
-      <p className="text-base font-semibold text-white">
+    <div className={`${GLASS_PANEL} px-8 py-20 text-center`}>
+      <div className={GLASS_PANEL_GRADIENT} aria-hidden />
+      <p className="relative text-base font-semibold text-white">
         No inventory items available to upgrade.
       </p>
-      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#A0A5B5]">
+      <p className="relative mx-auto mt-3 max-w-md text-sm leading-relaxed text-[#A0A5B5]">
         Open some packs first!
       </p>
       <button
         type="button"
         onClick={() => navigateToView("lobby")}
-        className="mt-6 text-sm font-semibold text-[#FF007F] transition-colors hover:underline"
+        className="relative mt-6 text-sm font-semibold text-[#FF007F] drop-shadow-[0_0_10px_rgba(255,0,127,0.45)] transition-colors hover:underline"
       >
         Browse packs in the lobby
       </button>
     </div>
   );
+}
+
+function isUpgradeableDeposit(card: VaultedCard): boolean {
+  return !card.status || card.status === "vaulted";
 }
 
 export function UpgraderView() {
@@ -197,15 +287,18 @@ export function UpgraderView() {
     vaultItems,
     vaultItemsLoading,
     syncVaultFromServer,
-    removeVaultCard,
-    addVaultCard,
     showCashoutToast,
   } = useApp();
   const { user, authLoading, isAuthenticated } = useAuth();
 
   const [selectedDepositCard, setSelectedDepositCard] = useState<VaultedCard | null>(null);
   const [targetGrailCard, setTargetGrailCard] = useState<VaultedCard | null>(null);
-  const [executing, setExecuting] = useState(false);
+  const [rollPhase, setRollPhase] = useState<RollPhase>("idle");
+  const [lastRoll, setLastRoll] = useState<{
+    deposit: VaultedCard;
+    target: VaultedCard;
+    won: boolean;
+  } | null>(null);
 
   const hasUpgraderAccess =
     !authLoading &&
@@ -220,12 +313,17 @@ export function UpgraderView() {
     void syncVaultFromServer(userId);
   }, [hasUpgraderAccess, userId, syncVaultFromServer]);
 
-  const depositInventory = hasUpgraderAccess ? vaultItems : [];
+  const depositInventory = useMemo(
+    () => (hasUpgraderAccess ? vaultItems.filter(isUpgradeableDeposit) : []),
+    [hasUpgraderAccess, vaultItems],
+  );
   const isLoadingInventory = hasUpgraderAccess && vaultItemsLoading;
+  const isRolling = rollPhase === "spinning";
+  const showingResult = rollPhase === "won" || rollPhase === "lost";
 
   const successPercent = useMemo(() => {
     if (!selectedDepositCard || !targetGrailCard) return 0;
-    return computeUpgradeOddsPercent(selectedDepositCard, targetGrailCard);
+    return computeUpgradeWinPercent(selectedDepositCard.value, targetGrailCard.value);
   }, [selectedDepositCard, targetGrailCard]);
 
   const canExecute = Boolean(
@@ -233,56 +331,71 @@ export function UpgraderView() {
       depositInventory.length > 0 &&
       selectedDepositCard &&
       targetGrailCard &&
-      !executing,
+      rollPhase === "idle",
   );
 
-  function handleExecute() {
-    if (!selectedDepositCard || !targetGrailCard || executing) return;
-    setExecuting(true);
+  async function handleExecute() {
+    if (!selectedDepositCard || !targetGrailCard || !userId || rollPhase !== "idle") return;
 
-    const roll = Math.random() * 100;
-    const success = roll <= successPercent;
+    const deposit = selectedDepositCard;
+    const target = targetGrailCard;
 
-    setTimeout(() => {
-      removeVaultCard(selectedDepositCard.vaultId);
-      if (success) {
-        addVaultCard({
-          ...targetGrailCard,
-          vaultId: `vault-${Date.now()}`,
-          acquiredAt: "just now",
-        });
-        showCashoutToast(
-          `Upgrade successful — ${targetGrailCard.name} has been added to your vault locker.`,
-        );
-      } else {
-        showCashoutToast(
-          `Trade-in processed — ${selectedDepositCard.name} was consumed. Target asset not acquired this attempt.`,
-        );
+    setRollPhase("spinning");
+
+    try {
+      const result = await processUpgradeRoll(deposit.vaultId, target.id);
+
+      if (!result.ok) {
+        showCashoutToast(result.error);
+        setRollPhase("idle");
+        return;
       }
+
+      await syncVaultFromServer(userId);
+
+      setLastRoll({ deposit, target, won: result.won });
+      setRollPhase(result.won ? "won" : "lost");
       setSelectedDepositCard(null);
       setTargetGrailCard(null);
-      setExecuting(false);
-    }, 900);
+
+      showCashoutToast(
+        result.won
+          ? `Upgrade successful — ${target.name} secured in your vault.`
+          : `Upgrade failed — ${deposit.name} was consumed.`,
+      );
+    } catch {
+      showCashoutToast("Unable to process this upgrade. Please try again.");
+      setRollPhase("idle");
+    }
+  }
+
+  function handleDismissResult() {
+    setRollPhase("idle");
+    setLastRoll(null);
   }
 
   const header = (
-    <header className="mb-6 max-w-3xl border-b border-border pb-5 sm:mb-8 sm:pb-6">
-      <h1 className="text-xl font-black uppercase tracking-tight text-white sm:text-3xl">
+    <header className="mb-8 max-w-3xl border-b border-white/10 pb-6 sm:mb-10 sm:pb-8">
+      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-500/80">
+        Premium Exchange
+      </p>
+      <h1 className="mt-2 text-xl font-black uppercase tracking-tight text-white sm:text-3xl">
         Collection Upgrader
       </h1>
-      <p className="mt-3 text-sm leading-relaxed text-slate-300">
+      <p className="mt-4 text-sm leading-relaxed text-slate-400">
         Trade in your low-tier inventory to unlock premium, high-value collection assets.
       </p>
     </header>
   );
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] overflow-x-hidden px-3 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <div className="mx-auto w-full max-w-[1600px] overflow-x-hidden px-4 py-8 sm:px-8 sm:py-10 lg:px-10">
       {header}
 
       {authLoading || isLoadingInventory ? (
-        <div className="rounded-xl border border-[#2A2D34] bg-[#121318] px-6 py-16 text-center">
-          <p className="text-sm text-[#A0A5B5]">
+        <div className={`${GLASS_PANEL} px-6 py-16 text-center`}>
+          <div className={GLASS_PANEL_GRADIENT} aria-hidden />
+          <p className="relative text-sm text-[#A0A5B5]">
             {authLoading ? "Verifying session…" : "Loading your vault inventory…"}
           </p>
         </div>
@@ -291,17 +404,18 @@ export function UpgraderView() {
       ) : depositInventory.length === 0 ? (
         <UpgraderEmptyInventory />
       ) : (
-        <div className="grid w-full grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)_minmax(0,1fr)] xl:items-stretch">
-          <section className="flex min-h-0 flex-col rounded-xl border border-border bg-[#121318] p-3 sm:min-h-[420px] sm:p-5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-white">
+        <div className="grid w-full grid-cols-1 gap-6 sm:gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(280px,320px)_minmax(0,1fr)] xl:items-stretch">
+          <section className={`${GLASS_PANEL} flex min-h-0 flex-col p-6 sm:min-h-[420px] sm:p-8`}>
+            <div className={GLASS_PANEL_GRADIENT} aria-hidden />
+            <h2 className="relative text-xs font-bold uppercase tracking-[0.18em] text-white">
               Inventory Deposit
             </h2>
-            <p className="mt-1 mb-4 text-[11px] leading-relaxed text-muted">
+            <p className="relative mt-2 mb-6 text-[11px] leading-relaxed text-muted">
               Tap a vaulted card to assign it as your active trade-in deposit.
             </p>
 
             <div
-              className="grid max-h-[min(420px,50vh)] flex-1 grid-cols-2 gap-2 overflow-y-auto overflow-x-hidden pr-0 sm:max-h-[min(520px,58vh)] sm:grid-cols-3 sm:pr-1 xl:grid-cols-2 2xl:grid-cols-3"
+              className="relative grid max-h-[min(420px,50vh)] flex-1 grid-cols-2 gap-4 overflow-y-auto overflow-x-hidden pr-0 sm:max-h-[min(520px,58vh)] sm:grid-cols-3 sm:gap-5 sm:pr-1 xl:grid-cols-2 2xl:grid-cols-3"
               role="list"
               aria-label="Vault inventory deposit map"
             >
@@ -310,6 +424,7 @@ export function UpgraderView() {
                   key={card.vaultId}
                   card={card}
                   selected={selectedDepositCard?.vaultId === card.vaultId}
+                  disabled={isRolling || showingResult}
                   onSelect={() =>
                     setSelectedDepositCard((current) =>
                       current?.vaultId === card.vaultId ? null : card,
@@ -320,44 +435,65 @@ export function UpgraderView() {
             </div>
           </section>
 
-          <section className="flex flex-col items-center rounded-xl border border-border bg-[#111115] px-3 py-5 sm:px-6 sm:py-6">
-            <div className="flex flex-1 flex-col items-center justify-center">
-              <CircularProgressGauge deposit={selectedDepositCard} target={targetGrailCard} />
+          <section className={`${GLASS_PANEL} flex flex-col items-center px-6 py-8 sm:px-8 sm:py-10`}>
+            <div className={GLASS_PANEL_GRADIENT} aria-hidden />
+            <div className="relative flex flex-1 flex-col items-center justify-center">
+              {showingResult && lastRoll ? (
+                <RollResultPanel
+                  won={lastRoll.won}
+                  target={lastRoll.target}
+                  deposit={lastRoll.deposit}
+                  onDismiss={handleDismissResult}
+                />
+              ) : (
+                <CircularProgressGauge
+                  deposit={selectedDepositCard}
+                  target={targetGrailCard}
+                  spinning={isRolling}
+                />
+              )}
             </div>
 
-            <div className="mt-6 w-full max-w-[280px]">
-              <button
-                type="button"
-                disabled={!canExecute}
-                onClick={handleExecute}
-                className="w-full rounded-lg bg-[#FF007F] py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-[#FF007F]/90 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {executing ? "PROCESSING…" : "EXECUTE COLLECTIBLE UPGRADE"}
-              </button>
-              <p className="mt-4 text-center text-[10px] leading-relaxed text-muted">
-                Trade-in items are processed instantly upon execution. All outcomes are
-                deterministic and verified via our Provably Fair cryptographic auditing hub.
-              </p>
-            </div>
+            {!showingResult ? (
+              <div className="relative mt-6 w-full max-w-[280px]">
+                <button
+                  type="button"
+                  disabled={!canExecute}
+                  onClick={() => void handleExecute()}
+                  className={`w-full rounded-lg bg-[#FF007F] py-4 font-bold uppercase tracking-wide text-white transition-all hover:bg-[#FF007F]/90 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none ${FUCHSIA_BLOOM}`}
+                >
+                  {isRolling ? "PROCESSING…" : "EXECUTE COLLECTIBLE UPGRADE"}
+                </button>
+                {selectedDepositCard && targetGrailCard ? (
+                  <p className="relative mt-3 text-center text-[10px] tabular-nums text-muted">
+                    Server win chance: {successPercent.toFixed(2)}% (10% house edge applied)
+                  </p>
+                ) : null}
+                <p className="relative mt-4 text-center text-[10px] leading-relaxed text-muted">
+                  Trade-in items are consumed on execution. Outcomes are determined securely on
+                  the server.
+                </p>
+              </div>
+            ) : null}
           </section>
 
-          <section className="flex min-h-[420px] flex-col rounded-xl border border-border bg-[#121318] p-4 sm:p-5">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-white">
+          <section className={`${GLASS_PANEL} flex min-h-[420px] flex-col p-6 sm:p-8`}>
+            <div className={GLASS_PANEL_GRADIENT} aria-hidden />
+            <h2 className="relative text-xs font-bold uppercase tracking-[0.18em] text-white">
               Target Selection
             </h2>
-            <p className="mt-1 mb-4 text-[11px] leading-relaxed text-muted">
+            <p className="relative mt-2 mb-6 text-[11px] leading-relaxed text-muted">
               Choose a premium grail from the master catalog pool.
             </p>
-            <div className="grid max-h-[min(520px,58vh)] flex-1 grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2">
+            <div className="relative grid max-h-[min(520px,58vh)] flex-1 grid-cols-1 gap-4 overflow-y-auto sm:grid-cols-2 sm:gap-5">
               {UPGRADER_TARGET_POOL.map((card) => (
                 <TargetGrailTile
-                  key={card.vaultId}
+                  key={card.id}
                   card={card}
-                  selected={targetGrailCard?.vaultId === card.vaultId}
+                  selected={targetGrailCard?.id === card.id}
+                  disabled={isRolling || showingResult}
                   onSelect={() =>
-                    setTargetGrailCard((current) =>
-                      current?.vaultId === card.vaultId ? null : card,
-                    )
+                    setTargetGrailCard((current) => (current?.id === card.id ? null : card))
                   }
                 />
               ))}

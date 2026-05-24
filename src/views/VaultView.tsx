@@ -1,10 +1,14 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { PlayHistoryTable } from "../components/profile/PlayHistoryTable";
-import { exchangeCreditGems, formatGems } from "../constants/retail";
+import { exchangeButtonLabel, formatGems } from "../constants/retail";
 import { CollectibleImage } from "../components/ui/CollectibleImage";
+import {
+  exchangeVaultItemInUi,
+  formatExchangeSuccessToast,
+} from "../lib/exchangeLogic";
 import type { VaultedCard } from "../types";
 
 const REVENUE_VALUE_THRESHOLD = 10_000;
@@ -16,10 +20,12 @@ function VaultInventoryCard({
   card,
   onSell,
   onShip,
+  isExchanging,
 }: {
   card: VaultedCard;
   onSell: (card: VaultedCard) => void;
   onShip: (card: VaultedCard) => void;
+  isExchanging: boolean;
 }) {
   const isPendingShipment = card.status === "pending_shipment";
 
@@ -39,20 +45,22 @@ function VaultInventoryCard({
           </div>
         ) : (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-stretch justify-end gap-1.5 bg-gradient-to-t from-slate/95 via-slate/40 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
-          <button
-            type="button"
-            onClick={() => onShip(card)}
-            className="w-full rounded-md bg-[#FF007F] py-1.5 text-xs font-bold uppercase text-white"
-          >
-            Ship
-          </button>
-          <button
-            type="button"
-            onClick={() => onSell(card)}
-            className="w-full rounded-md border border-border bg-slate-elevated py-1.5 text-xs font-bold uppercase text-muted transition-colors hover:text-white"
-          >
-            Sell
-          </button>
+            <button
+              type="button"
+              onClick={() => onShip(card)}
+              disabled={isExchanging}
+              className="w-full rounded-md bg-[#FF007F] py-1.5 text-xs font-bold uppercase text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Ship
+            </button>
+            <button
+              type="button"
+              onClick={() => onSell(card)}
+              disabled={isExchanging}
+              className="w-full rounded-md border border-border bg-slate-elevated py-1.5 text-[10px] font-bold uppercase leading-tight text-muted transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isExchanging ? "Exchanging…" : exchangeButtonLabel(card.value)}
+            </button>
           </div>
         )}
       </div>
@@ -75,11 +83,14 @@ export function VaultView() {
     vaultItems,
     vaultItemsLoading,
     syncVaultFromServer,
-    exchangeVaultCard,
+    applyVaultExchange,
+    syncGemBalanceFromServer,
     openVaultShipping,
     showCashoutToast,
+    showErrorToast,
   } = useApp();
   const { user, authLoading, isAuthenticated } = useAuth();
+  const [exchangingVaultId, setExchangingVaultId] = useState<string | null>(null);
 
   const hasVaultAccess =
     !authLoading &&
@@ -110,19 +121,37 @@ export function VaultView() {
     [inventory],
   );
 
-  function handleSell(card: VaultedCard) {
+  async function handleSell(card: VaultedCard) {
+    if (exchangingVaultId) return;
+
     if (card.status === "pending_shipment") {
-      showCashoutToast("This item is pending shipment and cannot be sold.");
+      showCashoutToast("This item is pending shipment and cannot be exchanged.");
       return;
     }
-    const credit = exchangeCreditGems(card.value);
-    exchangeVaultCard(card.vaultId);
-    showCashoutToast(
-      `Trade-in processed — ${card.name} converted to ${formatGems(credit)} store credit.`,
-    );
+
+    setExchangingVaultId(card.vaultId);
+
+    try {
+      await exchangeVaultItemInUi(card.vaultId, {
+        removeVaultItem: (vaultItemId, gemsAdded, serverGemsBalance) => {
+          applyVaultExchange(vaultItemId, gemsAdded, serverGemsBalance);
+        },
+        syncGemBalance: userId
+          ? () => syncGemBalanceFromServer(userId)
+          : undefined,
+        toastError: showErrorToast,
+        toastSuccess: (gemsAdded) => {
+          showCashoutToast(formatExchangeSuccessToast(gemsAdded));
+        },
+      });
+    } finally {
+      setExchangingVaultId(null);
+    }
   }
 
   function handleShip(card: VaultedCard) {
+    if (exchangingVaultId) return;
+
     if (card.status === "pending_shipment") {
       showCashoutToast("This item is already pending shipment.");
       return;
@@ -193,7 +222,7 @@ export function VaultView() {
                   <button
                     type="button"
                     onClick={handleShipAllRevenue}
-                    disabled={revenueAssets.length === 0}
+                    disabled={revenueAssets.length === 0 || Boolean(exchangingVaultId)}
                     className="rounded-md border border-border bg-slate-elevated/60 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:border-fuchsia/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Ship All Revenue Assets
@@ -219,6 +248,7 @@ export function VaultView() {
                     card={card}
                     onSell={handleSell}
                     onShip={handleShip}
+                    isExchanging={exchangingVaultId === card.vaultId}
                   />
                 ))}
               </div>

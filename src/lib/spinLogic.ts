@@ -5,32 +5,60 @@ import { isSupabaseConfigured, supabase } from "./supabaseClient";
 type ProcessSpinTransactionArgs =
   Database["public"]["Functions"]["process_spin_transaction"]["Args"];
 
-interface ProcessSpinTransactionClient {
+type AddToVaultArgs = Database["public"]["Functions"]["add_to_vault"]["Args"];
+
+interface SpinRpcClient {
   rpc(
     fn: "process_spin_transaction",
     args: ProcessSpinTransactionArgs,
   ): Promise<{ data: Json | null; error: { message: string } | null }>;
+  rpc(
+    fn: "add_to_vault",
+    args: AddToVaultArgs,
+  ): Promise<{ data: Json | null; error: { message: string } | null }>;
 }
 
-export type ProcessSpinTransactionResult =
-  | { ok: true; gemsBalance: number }
+export interface HandleSpinItemDetails {
+  itemId: string;
+  itemName: string;
+  gemValue: number;
+  imageUrl: string;
+}
+
+export type HandleSpinResult =
+  | {
+      ok: true;
+      gemsBalance: number;
+      vaultItemId?: string;
+      vaultPending?: boolean;
+      vaultPendingMessage?: string;
+    }
   | { ok: false; error: string };
 
-interface SpinTransactionRpcPayload {
+interface SpinRpcPayload {
   success?: boolean;
   gems_balance?: number;
+  vault_item_id?: string | null;
+  error?: string;
+  code?: string;
+  step?: string;
 }
 
-function parseRpcPayload(data: unknown): SpinTransactionRpcPayload | null {
+function parseRpcPayload(data: unknown): SpinRpcPayload | null {
   if (data == null || typeof data !== "object") return null;
-  const record = data as SpinTransactionRpcPayload;
-  return record;
+  return data as SpinRpcPayload;
 }
 
-function mapSpinChargeError(message: string): string {
-  const normalized = message.toLowerCase();
+function normalizeVaultItemId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
 
-  if (normalized.includes("insufficient_gems")) {
+function mapSpinChargeError(message: string, code?: string): string {
+  const normalized = `${code ?? ""} ${message}`.toLowerCase();
+
+  if (normalized.includes("insufficient_gems") || normalized.includes("insufficient gems")) {
     return `Insufficient ${RETAIL_COPY.currency} for this opening.`;
   }
   if (normalized.includes("not_authenticated")) {
@@ -46,14 +74,32 @@ function mapSpinChargeError(message: string): string {
   return "Unable to charge gems for this spin. Please try again.";
 }
 
+async function resolveAuthenticatedUserId(): Promise<string> {
+  if (!isSupabaseConfigured() || !supabase) {
+    throw new Error("Spin charging requires Supabase configuration.");
+  }
+
+  const { data, error } = await supabase.auth.getUser();
+  if (error) {
+    throw new Error("Sign in to unlock drops with your gem balance.");
+  }
+
+  const userId = data.user?.id?.trim();
+  if (!userId) {
+    throw new Error("Sign in to unlock drops with your gem balance.");
+  }
+
+  return userId;
+}
+
 /**
- * Charges the authenticated user's gem balance on the server before a spin proceeds.
- * Must succeed before the client rolls or animates the pack open.
+ * Two-step spin flow: charge gems via `process_spin_transaction`, then register the
+ * pull via `add_to_vault`. Uses the authenticated user from `supabase.auth.getUser()`.
  */
-export async function processSpinTransaction(
-  userId: string,
+export async function handleSpin(
   spinCost: number,
-): Promise<ProcessSpinTransactionResult> {
+  item: HandleSpinItemDetails,
+): Promise<HandleSpinResult> {
   if (!isSupabaseConfigured() || !supabase) {
     return {
       ok: false,
@@ -61,41 +107,130 @@ export async function processSpinTransaction(
     };
   }
 
-  const normalizedUserId = userId.trim();
   const normalizedCost = Math.max(0, Math.round(spinCost));
-
-  if (!normalizedUserId) {
-    return { ok: false, error: "Sign in to unlock drops with your gem balance." };
-  }
+  const itemId = item.itemId.trim();
+  const itemName = item.itemName.trim();
+  const imageUrl = item.imageUrl.trim();
+  const gemValue = Math.max(0, Math.round(item.gemValue));
 
   if (normalizedCost <= 0) {
     return { ok: false, error: "Invalid spin cost." };
   }
 
-  const args: ProcessSpinTransactionArgs = {
-    p_user_id: normalizedUserId,
-    p_spin_cost: normalizedCost,
-  };
+  if (!itemId || !itemName) {
+    return { ok: false, error: "Invalid pull item details." };
+  }
 
-  const client = supabase as unknown as ProcessSpinTransactionClient;
-  const { data, error } = await client.rpc("process_spin_transaction", args);
+  try {
+    const authenticatedUserId = await resolveAuthenticatedUserId();
+    const client = supabase as unknown as SpinRpcClient;
 
-  if (error) {
-    if (import.meta.env.DEV) {
-      console.warn("[process_spin_transaction] RPC failed:", error.message);
+    const { data: spinData, error: spinError } = await client.rpc("process_spin_transaction", {
+      p_user_id: authenticatedUserId,
+      p_spin_cost: normalizedCost,
+    });
+
+    if (spinError) {
+      if (import.meta.env.DEV) {
+        console.warn("[process_spin_transaction] RPC failed:", spinError.message);
+      }
+      throw new Error(mapSpinChargeError(spinError.message));
     }
-    return { ok: false, error: mapSpinChargeError(error.message) };
+
+    const spinPayload = parseRpcPayload(spinData);
+
+    if (spinPayload?.success !== true) {
+      const errorMessage =
+        typeof spinPayload?.error === "string" && spinPayload.error.trim()
+          ? spinPayload.error.trim()
+          : "Unable to charge gems for this spin.";
+      throw new Error(mapSpinChargeError(errorMessage, spinPayload?.code));
+    }
+
+    const gemsBalance = Number(spinPayload.gems_balance);
+    if (!Number.isFinite(gemsBalance) || gemsBalance < 0) {
+      throw new Error("Spin charge succeeded but returned an invalid balance.");
+    }
+
+    try {
+      // @ts-expect-error Database RPC typings omit add_to_vault args.
+      const { data: vaultData, error: vaultError } = await supabase.rpc("add_to_vault", {
+        p_user_id: authenticatedUserId,
+        p_item_id: itemId,
+        p_item_name: itemName,
+        p_gem_value: gemValue,
+        p_image_url: imageUrl,
+      });
+
+      const vaultPayload = parseRpcPayload(vaultData);
+      const vaultItemId = normalizeVaultItemId(vaultPayload?.vault_item_id);
+
+      if (vaultItemId) {
+        if (import.meta.env.DEV) {
+          console.log("[add_to_vault] vault_item_id:", vaultItemId);
+        }
+        return {
+          ok: true,
+          gemsBalance: Math.round(gemsBalance),
+          vaultItemId,
+        };
+      }
+
+      if (vaultError) {
+        if (import.meta.env.DEV) {
+          console.warn("[add_to_vault] RPC failed:", vaultError.message, vaultData);
+        }
+        return {
+          ok: true,
+          gemsBalance: Math.round(gemsBalance),
+          vaultPending: true,
+          vaultPendingMessage: "Spin succeeded but vaulting is pending.",
+        };
+      }
+
+      if (vaultPayload?.success === false) {
+        const vaultErrorMessage =
+          typeof vaultPayload.error === "string" && vaultPayload.error.trim()
+            ? vaultPayload.error.trim()
+            : "Vault registration did not complete.";
+        if (import.meta.env.DEV) {
+          console.warn("[add_to_vault] returned failure:", vaultErrorMessage, vaultData);
+        }
+        return {
+          ok: true,
+          gemsBalance: Math.round(gemsBalance),
+          vaultPending: true,
+          vaultPendingMessage: "Spin succeeded but vaulting is pending.",
+        };
+      }
+
+      if (import.meta.env.DEV) {
+        console.warn("[add_to_vault] missing vault_item_id in response:", vaultData);
+      }
+      return {
+        ok: true,
+        gemsBalance: Math.round(gemsBalance),
+        vaultPending: true,
+        vaultPendingMessage: "Spin succeeded but vaulting is pending.",
+      };
+    } catch (vaultUnexpectedError) {
+      const message =
+        vaultUnexpectedError instanceof Error
+          ? vaultUnexpectedError.message
+          : "Vault registration failed.";
+      if (import.meta.env.DEV) {
+        console.warn("[add_to_vault] unexpected error:", message);
+      }
+      return {
+        ok: true,
+        gemsBalance: Math.round(gemsBalance),
+        vaultPending: true,
+        vaultPendingMessage: "Spin succeeded but vaulting is pending.",
+      };
+    }
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unable to complete this spin.";
+    return { ok: false, error: message };
   }
-
-  const payload = parseRpcPayload(data);
-  const gemsBalance = Number(payload?.gems_balance);
-
-  if (payload?.success !== true || !Number.isFinite(gemsBalance) || gemsBalance < 0) {
-    return {
-      ok: false,
-      error: "Spin charge succeeded but returned an invalid balance.",
-    };
-  }
-
-  return { ok: true, gemsBalance: Math.round(gemsBalance) };
 }

@@ -18,12 +18,14 @@ export type AppView =
   | "play-history"
   | "upgrader"
   | "battles"
+  | "battle-arena"
   | "leaderboard"
   | "rewards"
   | "marketplace"
   | "fairness"
   | "help-desk"
-  | "self-exclusion";
+  | "self-exclusion"
+  | "admin";
 
 export type AuthModalMode = "login" | "signup";
 
@@ -66,7 +68,13 @@ export interface PulledCard extends Card {
   packId: string;
 }
 
-export type VaultItemStatus = "vaulted" | "pending_shipment" | "shipped" | "delivered";
+export type VaultItemStatus =
+  | "vaulted"
+  | "pending_shipment"
+  | "shipped"
+  | "delivered"
+  | "exchanged"
+  | "upgraded_lost";
 
 export interface VaultedCard extends Card {
   vaultId: string;

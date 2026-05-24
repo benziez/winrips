@@ -6,6 +6,7 @@ const VIEW_PATHS: Partial<Record<AppView, string>> = {
   "play-history": "/vault/history",
   upgrader: "/upgrader",
   battles: "/battles",
+  "battle-arena": "/battles",
   inventory: "/vault",
   leaderboard: "/leaderboard",
   rewards: "/rewards",
@@ -13,6 +14,7 @@ const VIEW_PATHS: Partial<Record<AppView, string>> = {
   fairness: "/fairness",
   "help-desk": "/help-desk",
   "self-exclusion": "/self-exclusion",
+  admin: "/admin",
 };
 
 const PATH_TO_VIEW: Record<string, AppView> = {
@@ -22,13 +24,35 @@ const PATH_TO_VIEW: Record<string, AppView> = {
   "/play-history": "play-history",
   "/upgrader": "upgrader",
   "/battles": "battles",
+  "/admin": "admin",
 };
 
-export function pathForView(view: AppView): string {
+const BATTLE_PATH_PREFIX = "/battles/";
+
+export function parseBattleIdFromPath(pathname: string): string | null {
+  const normalized = pathname.replace(/\/+$/, "") || "/";
+  if (!normalized.startsWith(BATTLE_PATH_PREFIX)) return null;
+
+  const battleId = normalized.slice(BATTLE_PATH_PREFIX.length).trim();
+  if (!battleId) return null;
+
+  return battleId;
+}
+
+export function battlePathForId(battleId: string): string {
+  return `${BATTLE_PATH_PREFIX}${battleId}`;
+}
+
+export function pathForView(view: AppView, battleId?: string | null): string {
+  if (view === "battle-arena" && battleId) {
+    return battlePathForId(battleId);
+  }
   return VIEW_PATHS[view] ?? "/";
 }
 
 export function parseAppPath(pathname: string): AppView | null {
+  if (parseBattleIdFromPath(pathname)) return "battle-arena";
+
   const normalized = pathname.replace(/\/+$/, "") || "/";
   return PATH_TO_VIEW[normalized] ?? null;
 }

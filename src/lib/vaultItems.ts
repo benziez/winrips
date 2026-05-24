@@ -13,6 +13,8 @@ function normalizeVaultStatus(value: string | undefined | null): VaultItemStatus
     value === "pending_shipment" ||
     value === "shipped" ||
     value === "delivered" ||
+    value === "exchanged" ||
+    value === "upgraded_lost" ||
     value === "vaulted"
   ) {
     return value;
@@ -94,6 +96,8 @@ export async function fetchVaultItems(userId: string, limit = 120): Promise<Vaul
       "id, user_id, item_id, item_name, rarity, gem_value, image_url, created_at, status, shipping_name, shipping_address, tracking_number",
     )
     .eq("user_id", userId.trim())
+    .neq("status", "exchanged")
+    .neq("status", "upgraded_lost")
     .order("created_at", { ascending: false })
     .limit(limit);
 

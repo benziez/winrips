@@ -2,7 +2,6 @@ import type { Pack } from "../types";
 import { getPackStoreItemsForPack } from "../data/boxCatalog";
 import { resolveStoreItemImage } from "./collectibleFallback";
 
-const PREVIEW_LIMIT = 5;
 const CYCLE_MS = 1500;
 
 export { CYCLE_MS };
@@ -13,8 +12,8 @@ function itemImageUrl(item: { image: string; image_url?: string; id: string }): 
   return url;
 }
 
-/** Top N highest gem-value drop images for lobby card autoplay cycling. */
-export function getTopValueDropImages(pack: Pack, limit = PREVIEW_LIMIT): string[] {
+/** Highest gem-value drop images for lobby card autoplay cycling (full pool, no cap). */
+export function getTopValueDropImages(pack: Pack): string[] {
   const items = getPackStoreItemsForPack(pack);
   if (items.length === 0) return [];
 
@@ -25,7 +24,6 @@ export function getTopValueDropImages(pack: Pack, limit = PREVIEW_LIMIT): string
     const url = itemImageUrl(item);
     if (!url || urls.includes(url)) continue;
     urls.push(url);
-    if (urls.length >= limit) break;
   }
 
   return urls;

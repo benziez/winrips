@@ -10,6 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --port 4444",
     "seed:pokemon": "node scripts/seedPokemon.js",
+    "seed:upgrader-sql": "tsx scripts/generateUpgraderSeed.ts",
     "dev:set-balance": "node scripts/setGemBalance.mjs"
   },
   "dependencies": {

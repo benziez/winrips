@@ -1,5 +1,5 @@
 import { useApp } from "../../context/AppContext";
-import { LiveWinsTicker } from "../dashboard/LiveWinsTicker";
+import { SimulatedLiveFeed } from "../dashboard/SimulatedLiveFeed";
 import { HeaderWalletControls } from "../wallet/HeaderWalletControls";
 import { WinRipsLogo } from "../brand/WinRipsLogo";
 import { HeaderProfileMenu } from "./HeaderProfileMenu";
@@ -107,7 +107,7 @@ export function Header() {
       </div>
 
       <div className="hidden w-full lg:flex">
-        <LiveWinsTicker embedded />
+        <SimulatedLiveFeed embedded />
       </div>
     </header>
   );

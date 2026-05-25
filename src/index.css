@@ -126,6 +126,20 @@
     animation: ticker-scroll 50s linear infinite;
   }
 
+  .simulated-feed-marquee {
+    animation: simulated-feed-marquee 25s linear infinite;
+    will-change: transform;
+  }
+
+  @keyframes simulated-feed-marquee {
+    0% {
+      transform: translateX(0);
+    }
+    100% {
+      transform: translateX(-50%);
+    }
+  }
+
   @keyframes ticker-scroll {
     0% {
       transform: translateX(0);

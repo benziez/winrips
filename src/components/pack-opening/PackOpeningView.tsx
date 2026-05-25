@@ -527,6 +527,8 @@ export function PackOpeningView() {
       {shippingModalOpen && winnerItem && (
         <ShippingModal
           itemName={winnerItem.name}
+          itemImage={winnerItem.image}
+          itemValue={winnerItem.value}
           onClose={() => setShippingModalOpen(false)}
           onSubmit={handleShippingDone}
         />

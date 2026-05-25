@@ -71,6 +71,7 @@ export interface PulledCard extends Card {
 export type VaultItemStatus =
   | "vaulted"
   | "pending_shipment"
+  | "shipping_requested"
   | "shipped"
   | "delivered"
   | "exchanged"

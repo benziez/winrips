@@ -489,4 +489,34 @@
   .deposit-success-toast {
     animation: deposit-toast-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   }
+
+  @keyframes vault-release-check-pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    60% {
+      transform: scale(1.06);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  @keyframes vault-release-check-stroke {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  .vault-release-check {
+    animation: vault-release-check-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  .vault-release-check-path {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: vault-release-check-stroke 0.45s cubic-bezier(0.22, 1, 0.36, 1) 0.2s forwards;
+  }
 }

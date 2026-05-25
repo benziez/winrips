@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import { useApp } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
+import {
+  fetchVaultInventoryUnfiltered,
+  filterStrictlyVaulted,
+} from "../queries/vaultInventory";
+import { queryKeys } from "../queries/queryKeys";
 import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { PlayHistoryTable } from "../components/profile/PlayHistoryTable";
 import { exchangeButtonLabel, formatGems } from "../constants/retail";
@@ -80,9 +86,6 @@ export function VaultView() {
   const {
     isLoggedIn,
     userId,
-    vaultItems,
-    vaultItemsLoading,
-    syncVaultFromServer,
     applyVaultExchange,
     syncGemBalanceFromServer,
     openVaultShipping,
@@ -90,6 +93,7 @@ export function VaultView() {
     showErrorToast,
   } = useApp();
   const { user, authLoading, isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
   const [exchangingVaultId, setExchangingVaultId] = useState<string | null>(null);
 
   const hasVaultAccess =
@@ -100,13 +104,17 @@ export function VaultView() {
     Boolean(userId) &&
     user!.id === userId;
 
-  useEffect(() => {
-    if (!hasVaultAccess || !userId) return;
-    void syncVaultFromServer(userId);
-  }, [hasVaultAccess, userId, syncVaultFromServer]);
+  const vaultQuery = useQuery({
+    queryKey: queryKeys.vault(userId),
+    queryFn: () => fetchVaultInventoryUnfiltered(userId),
+    enabled: hasVaultAccess,
+    select: (data) => filterStrictlyVaulted(data),
+  });
 
-  const inventory = hasVaultAccess ? vaultItems : [];
-  const isLoadingInventory = hasVaultAccess && vaultItemsLoading;
+  const vaultedInventory = vaultQuery.data ?? [];
+  const isLoadingInventory = vaultQuery.isLoading;
+
+  const inventory = hasVaultAccess ? vaultedInventory : [];
 
   const portfolioValue = useMemo(
     () => inventory.reduce((sum, card) => sum + card.value, 0),
@@ -137,13 +145,18 @@ export function VaultView() {
           applyVaultExchange(vaultItemId, gemsAdded, serverGemsBalance);
         },
         syncGemBalance: userId
-          ? () => syncGemBalanceFromServer(userId)
+          ? async () => {
+              await syncGemBalanceFromServer(userId);
+            }
           : undefined,
         toastError: showErrorToast,
         toastSuccess: (gemsAdded) => {
           showCashoutToast(formatExchangeSuccessToast(gemsAdded));
         },
       });
+
+      await queryClient.invalidateQueries({ queryKey: queryKeys.vaultAll });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.userAll });
     } finally {
       setExchangingVaultId(null);
     }

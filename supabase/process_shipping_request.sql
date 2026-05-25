@@ -12,11 +12,18 @@ alter table public.vault_items
 
 alter table public.vault_items
   add constraint vault_items_status_check
-  check (status in ('vaulted', 'pending_shipment', 'shipped', 'delivered'));
+  check (
+    status in (
+      'vaulted',
+      'pending_shipment',
+      'shipping_requested',
+      'shipped',
+      'delivered'
+    )
+  );
 
 create or replace function public.process_shipping_request(
-  p_item_id uuid,
-  p_shipping_cost integer,
+  param_item_id uuid,
   p_name text,
   p_address text
 )
@@ -32,17 +39,12 @@ declare
   v_new_balance integer;
   v_name text;
   v_address text;
+  v_shipping_cost constant integer := 2500;
 begin
-  if p_item_id is null then
+  if param_item_id is null then
     raise exception 'invalid_item_id'
       using errcode = '22023',
             message = 'Vault item id is required.';
-  end if;
-
-  if p_shipping_cost is null or p_shipping_cost <= 0 then
-    raise exception 'invalid_shipping_cost'
-      using errcode = '22023',
-            message = 'Shipping cost must be a positive integer.';
   end if;
 
   v_name := nullif(trim(p_name), '');
@@ -63,7 +65,7 @@ begin
   select user_id, status
     into v_user_id, v_item_status
   from public.vault_items
-  where id = p_item_id
+  where id = param_item_id
   for update;
 
   if not found then
@@ -96,13 +98,13 @@ begin
             message = 'User profile not found.';
   end if;
 
-  if v_balance < p_shipping_cost then
+  if v_balance < v_shipping_cost then
     raise exception 'insufficient_gems'
       using errcode = 'P0001',
             message = 'Insufficient gems for shipping.';
   end if;
 
-  v_new_balance := v_balance - p_shipping_cost;
+  v_new_balance := v_balance - v_shipping_cost;
 
   update public.profiles
   set gems_balance = v_new_balance
@@ -110,22 +112,22 @@ begin
 
   update public.vault_items
   set
-    status = 'pending_shipment',
+    status = 'shipping_requested',
     shipping_name = v_name,
     shipping_address = v_address
-  where id = p_item_id;
+  where id = param_item_id;
 
   return jsonb_build_object(
     'success', true,
     'gems_balance', v_new_balance,
-    'item_id', p_item_id,
-    'status', 'pending_shipment'
+    'item_id', param_item_id,
+    'status', 'shipping_requested'
   );
 end;
 $$;
 
-revoke all on function public.process_shipping_request(uuid, integer, text, text) from public;
-grant execute on function public.process_shipping_request(uuid, integer, text, text) to authenticated;
+revoke all on function public.process_shipping_request(uuid, text, text) from public;
+grant execute on function public.process_shipping_request(uuid, text, text) to authenticated;
 
-comment on function public.process_shipping_request(uuid, integer, text, text) is
-  'Charges shipping gems, marks a vaulted item pending_shipment, and stores fulfillment address.';
+comment on function public.process_shipping_request(uuid, text, text) is
+  'Charges 2,500 shipping gems, marks a vaulted item shipping_requested, and stores fulfillment address.';

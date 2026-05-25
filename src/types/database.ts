@@ -150,8 +150,7 @@ export interface Database {
       };
       process_shipping_request: {
         Args: {
-          p_item_id: string;
-          p_shipping_cost: number;
+          param_item_id: string;
           p_name: string;
           p_address: string;
         };

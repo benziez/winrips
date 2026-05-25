@@ -277,7 +277,7 @@ function UpgraderEmptyInventory() {
 }
 
 function isUpgradeableDeposit(card: VaultedCard): boolean {
-  return !card.status || card.status === "vaulted";
+  return card.status === "vaulted";
 }
 
 export function UpgraderView() {

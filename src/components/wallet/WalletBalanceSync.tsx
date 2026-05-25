@@ -1,47 +1,61 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useApp } from "../../context/AppContext";
 import { clearLoggedIn } from "../../constants/userSession";
+import { fetchUserBalanceSnapshot } from "../../queries/userBalances";
+import { queryKeys } from "../../queries/queryKeys";
 
 /**
  * Keeps AppContext wallet state aligned with Supabase auth — wipes on sign-out,
- * fetches per authenticated user id only.
+ * fetches per authenticated user id via React Query.
  */
 export function WalletBalanceSync() {
   const { user, authLoading, isAuthenticated } = useAuth();
   const {
     setBalanceUserId,
-    syncGemBalanceFromServer,
+    setGoldVolts,
     syncUserProfileFromServer,
     syncVaultFromServer,
     logout,
   } = useApp();
+
+  const userId = user?.id ?? "";
+
+  const { data: balanceSnapshot } = useQuery({
+    queryKey: queryKeys.user(userId),
+    queryFn: () => fetchUserBalanceSnapshot(userId),
+    enabled: !authLoading && isAuthenticated && Boolean(userId),
+  });
 
   useEffect(() => {
     if (authLoading) {
       return;
     }
 
-    if (!isAuthenticated || !user?.id) {
+    if (!isAuthenticated || !userId) {
       clearLoggedIn();
       logout();
       return;
     }
 
-    setBalanceUserId(user.id);
-    void syncGemBalanceFromServer(user.id);
-    void syncUserProfileFromServer(user.id);
-    void syncVaultFromServer(user.id);
+    setBalanceUserId(userId);
+    void syncUserProfileFromServer(userId);
+    void syncVaultFromServer(userId);
   }, [
     authLoading,
     isAuthenticated,
-    user?.id,
+    userId,
     logout,
     setBalanceUserId,
-    syncGemBalanceFromServer,
     syncUserProfileFromServer,
     syncVaultFromServer,
   ]);
+
+  useEffect(() => {
+    if (!balanceSnapshot) return;
+    setGoldVolts(balanceSnapshot.gemBalance);
+  }, [balanceSnapshot, setGoldVolts]);
 
   return null;
 }

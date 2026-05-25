@@ -22,10 +22,6 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
     clearCashoutToast,
     shippingVaultItem,
     closeVaultShipping,
-    showCashoutToast,
-    userId,
-    setGoldVolts,
-    syncVaultFromServer,
     markVaultItemPendingShipment,
   } = useApp();
   const { isMenuOpen } = useNavDrawer();
@@ -60,13 +56,14 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
       {shippingVaultItem && (
         <ShippingModal
           itemName={shippingVaultItem.name}
+          itemImage={shippingVaultItem.image}
+          itemValue={shippingVaultItem.value}
           onClose={closeVaultShipping}
           vaultMode={{
             shippingCost: VAULT_SHIPPING_COST,
             onConfirm: async ({ name, address }) => {
               const result = await processShippingRequest({
                 itemId: shippingVaultItem.vaultId,
-                shippingCost: VAULT_SHIPPING_COST,
                 name,
                 address,
               });
@@ -75,15 +72,7 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
                 return { ok: false, error: result.error };
               }
 
-              setGoldVolts(result.gemsBalance);
               markVaultItemPendingShipment(shippingVaultItem.vaultId, name, address);
-              if (userId) {
-                void syncVaultFromServer(userId);
-              }
-              showCashoutToast(
-                `Shipping request submitted for ${shippingVaultItem.name}. ${VAULT_SHIPPING_COST.toLocaleString()} Gems charged.`,
-              );
-              closeVaultShipping();
               return { ok: true };
             },
           }}

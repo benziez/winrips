@@ -9,18 +9,26 @@ function normalizeRarity(value: string): Rarity {
   return VALID_RARITIES.includes(value as Rarity) ? (value as Rarity) : "Rare";
 }
 
+const KNOWN_VAULT_STATUSES: VaultItemStatus[] = [
+  "vaulted",
+  "pending_shipment",
+  "shipping_requested",
+  "shipped",
+  "delivered",
+  "exchanged",
+  "upgraded_lost",
+];
+
 function normalizeVaultStatus(value: string | undefined | null): VaultItemStatus {
-  if (
-    value === "pending_shipment" ||
-    value === "shipped" ||
-    value === "delivered" ||
-    value === "exchanged" ||
-    value === "upgraded_lost" ||
-    value === "vaulted"
-  ) {
-    return value;
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw) {
+    return "vaulted";
   }
-  return "vaulted";
+  if (KNOWN_VAULT_STATUSES.includes(raw as VaultItemStatus)) {
+    return raw as VaultItemStatus;
+  }
+  // Never coerce unknown DB statuses to "vaulted" — keeps locker filters accurate.
+  return raw as VaultItemStatus;
 }
 
 function rowToVaultedCard(row: VaultItemRow): VaultedCard {
@@ -83,6 +91,29 @@ export async function insertVaultItem(
 
   if (!data) return null;
   return rowToVaultedCard(data as VaultItemRow);
+}
+
+/** Locker grid — only rows with status `vaulted` (excludes shipping / fulfillment). */
+export async function fetchVaultLockerItems(userId: string, limit = 120): Promise<VaultedCard[]> {
+  if (!isSupabaseConfigured() || !supabase || !userId.trim()) return [];
+
+  const { data, error } = await supabase
+    .from("vault_items")
+    .select(
+      "id, user_id, item_id, item_name, rarity, gem_value, image_url, created_at, status, shipping_name, shipping_address, tracking_number",
+    )
+    .eq("user_id", userId.trim())
+    .eq("status", "vaulted")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    logger.warn("[vault_items] locker fetch failed:", error.message);
+    return [];
+  }
+
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => rowToVaultedCard(row as VaultItemRow));
 }
 
 /** Load vaulted collectibles from Supabase (newest first). */

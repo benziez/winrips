@@ -1,20 +1,13 @@
 import { RETAIL_COPY } from "../constants/retail";
-import type { Database, Json } from "../types/database";
 import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
-type ProcessShippingRequestArgs =
-  Database["public"]["Functions"]["process_shipping_request"]["Args"];
-
-interface ProcessShippingRequestClient {
-  rpc(
-    fn: "process_shipping_request",
-    args: ProcessShippingRequestArgs,
-  ): Promise<{ data: Json | null; error: { message: string } | null }>;
+function toCleanVaultItemId(vaultItemId: string): string {
+  return vaultItemId.trim().replace(/^vault-/, "");
 }
 
 export type ProcessShippingRequestResult =
-  | { ok: true; gemsBalance: number; itemId: string; status: string }
+  | { ok: true; success: true; gemsBalance?: number; itemId: string; status: string }
   | { ok: false; error: string; insufficientGems?: boolean };
 
 interface ShippingRpcPayload {
@@ -57,7 +50,6 @@ function mapShippingError(message: string): ProcessShippingRequestResult {
 
 export interface ProcessShippingRequestInput {
   itemId: string;
-  shippingCost: number;
   name: string;
   address: string;
 }
@@ -73,53 +65,63 @@ export async function processShippingRequest(
     };
   }
 
-  const itemId = input.itemId.trim();
-  const shippingCost = Math.max(0, Math.round(input.shippingCost));
+  const cleanItemId = toCleanVaultItemId(input.itemId);
   const name = input.name.trim();
-  const address = input.address.trim();
+  const fullAddress = input.address.trim();
 
-  if (!itemId) {
+  if (!cleanItemId) {
     return { ok: false, error: "Vault item not found." };
   }
 
-  if (shippingCost <= 0) {
-    return { ok: false, error: "Invalid shipping cost." };
-  }
-
-  if (!name || !address) {
+  if (!name || !fullAddress) {
     return { ok: false, error: "Enter a valid name and shipping address." };
   }
 
-  const args: ProcessShippingRequestArgs = {
-    p_item_id: itemId,
-    p_shipping_cost: shippingCost,
+  // @ts-expect-error Supabase client typings omit process_shipping_request args.
+  const { data, error } = await supabase.rpc("process_shipping_request", {
+    param_item_id: cleanItemId,
+    p_address: fullAddress,
     p_name: name,
-    p_address: address,
-  };
-
-  const client = supabase as unknown as ProcessShippingRequestClient;
-  const { data, error } = await client.rpc("process_shipping_request", args);
+  });
 
   if (error) {
-    logger.warn("[process_shipping_request] RPC failed:", error.message);
+    logger.error("RPC Error:", error);
     return mapShippingError(error.message);
   }
 
-  const payload = parseRpcPayload(data);
-  const gemsBalance = Number(payload?.gems_balance);
-  const status = typeof payload?.status === "string" ? payload.status : "";
-  const returnedItemId = typeof payload?.item_id === "string" ? payload.item_id : itemId;
-
-  if (payload?.success !== true || !Number.isFinite(gemsBalance) || gemsBalance < 0 || !status) {
+  // Null/void RPC data is valid — the SQL function ran without returning a payload.
+  if (data == null) {
+    logger.log("Shipping requested successfully");
     return {
-      ok: false,
-      error: "Shipping request succeeded but returned an invalid response.",
+      ok: true,
+      success: true,
+      itemId: cleanItemId,
+      status: "shipping_requested",
     };
   }
 
+  const payload = parseRpcPayload(data);
+  if (!payload?.success) {
+    return {
+      ok: false,
+      error: "Unable to submit shipping request. Please try again.",
+    };
+  }
+
+  logger.log("Shipping requested successfully");
+
+  const gemsBalance = Number(payload.gems_balance);
+  const status =
+    typeof payload.status === "string" && payload.status.trim()
+      ? payload.status
+      : "shipping_requested";
+  const returnedItemId = typeof payload.item_id === "string" ? payload.item_id : cleanItemId;
+
   return {
     ok: true,
-    gemsBalance: Math.round(gemsBalance),
+    success: true,
+    gemsBalance:
+      Number.isFinite(gemsBalance) && gemsBalance >= 0 ? Math.round(gemsBalance) : undefined,
     itemId: returnedItemId,
     status,
   };

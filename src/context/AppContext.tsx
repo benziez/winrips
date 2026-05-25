@@ -653,7 +653,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           item.vaultId === vaultId
             ? {
                 ...item,
-                status: "pending_shipment",
+                status: "shipping_requested",
                 shippingName,
                 shippingAddress,
               }

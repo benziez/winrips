@@ -1,4 +1,3 @@
-import { RETAIL_COPY } from "../constants/retail";
 import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
@@ -25,11 +24,14 @@ function parseRpcPayload(data: unknown): ShippingRpcPayload | null {
 function mapShippingError(message: string): ProcessShippingRequestResult {
   const normalized = message.toLowerCase();
 
-  if (normalized.includes("insufficient_gems")) {
+  if (
+    normalized.includes("insufficient gems") ||
+    normalized.includes("insufficient_gems")
+  ) {
     return {
       ok: false,
       insufficientGems: true,
-      error: `Insufficient ${RETAIL_COPY.currency} for shipping. Deposit more funds to continue.`,
+      error: "You don't have enough gems for shipping.",
     };
   }
   if (normalized.includes("not_authenticated")) {
@@ -86,7 +88,11 @@ export async function processShippingRequest(
 
   if (error) {
     logger.error("RPC Error:", error);
-    return mapShippingError(error.message);
+    const rpcMessage =
+      typeof error.message === "string" && error.message.trim()
+        ? error.message
+        : "Unable to submit shipping request. Please try again.";
+    return mapShippingError(rpcMessage);
   }
 
   // Null/void RPC data is valid — the SQL function ran without returning a payload.

@@ -14,6 +14,7 @@ export interface RevealModalProps {
   isGuest?: boolean;
   isExchanging?: boolean;
   canExchange?: boolean;
+  canShip?: boolean;
   onBurn: () => void;
   onSendToVault: () => void;
   onShip: () => void;
@@ -44,6 +45,7 @@ export function RevealModal({
   isGuest = false,
   isExchanging = false,
   canExchange = true,
+  canShip = true,
   onBurn,
   onSendToVault,
   onShip,
@@ -55,6 +57,7 @@ export function RevealModal({
   const headline = ceilingDropHeadline(card.value);
   const actionsLocked = isExchanging;
   const exchangeDisabled = isGuest || actionsLocked || !canExchange;
+  const shipDisabled = isGuest || actionsLocked || !canShip;
 
   return (
     <div
@@ -145,8 +148,8 @@ export function RevealModal({
           <button
             type="button"
             onClick={onShip}
-            disabled={isGuest || actionsLocked}
-            className={`w-full rounded-lg bg-[#FFD700] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-black transition-all hover:brightness-105 sm:text-xs disabled:cursor-not-allowed disabled:opacity-50 ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
+            disabled={shipDisabled}
+            className={`w-full rounded-lg bg-[#FFD700] px-3 py-3.5 text-[11px] font-bold uppercase tracking-wide text-black transition-all hover:brightness-105 sm:text-xs disabled:cursor-not-allowed disabled:opacity-50 ${isGuest || !canShip ? GUEST_DISABLED_ACTION : ""}`}
           >
             {SHIP_BUTTON_LABEL}
           </button>

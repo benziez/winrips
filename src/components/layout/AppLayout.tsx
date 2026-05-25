@@ -7,11 +7,10 @@ import { DepositModal } from "../modals/DepositModal";
 import { PurchaseModal } from "../wallet/PurchaseModal";
 import { AuthModal } from "../auth/AuthModal";
 import { CorporateFooter } from "./CorporateFooter";
-import { ShippingModal } from "../pack-opening/ShippingModal";
+import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { GemBalanceDepositNotifier } from "../wallet/GemBalanceDepositNotifier";
 import { WalletModal } from "../wallet/WalletModal";
-import { VAULT_SHIPPING_COST } from "../../constants/shipping";
-import { processShippingRequest } from "../../lib/shippingLogic";
+import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { useApp } from "../../context/AppContext";
 import { AgeGate } from "../compliance/AgeGate";
 
@@ -54,28 +53,17 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
       <GemBalanceDepositNotifier />
 
       {shippingVaultItem && (
-        <ShippingModal
+        <VaultReleaseModal
+          vaultItemId={shippingVaultItem.vaultId}
           itemName={shippingVaultItem.name}
           itemImage={shippingVaultItem.image}
           itemValue={shippingVaultItem.value}
           onClose={closeVaultShipping}
-          vaultMode={{
-            shippingCost: VAULT_SHIPPING_COST,
-            onConfirm: async ({ name, address }) => {
-              const result = await processShippingRequest({
-                itemId: shippingVaultItem.vaultId,
-                name,
-                address,
-              });
-
-              if (!result.ok) {
-                return { ok: false, error: result.error };
-              }
-
-              markVaultItemPendingShipment(shippingVaultItem.vaultId, name, address);
-              return { ok: true };
-            },
-          }}
+          onSuccessDismiss={closeVaultShipping}
+          onConfirm={createVaultReleaseOnConfirm({
+            vaultItemId: shippingVaultItem.vaultId,
+            markVaultItemPendingShipment,
+          })}
         />
       )}
 

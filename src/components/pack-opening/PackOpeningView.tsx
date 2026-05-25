@@ -19,7 +19,8 @@ import { getPackStoreItems } from "../../constants/catalog";
 import { QuantitySelector, type OpenQuantity } from "./QuantitySelector";
 import { UnboxingCarousel } from "./UnboxingCarousel";
 import { RevealModal } from "./RevealModal";
-import { ShippingModal } from "./ShippingModal";
+import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
+import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { DropTableMatrix } from "./DropTableMatrix";
 import { formatGems, RETAIL_COPY } from "../../constants/retail";
 import { useIsNarrowViewport } from "../../hooks/useIsNarrowViewport";
@@ -54,6 +55,7 @@ export function PackOpeningView() {
     setSpinInProgress,
     applyVaultExchange,
     syncGemBalanceFromServer,
+    markVaultItemPendingShipment,
   } = useApp();
 
   const isGuest = !userId;
@@ -75,6 +77,8 @@ export function PackOpeningView() {
   const [isExchanging, setIsExchanging] = useState(false);
   const [fairnessSession, setFairnessSession] = useState<FairnessSession | null>(null);
   const [fairnessModalOpen, setFairnessModalOpen] = useState(false);
+
+  const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
 
   const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spinRafRef = useRef<number | null>(null);
@@ -409,13 +413,12 @@ export function PackOpeningView() {
   }, [winnerItem, isGuest, isExchanging, showCashoutToast, finishReveal]);
 
   const handleShip = useCallback(() => {
+    if (!activeVaultItemId) {
+      showErrorToast("This pull is still being secured in your vault. Try again in a moment.");
+      return;
+    }
     setShippingModalOpen(true);
-  }, [setShippingModalOpen]);
-
-  const handleShippingDone = useCallback(() => {
-    setShippingModalOpen(false);
-    finishReveal();
-  }, [setShippingModalOpen, finishReveal]);
+  }, [activeVaultItemId, setShippingModalOpen, showErrorToast]);
 
   if (!selectedPack) {
     return (
@@ -445,8 +448,8 @@ export function PackOpeningView() {
   const isPreviewStrip = !isSpinning && carouselCards.length <= MOBILE_PREVIEW_LENGTH;
   const carouselWinnerIndex = isPreviewStrip ? MOBILE_PREVIEW_WINNER_INDEX : ROULETTE_WINNER_INDEX;
   const carouselCardWidth = isNarrow && isPreviewStrip ? MOBILE_CARD_WIDTH : undefined;
-  const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
   const canExchangeReveal = !isGuest && Boolean(activeVaultItemId);
+  const canShipReveal = canExchangeReveal;
 
   return (
     <CardDetailModalProvider>
@@ -517,6 +520,7 @@ export function PackOpeningView() {
           isGuest={isGuest}
           isExchanging={isExchanging}
           canExchange={canExchangeReveal}
+          canShip={canShipReveal}
           onBurn={() => void handleBurn()}
           onSendToVault={handleSendToVault}
           onShip={handleShip}
@@ -524,15 +528,21 @@ export function PackOpeningView() {
         />
       )}
 
-      {shippingModalOpen && winnerItem && (
-        <ShippingModal
+      {shippingModalOpen && winnerItem && activeVaultItemId ? (
+        <VaultReleaseModal
+          vaultItemId={activeVaultItemId}
           itemName={winnerItem.name}
           itemImage={winnerItem.image}
           itemValue={winnerItem.value}
           onClose={() => setShippingModalOpen(false)}
-          onSubmit={handleShippingDone}
+          onSuccessDismiss={finishReveal}
+          successDismissLabel="Continue"
+          onConfirm={createVaultReleaseOnConfirm({
+            vaultItemId: activeVaultItemId,
+            markVaultItemPendingShipment,
+          })}
         />
-      )}
+      ) : null}
 
       {fairnessModalOpen && fairnessSession ? (
         <FairnessVerifyModal

@@ -1,10 +1,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 import { formatGems } from "../../constants/retail";
-import { queryKeys } from "../../queries/queryKeys";
+import { VAULT_SHIPPING_COST } from "../../constants/shipping";
 import { BRAND_FUCHSIA, BRAND_GOLD, BRAND_GRADIENT } from "../../constants/theme";
+import type { VaultShippingConfirmInput } from "../../lib/vaultReleaseFlow";
+import { queryKeys } from "../../queries/queryKeys";
 import { CollectibleImage } from "../ui/CollectibleImage";
-import { BrandTextField, ReleaseSpinner } from "../shipping/VaultReleaseFields";
+import { BrandTextField, ReleaseSpinner } from "./VaultReleaseFields";
+
+export type { VaultShippingConfirmInput };
 
 export interface ShippingFormValues {
   name: string;
@@ -13,23 +17,16 @@ export interface ShippingFormValues {
   zip: string;
 }
 
-export interface VaultShippingConfirmInput {
-  name: string;
-  address: string;
-}
-
-interface ShippingModalProps {
+interface VaultReleaseModalProps {
+  vaultItemId: string;
   itemName: string;
   itemImage?: string;
   itemValue?: number;
+  shippingCost?: number;
   onClose: () => void;
-  /** Pack reveal flow — no gem charge */
-  onSubmit?: () => void;
-  /** Vault delivery flow — charges gems server-side */
-  vaultMode?: {
-    shippingCost: number;
-    onConfirm: (input: VaultShippingConfirmInput) => Promise<{ ok: boolean; error?: string }>;
-  };
+  onSuccessDismiss: () => void;
+  successDismissLabel?: string;
+  onConfirm: (input: VaultShippingConfirmInput) => Promise<{ ok: boolean; error?: string }>;
 }
 
 function buildAddress(values: ShippingFormValues): string {
@@ -60,10 +57,10 @@ function VaultReleaseSuccessIcon() {
 }
 
 function VaultReleaseSuccessView({
-  isVaultRelease,
+  dismissLabel,
   onDismiss,
 }: {
-  isVaultRelease: boolean;
+  dismissLabel: string;
   onDismiss: () => void;
 }) {
   return (
@@ -89,7 +86,7 @@ function VaultReleaseSuccessView({
           boxShadow: `0 0 24px color-mix(in srgb, ${BRAND_FUCHSIA} 22%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.12)`,
         }}
       >
-        {isVaultRelease ? "Return to Vault" : "Close"}
+        {dismissLabel}
       </button>
     </div>
   );
@@ -111,7 +108,8 @@ function ShippingSummary({ shippingCost }: { shippingCost: number }) {
         >
           Shipping Summary
         </h4>
-        <span className="rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted"
+        <span
+          className="rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted"
           style={{ borderColor: `color-mix(in srgb, ${BRAND_FUCHSIA} 25%, transparent)` }}
         >
           Insured
@@ -134,14 +132,16 @@ function ShippingSummary({ shippingCost }: { shippingCost: number }) {
   );
 }
 
-export function ShippingModal({
+export function VaultReleaseModal({
   itemName,
   itemImage,
   itemValue,
+  shippingCost = VAULT_SHIPPING_COST,
   onClose,
-  onSubmit,
-  vaultMode,
-}: ShippingModalProps) {
+  onSuccessDismiss,
+  successDismissLabel = "Return to Vault",
+  onConfirm,
+}: VaultReleaseModalProps) {
   const queryClient = useQueryClient();
   const [succeeded, setSucceeded] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -153,16 +153,12 @@ export function ShippingModal({
     zip: "",
   });
 
-  const isVaultRelease = Boolean(vaultMode);
-
   async function handleFinalize(name: string, address: string) {
-    if (!vaultMode) return;
-
     setProcessing(true);
     setError(null);
 
     try {
-      const result = await vaultMode.onConfirm({ name, address });
+      const result = await onConfirm({ name, address });
       if (!result.ok) {
         setError(result.error ?? "Unable to finalize vault release.");
         return;
@@ -189,23 +185,13 @@ export function ShippingModal({
       return;
     }
 
-    if (vaultMode) {
-      await handleFinalize(name, address);
-      return;
-    }
-
-    setSucceeded(true);
+    await handleFinalize(name, address);
   }
 
   function handleSuccessDismiss() {
-    if (!isVaultRelease) {
-      onSubmit?.();
-    }
+    onSuccessDismiss();
     onClose();
   }
-
-  const modalTitle = isVaultRelease ? "Vault Release" : "Request Delivery";
-  const modalEyebrow = isVaultRelease ? "Physical Fulfillment" : "Insured Shipping";
 
   return (
     <div
@@ -242,51 +228,48 @@ export function ShippingModal({
         ) : null}
 
         {!succeeded ? (
-        <header className="mb-5 flex gap-4 pr-8">
-          <div
-            className="relative h-24 w-[4.75rem] shrink-0 overflow-hidden rounded-xl border bg-obsidian p-1.5 sm:h-28 sm:w-[5.5rem]"
-            style={{
-              borderColor: `color-mix(in srgb, ${BRAND_FUCHSIA} 35%, transparent)`,
-              boxShadow: `0 0 22px color-mix(in srgb, ${BRAND_FUCHSIA} 14%, transparent)`,
-            }}
-          >
-            <CollectibleImage
-              src={itemImage}
-              alt={itemName}
-              className="h-full w-full"
-              frameClassName="h-full rounded-lg"
-            />
-          </div>
+          <header className="mb-5 flex gap-4 pr-8">
+            <div
+              className="relative h-24 w-[4.75rem] shrink-0 overflow-hidden rounded-xl border bg-obsidian p-1.5 sm:h-28 sm:w-[5.5rem]"
+              style={{
+                borderColor: `color-mix(in srgb, ${BRAND_FUCHSIA} 35%, transparent)`,
+                boxShadow: `0 0 22px color-mix(in srgb, ${BRAND_FUCHSIA} 14%, transparent)`,
+              }}
+            >
+              <CollectibleImage
+                src={itemImage}
+                alt={itemName}
+                className="h-full w-full"
+                frameClassName="h-full rounded-lg"
+              />
+            </div>
 
-          <div className="min-w-0 flex-1 pt-1">
-            <p
-              className="text-[10px] font-bold uppercase tracking-[0.24em]"
-              style={{ color: BRAND_GOLD }}
-            >
-              {modalEyebrow}
-            </p>
-            <h3
-              id="vault-release-title"
-              className="mt-1 text-xl font-black uppercase leading-tight tracking-tight text-white sm:text-2xl"
-            >
-              {modalTitle}
-            </h3>
-            <p className="mt-2 line-clamp-2 text-sm font-semibold text-white/90">{itemName}</p>
-            {itemValue != null && itemValue > 0 ? (
-              <p className="mt-1 text-xs font-mono text-muted">
-                Stated value:{" "}
-                <span style={{ color: BRAND_GOLD }}>{formatGems(itemValue)}</span>
+            <div className="min-w-0 flex-1 pt-1">
+              <p
+                className="text-[10px] font-bold uppercase tracking-[0.24em]"
+                style={{ color: BRAND_GOLD }}
+              >
+                Physical Fulfillment
               </p>
-            ) : null}
-          </div>
-        </header>
+              <h3
+                id="vault-release-title"
+                className="mt-1 text-xl font-black uppercase leading-tight tracking-tight text-white sm:text-2xl"
+              >
+                Vault Release
+              </h3>
+              <p className="mt-2 line-clamp-2 text-sm font-semibold text-white/90">{itemName}</p>
+              {itemValue != null && itemValue > 0 ? (
+                <p className="mt-1 text-xs font-mono text-muted">
+                  Stated value:{" "}
+                  <span style={{ color: BRAND_GOLD }}>{formatGems(itemValue)}</span>
+                </p>
+              ) : null}
+            </div>
+          </header>
         ) : null}
 
         {succeeded ? (
-          <VaultReleaseSuccessView
-            isVaultRelease={isVaultRelease}
-            onDismiss={handleSuccessDismiss}
-          />
+          <VaultReleaseSuccessView dismissLabel={successDismissLabel} onDismiss={handleSuccessDismiss} />
         ) : (
           <form onSubmit={(event) => void handleSubmit(event)} className="space-y-4">
             <BrandTextField
@@ -326,7 +309,7 @@ export function ShippingModal({
               />
             </div>
 
-            {vaultMode ? <ShippingSummary shippingCost={vaultMode.shippingCost} /> : null}
+            <ShippingSummary shippingCost={shippingCost} />
 
             {error ? (
               <p className="text-xs font-semibold" style={{ color: BRAND_FUCHSIA }}>
@@ -363,10 +346,8 @@ export function ShippingModal({
                     <ReleaseSpinner />
                     Processing Release…
                   </>
-                ) : isVaultRelease ? (
-                  "Finalize Release"
                 ) : (
-                  "Submit Request"
+                  "Finalize Release"
                 )}
               </button>
             </div>

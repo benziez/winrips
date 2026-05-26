@@ -28,6 +28,7 @@ import { TransactionFailureModal } from "../pack-opening/TransactionFailureModal
 import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { isManualRipEnabled } from "../../lib/mobileRipPreferences";
+import { formatProbability, getPackDropTable } from "../../data/packDropTables";
 import { usePackAudio } from "../../hooks/usePackAudio";
 import { useHapticRip } from "../../hooks/useHapticRip";
 import { useManualRip } from "../../hooks/useManualRip";
@@ -111,6 +112,16 @@ export function MobilePackOpeningView() {
     if (!entry) return null;
     return resolveCardByItemId(selectedPack.id, entry.itemId);
   }, [selectedPack, pullQueue, queueIndex]);
+
+  const dropTable = useMemo(
+    () => (selectedPack ? getPackDropTable(selectedPack.id) : []),
+    [selectedPack?.id],
+  );
+
+  const activeDropEntry = useMemo(() => {
+    if (!activePullCard) return undefined;
+    return dropTable.find((entry) => entry.card.id === activePullCard.id);
+  }, [activePullCard, dropTable]);
 
   const stackPop = useCallback(() => {
     void hapticTabSelect();
@@ -638,6 +649,11 @@ export function MobilePackOpeningView() {
                       >
                         {formatUsd(gemsToUsd(activePullCard.value))}
                       </p>
+                      {activeDropEntry ? (
+                        <p className="text-sm" style={{ color: MOBILE_COLORS.textMuted }}>
+                          {formatProbability(activeDropEntry.probability)} chance
+                        </p>
+                      ) : null}
                     </motion.div>
                   ) : null}
                 </motion.div>

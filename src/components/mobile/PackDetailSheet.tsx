@@ -68,7 +68,7 @@ export function PackDetailSheet({ pack, onClose, onWhatsInside }: PackDetailShee
             {COMMERCE_COPY.whatsInside}
           </button>
           <button type="button" onClick={handleOpen} className={BTN_PRIMARY}>
-            Open Drop
+            View Pack
           </button>
         </div>
       </GlassSurface>

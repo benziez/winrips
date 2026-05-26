@@ -71,7 +71,7 @@ export function MobileCatalogLobby() {
         style={{ paddingTop: "max(0.25rem, env(safe-area-inset-top))" }}
       >
         <h1 className="text-3xl font-semibold tracking-tight text-white">Drops</h1>
-        <p className="mt-1 text-sm font-light text-[#A1A1AA]">Swipe · tap to rip</p>
+        <p className="mt-1 text-sm font-light text-[#A1A1AA]">Swipe · tap to view</p>
       </header>
 
       {loading && catalogPacks.length === 0 ? (

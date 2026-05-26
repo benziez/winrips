@@ -369,15 +369,18 @@ export function MobilePackOpeningView() {
     packAudio.preload();
     setIsChargingSpin(true);
 
-    const result = await executeRip();
-    setIsChargingSpin(false);
+    try {
+      const result = await executeRip();
 
-    if (!result.ok) {
-      setSpinInProgress(false);
-      return;
+      if (!result.ok) {
+        setSpinInProgress(false);
+        return;
+      }
+
+      beginRipSequence(result.entries, result.vaultIds);
+    } finally {
+      setIsChargingSpin(false);
     }
-
-    beginRipSequence(result.entries, result.vaultIds);
   }, [
     selectedPack,
     phase,

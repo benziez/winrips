@@ -575,7 +575,11 @@ export function MobilePackOpeningView() {
         ) : null}
 
         <MobileErrorBoundary label="Pack opening failed">
-          <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden p-0">
+          <div
+            className={`relative z-10 flex min-h-0 flex-1 flex-col items-center overflow-hidden p-0 ${
+              phase === "complete" ? "" : "justify-center"
+            }`}
+          >
             <AnimatePresence mode="wait">
               {showPack ? (
                 <motion.div
@@ -620,41 +624,119 @@ export function MobilePackOpeningView() {
               {showCard ? (
                 <motion.div
                   key={`card-${flipPlayKey}`}
-                  className="flex h-full w-full flex-col items-center justify-center overflow-hidden"
+                  className={
+                    phase === "complete"
+                      ? "flex min-h-0 w-full flex-1 flex-col items-center gap-4 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
+                      : "flex h-full w-full flex-col items-center justify-center overflow-hidden"
+                  }
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.35 }}
                 >
-                  <FlippingSlabReveal
-                    card={activePullCard}
-                    revealRarity={revealRarity}
-                    playFlip={phase === "revealing"}
-                    immersive
-                    onFlipComplete={() => {
-                      setPhase("complete");
-                      setSpinInProgress(false);
-                    }}
-                  />
+                  <div
+                    className={
+                      phase === "complete"
+                        ? "relative flex min-h-0 w-full flex-1 items-center justify-center"
+                        : "relative flex h-full w-full flex-1 items-center justify-center overflow-hidden"
+                    }
+                  >
+                    {phase === "complete" ? (
+                      <div className="reveal-card-frame relative mx-auto h-[min(62dvh,520px)] w-[min(88vw,360px)] shrink-0">
+                        <div className="h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
+                          <FlippingSlabReveal
+                            card={activePullCard}
+                            revealRarity={revealRarity}
+                            playFlip={false}
+                            immersive={false}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <FlippingSlabReveal
+                        card={activePullCard}
+                        revealRarity={revealRarity}
+                        playFlip
+                        immersive
+                        onFlipComplete={() => {
+                          setPhase("complete");
+                          setSpinInProgress(false);
+                        }}
+                      />
+                    )}
+                  </div>
+
                   {phase === "complete" ? (
-                    <motion.div
-                      className="mt-6 flex max-w-[96vw] flex-col items-center gap-1 px-2 text-center"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={BUTTON_SPRING}
-                    >
-                      <p className="text-xl font-semibold text-white">{activePullCard.name}</p>
-                      <p
-                        className="text-lg font-semibold tabular-nums tracking-tight"
-                        style={{ color: OBSIDIAN_GOLD.bright }}
+                    <>
+                      <motion.div
+                        className="flex w-full shrink-0 flex-col items-center gap-2 px-2 text-center"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={BUTTON_SPRING}
                       >
-                        {formatUsd(gemsToUsd(activePullCard.value))}
-                      </p>
-                      {activeDropEntry ? (
-                        <p className="text-sm" style={{ color: MOBILE_COLORS.textMuted }}>
-                          {formatProbability(activeDropEntry.probability)} chance
+                        <p className="text-xl font-semibold text-white">{activePullCard.name}</p>
+                        <p
+                          className="text-lg font-semibold tabular-nums tracking-tight"
+                          style={{ color: OBSIDIAN_GOLD.bright }}
+                        >
+                          {formatUsd(gemsToUsd(activePullCard.value))}
                         </p>
-                      ) : null}
-                    </motion.div>
+                        {activeDropEntry ? (
+                          <p className="text-sm" style={{ color: MOBILE_COLORS.textMuted }}>
+                            {formatProbability(activeDropEntry.probability)} chance
+                          </p>
+                        ) : null}
+                      </motion.div>
+
+                      <motion.div
+                        className="flex w-full shrink-0 flex-col gap-3"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={BUTTON_SPRING}
+                      >
+                        {!isGuest ? (
+                          <GlassSurface
+                            variant="default"
+                            className="flex justify-center gap-2 rounded-2xl px-2 py-2"
+                          >
+                            {(
+                              [
+                                ...(storeCommerce
+                                  ? []
+                                  : ([
+                                      [
+                                        "Exchange",
+                                        () => void handleBurn(),
+                                        isExchanging || !activeVaultItemId,
+                                      ],
+                                    ] as const)),
+                                ["Vault", handleSendToVault, isExchanging],
+                                ["Ship", handleShip, isExchanging || !activeVaultItemId],
+                              ] as const
+                            ).map(([label, onClick, disabled]) => (
+                              <button
+                                key={label}
+                                type="button"
+                                onClick={onClick}
+                                disabled={disabled}
+                                className={`${BTN_GHOST_OUTLINE} !py-2 !text-xs disabled:opacity-30`}
+                              >
+                                {label}
+                              </button>
+                            ))}
+                          </GlassSurface>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={finishReveal}
+                          disabled={isExchanging}
+                          className={BTN_PRIMARY}
+                        >
+                          {pullQueue.length > 1 && queueIndex < pullQueue.length - 1
+                            ? "Next Pull"
+                            : "Done"}
+                        </button>
+                      </motion.div>
+                    </>
                   ) : null}
                 </motion.div>
               ) : null}
@@ -711,55 +793,6 @@ export function MobilePackOpeningView() {
             </motion.p>
           ) : null}
 
-          {phase === "complete" && activePullCard ? (
-            <motion.div
-              key="complete-actions"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="fixed left-6 right-6 z-40 space-y-3"
-              style={bottomInset}
-            >
-              {!isGuest ? (
-                <GlassSurface variant="default" className="flex justify-center gap-2 rounded-2xl px-2 py-2">
-                  {(
-                    [
-                      ...(storeCommerce
-                        ? []
-                        : ([
-                            [
-                              "Exchange",
-                              () => void handleBurn(),
-                              isExchanging || !activeVaultItemId,
-                            ],
-                          ] as const)),
-                      ["Vault", handleSendToVault, isExchanging],
-                      ["Ship", handleShip, isExchanging || !activeVaultItemId],
-                    ] as const
-                  ).map(([label, onClick, disabled]) => (
-                    <button
-                      key={label}
-                      type="button"
-                      onClick={onClick}
-                      disabled={disabled}
-                      className={`${BTN_GHOST_OUTLINE} !py-2 !text-xs disabled:opacity-30`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </GlassSurface>
-              ) : null}
-              <button
-                type="button"
-                onClick={finishReveal}
-                disabled={isExchanging}
-                className={BTN_PRIMARY}
-              >
-                {pullQueue.length > 1 && queueIndex < pullQueue.length - 1
-                  ? "Next Pull"
-                  : "Done"}
-              </button>
-            </motion.div>
-          ) : null}
         </AnimatePresence>
       </motion.div>
 

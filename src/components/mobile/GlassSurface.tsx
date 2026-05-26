@@ -8,6 +8,7 @@ interface GlassSurfaceProps extends HTMLAttributes<HTMLElement> {
   children?: ReactNode;
   className?: string;
   style?: CSSProperties;
+  type?: "button" | "submit" | "reset";
 }
 
 const VARIANT_CLASS: Record<Exclude<GlassVariant, "none">, string> = {

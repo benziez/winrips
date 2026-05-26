@@ -5,7 +5,7 @@ import { isAppStoreCommerce } from "../../constants/commerce";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 import type { AppView } from "../../types";
 import { GlassSurface } from "./GlassSurface";
-import { MOBILE_COLORS, OBSIDIAN_GOLD } from "./mobileTheme";
+import { OBSIDIAN_GOLD } from "./mobileTheme";
 
 const STORE_TAB_ITEMS: { id: AppView; label: string; icon: NavIconName }[] = [
   { id: "lobby", label: "Drops", icon: "package" },
@@ -62,8 +62,7 @@ export function MobileFloatingDock() {
               <NavIcon
                 name={item.icon}
                 size={24}
-                className="relative z-[1]"
-                style={{ color: active ? OBSIDIAN_GOLD.bright : MOBILE_COLORS.textMuted }}
+                className={`relative z-[1] ${active ? "text-[#F2D680]" : "text-[#A1A1AA]"}`}
               />
             </button>
           );

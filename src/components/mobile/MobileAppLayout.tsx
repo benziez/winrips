@@ -74,8 +74,6 @@ function MobileAppLayoutInner() {
 
   const showSignIn = !isLoggedIn && !guestSession;
   const immersive = IMMERSIVE_VIEWS.includes(currentView);
-  const isLobby = currentView === "lobby";
-  const lockMainScroll = immersive || isLobby;
   const showDock = !immersive;
 
   if (showSignIn) {

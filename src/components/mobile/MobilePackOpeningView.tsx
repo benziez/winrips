@@ -10,7 +10,7 @@ import {
   formatExchangeSuccessToast,
 } from "../../lib/exchangeLogic";
 import { rollMultipleWithRoll, resolveCardByItemId, type PackPullEntry } from "../../utils/rng";
-import { formatPackPriceUsd, RETAIL_COPY } from "../../constants/retail";
+import { formatPackPriceUsd, formatUsd, gemsToUsd, RETAIL_COPY } from "../../constants/retail";
 import { isAppStoreCommerce } from "../../constants/commerce";
 import { purchasePackForOpening } from "../../lib/nativePackPurchase";
 import { PackCatalogImage } from "./PackCatalogImage";
@@ -625,14 +625,20 @@ export function MobilePackOpeningView() {
                     }}
                   />
                   {phase === "complete" ? (
-                    <motion.p
-                      className="mt-6 max-w-[96vw] px-2 text-center text-xl font-semibold text-white"
+                    <motion.div
+                      className="mt-6 flex max-w-[96vw] flex-col items-center gap-1 px-2 text-center"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={BUTTON_SPRING}
                     >
-                      {activePullCard.name}
-                    </motion.p>
+                      <p className="text-xl font-semibold text-white">{activePullCard.name}</p>
+                      <p
+                        className="text-lg font-semibold tabular-nums tracking-tight"
+                        style={{ color: OBSIDIAN_GOLD.bright }}
+                      >
+                        {formatUsd(gemsToUsd(activePullCard.value))}
+                      </p>
+                    </motion.div>
                   ) : null}
                 </motion.div>
               ) : null}

@@ -29,6 +29,7 @@ import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { isManualRipEnabled } from "../../lib/mobileRipPreferences";
 import { formatProbability, getPackDropTable } from "../../data/packDropTables";
+import { getRevealGlowGradient } from "../../utils/revealGlow";
 import { usePackAudio } from "../../hooks/usePackAudio";
 import { useHapticRip } from "../../hooks/useHapticRip";
 import { useManualRip } from "../../hooks/useManualRip";
@@ -47,6 +48,17 @@ import { GlassSurface } from "./GlassSurface";
 type RipPhase = "pre-rip" | "ripping" | "revealing" | "complete";
 
 const BUTTON_SPRING = { type: "spring" as const, stiffness: 500, damping: 26 };
+
+const REVEAL_GLOW_PULSE = {
+  opacity: [0.36, 0.58, 0.36],
+  scale: [0.93, 1.06, 0.93],
+};
+
+const REVEAL_GLOW_TRANSITION = {
+  duration: 3.6,
+  repeat: Infinity,
+  ease: "easeInOut" as const,
+};
 
 function displayName(name: string): string {
   return name.replace(/ Pack$| Box$| Drop$| Edition$| Booster$/, "");
@@ -518,6 +530,7 @@ export function MobilePackOpeningView() {
           : 0;
 
   const bottomInset = { bottom: "max(1rem, env(safe-area-inset-bottom))" } as const;
+  const revealGlowRarity = revealRarity ?? activePullCard?.rarity;
 
   const packShakeAnimate =
     phase === "ripping" && ripSubPhase === "shake"
@@ -642,6 +655,13 @@ export function MobilePackOpeningView() {
                   >
                     {phase === "complete" ? (
                       <div className="reveal-card-frame relative mx-auto h-[min(62dvh,520px)] w-[min(88vw,360px)] shrink-0">
+                        <motion.div
+                          aria-hidden
+                          className="pointer-events-none absolute inset-[-14%] -z-10 rounded-[2rem] blur-3xl"
+                          style={{ background: getRevealGlowGradient(revealGlowRarity) }}
+                          animate={REVEAL_GLOW_PULSE}
+                          transition={REVEAL_GLOW_TRANSITION}
+                        />
                         <div className="h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
                           <FlippingSlabReveal
                             card={activePullCard}
@@ -652,16 +672,25 @@ export function MobilePackOpeningView() {
                         </div>
                       </div>
                     ) : (
-                      <FlippingSlabReveal
-                        card={activePullCard}
-                        revealRarity={revealRarity}
-                        playFlip
-                        immersive
-                        onFlipComplete={() => {
-                          setPhase("complete");
-                          setSpinInProgress(false);
-                        }}
-                      />
+                      <div className="relative flex h-full w-full items-center justify-center">
+                        <motion.div
+                          aria-hidden
+                          className="pointer-events-none absolute inset-[-12%] -z-10 rounded-[2rem] blur-3xl"
+                          style={{ background: getRevealGlowGradient(revealGlowRarity) }}
+                          animate={REVEAL_GLOW_PULSE}
+                          transition={REVEAL_GLOW_TRANSITION}
+                        />
+                        <FlippingSlabReveal
+                          card={activePullCard}
+                          revealRarity={revealRarity}
+                          playFlip
+                          immersive
+                          onFlipComplete={() => {
+                            setPhase("complete");
+                            setSpinInProgress(false);
+                          }}
+                        />
+                      </div>
                     )}
                   </div>
 

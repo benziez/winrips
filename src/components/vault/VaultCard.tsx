@@ -11,12 +11,13 @@ interface VaultCardProps {
 
 export function VaultCard({ card, onExchange }: VaultCardProps) {
   return (
-    <article className="card-pack flex flex-col overflow-hidden rounded-xl">
-      <div className="relative flex h-36 items-center justify-center border-b border-border bg-[#0A0A0C] p-2">
+    <article className="card-pack data-[shell=mobile]:obsidian-glass flex flex-col overflow-hidden rounded-xl data-[shell=mobile]:border-white/10">
+      <div className="relative flex aspect-[2.5/3.5] items-center justify-center border-b border-border bg-[#0A0A0C] p-2 data-[shell=mobile]:border-b data-[shell=mobile]:border-white/10 data-[shell=mobile]:bg-transparent">
         <CollectibleImage
           src={card.image}
           alt={card.name}
           className="h-full w-full object-contain"
+          frameClassName="data-[shell=mobile]:bg-transparent data-[shell=mobile]:border-0"
         />
       </div>
 
@@ -30,7 +31,9 @@ export function VaultCard({ card, onExchange }: VaultCardProps) {
         <p className="text-[10px] font-semibold tabular-nums text-gold">
           {formatGems(card.value)}
         </p>
-        <p className="text-[10px] text-muted">Acquired {card.acquiredAt}</p>
+        <p className="text-[10px] text-muted data-[shell=mobile]:text-[#A1A1AA]">
+          Acquired {card.acquiredAt}
+        </p>
         <div className="mt-auto grid grid-cols-2 gap-2 pt-1">
           <Button
             variant="fuchsia"

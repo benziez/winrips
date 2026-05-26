@@ -48,12 +48,10 @@ export function rarityGlowGradient(rarity?: string): string {
   return `radial-gradient(circle at 50% 42%, ${core} 0%, transparent 70%)`;
 }
 
-/** Glass layer — no solid fills. */
-export const GLASS =
-  "bg-white/5 backdrop-blur-xl border border-white/10";
+/** Glass layer — composes from single CSS primitive (see index.css). */
+export const GLASS = "obsidian-glass";
 
-export const GLASS_DOCK =
-  "bg-black/40 backdrop-blur-xl border border-white/5";
+export const GLASS_DOCK = "obsidian-glass-dock";
 
 /** @deprecated Use GLASS */
 export const FLOAT_GLASS = GLASS;

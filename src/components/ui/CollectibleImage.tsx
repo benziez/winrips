@@ -1,17 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PackCategory } from "../../types";
 import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
 import {
   isSportsPlaceholderImage,
   SPORTS_PLACEHOLDER_IMAGE,
 } from "../../constants/sportsAssets";
+import { optimizedImageUrl } from "../../utils/optimizedImageUrl";
+import { isRenderableAssetUrl } from "../../utils/resolveAssetUrl";
 
 function isRenderableSrc(src?: string | null): src is string {
   if (!src?.trim()) return false;
   return (
     src.startsWith("https://") ||
     src.startsWith("http://") ||
-    src.startsWith("/")
+    isRenderableAssetUrl(src)
   );
 }
 
@@ -22,6 +24,18 @@ interface CollectibleImageProps {
   frameClassName?: string;
   /** @deprecated Category no longer affects fallback — placeholder is always local. */
   category?: PackCategory;
+  loading?: "lazy" | "eager";
+  fetchPriority?: "high" | "low" | "auto";
+  /** Above-the-fold: eager load + high fetch priority. */
+  priority?: boolean;
+  /** Use smaller Pokemon TCG assets for grid/list contexts. */
+  thumbnail?: boolean;
+  /** Route through WebP proxy in production (disable for dense grids). */
+  optimize?: boolean;
+  /** Lock card frame ratio to prevent layout shift (omit when parent sets aspect). */
+  aspectRatio?: string;
+  /** Skip load-gated opacity and shimmer — show the image immediately. */
+  forceShow?: boolean;
 }
 
 function LuxurySlabFrame({
@@ -33,7 +47,7 @@ function LuxurySlabFrame({
 }) {
   return (
     <div
-      className={`relative mx-auto flex aspect-[2.5/3.5] h-full max-h-full w-full max-w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-border bg-slate ${className}`}
+      className={`relative mx-auto flex aspect-[2.5/3.5] h-full max-h-full w-full max-w-full flex-col items-center justify-center overflow-hidden rounded-lg border border-border bg-slate data-[shell=mobile]:obsidian-mystery-silhouette data-[shell=mobile]:border-white/10 data-[shell=mobile]:bg-transparent ${className}`}
       role="img"
       aria-label={alt}
     >
@@ -82,14 +96,74 @@ export function CollectibleImage({
   alt = "Collectible",
   className = "h-full w-full object-contain",
   frameClassName = "",
+  loading = "lazy",
+  fetchPriority,
+  priority = false,
+  thumbnail = true,
+  optimize = true,
+  aspectRatio,
+  forceShow = false,
 }: CollectibleImageProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => resolveInitialMode(src));
+  const [loaded, setLoaded] = useState(false);
+  const [retryDirectUrl, setRetryDirectUrl] = useState(false);
 
   useEffect(() => {
     setDisplayMode(resolveInitialMode(src));
+    setLoaded(false);
+    setRetryDirectUrl(false);
   }, [src]);
 
+  const resolvedLoading = priority ? "eager" : loading;
+  const resolvedFetchPriority = priority ? "high" : fetchPriority;
+
+  const showSlab = displayMode === "slab";
+  const rawImageSrc = srcForMode(src, displayMode);
+
+  const imageSrc = useMemo(() => {
+    if (showSlab) {
+      return rawImageSrc;
+    }
+
+    // Hard bypass: lobby grids pass optimize={false} for direct Pokémon TCG / local URLs.
+    if (optimize === false) {
+      if (displayMode === "primary" && typeof src === "string" && src.trim()) {
+        return src.trim();
+      }
+      return rawImageSrc;
+    }
+
+    if (displayMode !== "primary" || !isRenderableSrc(rawImageSrc)) {
+      return rawImageSrc;
+    }
+
+    if (retryDirectUrl) {
+      return optimizedImageUrl(rawImageSrc, {
+        thumbnail: thumbnail && !priority,
+        optimize: false,
+      });
+    }
+
+    return optimizedImageUrl(rawImageSrc, {
+      thumbnail: thumbnail && !priority,
+      optimize,
+    });
+  }, [displayMode, optimize, priority, rawImageSrc, retryDirectUrl, showSlab, src, thumbnail]);
+
   function handleImageError() {
+    const canRetryDirect =
+      !retryDirectUrl &&
+      optimize &&
+      displayMode === "primary" &&
+      isRenderableSrc(rawImageSrc);
+
+    if (canRetryDirect) {
+      setLoaded(false);
+      setRetryDirectUrl(true);
+      return;
+    }
+
+    setLoaded(false);
     setDisplayMode((current) => {
       if (current === "primary") return "placeholder";
       if (current === "placeholder") return "slab";
@@ -97,12 +171,39 @@ export function CollectibleImage({
     });
   }
 
-  const showSlab = displayMode === "slab";
-  const imageSrc = srcForMode(src, displayMode);
+  const imgAspectRatio = aspectRatio ?? "1 / 1";
+  const imgSizeStyle = {
+    aspectRatio: imgAspectRatio,
+    width: "100%",
+    height: "100%",
+  } as const;
+
+  if (forceShow && !showSlab) {
+    return (
+      <div
+        className={`collectible-image-frame relative flex h-full w-full items-center justify-center overflow-hidden bg-slate-800/80 data-[shell=mobile]:bg-transparent data-[shell=mobile]:obsidian-glass ${frameClassName}`}
+      >
+        <img
+          src={imageSrc}
+          alt={alt}
+          className={`${className} opacity-100`}
+          style={imgSizeStyle}
+          loading={resolvedLoading}
+          fetchPriority={resolvedFetchPriority}
+          decoding="async"
+          referrerPolicy="no-referrer"
+          onError={handleImageError}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`flex h-full w-full items-center justify-center overflow-hidden bg-slate-elevated/30 ${frameClassName}`}
+      className={`collectible-image-frame relative flex h-full w-full items-center justify-center overflow-hidden bg-slate-800/80 data-[shell=mobile]:bg-transparent data-[shell=mobile]:obsidian-glass ${
+        !loaded && !showSlab ? "collectible-image-shimmer" : ""
+      } ${frameClassName}`}
+      style={aspectRatio ? { aspectRatio } : undefined}
     >
       {showSlab ? (
         <LuxurySlabFrame alt={alt} className={className} />
@@ -110,10 +211,15 @@ export function CollectibleImage({
         <img
           src={imageSrc}
           alt={alt}
-          className={className}
-          loading="lazy"
+          className={`${className} transition-opacity duration-300 ${
+            loaded ? "opacity-100" : "opacity-0"
+          }`}
+          style={aspectRatio ? { aspectRatio: imgAspectRatio, width: "100%", height: "100%" } : imgSizeStyle}
+          loading={resolvedLoading}
+          fetchPriority={resolvedFetchPriority}
           decoding="async"
           referrerPolicy="no-referrer"
+          onLoad={() => setLoaded(true)}
           onError={handleImageError}
         />
       )}

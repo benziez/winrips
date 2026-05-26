@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../../context/AppContext";
@@ -150,6 +150,13 @@ export function MobilePackOpeningView() {
     onComplete: enterReveal,
   });
 
+  const hapticsRef = useRef(haptics);
+  const packAudioRef = useRef(packAudio);
+  const cancelAutoRipRef = useRef(cancelAutoRip);
+  hapticsRef.current = haptics;
+  packAudioRef.current = packAudio;
+  cancelAutoRipRef.current = cancelAutoRip;
+
   const handleManualBurst = useCallback(() => {
     if (phase !== "ripping") return;
     haptics.burst();
@@ -174,14 +181,14 @@ export function MobilePackOpeningView() {
   useEffect(() => {
     document.body.style.overflow = "hidden";
     setManualRipMode(isManualRipEnabled());
-    packAudio.preload();
+    packAudioRef.current.preload();
     return () => {
       document.body.style.overflow = "";
-      cancelAutoRip();
-      haptics.stop();
-      packAudio.stopAll();
+      cancelAutoRipRef.current();
+      hapticsRef.current.stop();
+      packAudioRef.current.stopAll();
     };
-  }, [cancelAutoRip, haptics, packAudio]);
+  }, []);
 
   useEffect(() => {
     if (!selectedPack) return;

@@ -10,6 +10,7 @@ import { queryKeys } from "../queries/queryKeys";
 import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { PlayHistoryTable } from "../components/profile/PlayHistoryTable";
 import { exchangeButtonLabel, formatGems } from "../constants/retail";
+import { isAppStoreCommerce } from "../constants/commerce";
 import { CollectibleImage } from "../components/ui/CollectibleImage";
 import {
   exchangeVaultItemInUi,
@@ -74,9 +75,11 @@ function VaultInventoryCard({
         <h3 className="line-clamp-2 min-w-0 flex-1 text-[10px] font-bold leading-snug text-white sm:text-xs">
           {card.name}
         </h3>
-        <span className="shrink-0 text-[10px] font-bold tabular-nums text-gold sm:text-xs">
-          {formatGems(card.value)}
-        </span>
+        {!isAppStoreCommerce() ? (
+          <span className="shrink-0 text-[10px] font-bold tabular-nums text-gold sm:text-xs">
+            {formatGems(card.value)}
+          </span>
+        ) : null}
       </div>
     </article>
   );

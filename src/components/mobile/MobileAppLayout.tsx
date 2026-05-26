@@ -17,6 +17,7 @@ import { MobileHistoryBridge } from "./MobileHistoryBridge";
 import { MobileFloatingDock, MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 import { GlassSurface } from "./GlassSurface";
 import { MOBILE_COLORS } from "./mobileTheme";
+import { shouldSuppressMobileGemToast } from "../../utils/mobileGemUi";
 import type { AppView } from "../../types";
 
 const IMMERSIVE_VIEWS: AppView[] = ["pack-open"];
@@ -24,6 +25,7 @@ const IMMERSIVE_VIEWS: AppView[] = ["pack-open"];
 function MobileToast() {
   const { cashoutToast, toastVariant, clearCashoutToast } = useApp();
   if (!cashoutToast) return null;
+  if (shouldSuppressMobileGemToast(cashoutToast)) return null;
 
   return (
     <GlassSurface
@@ -107,7 +109,7 @@ function MobileAppLayoutInner() {
       {!isAppStoreCommerce() ? <WalletModal /> : null}
       {!isAppStoreCommerce() ? <DepositModal /> : null}
       <AuthModal />
-      <GemBalanceDepositNotifier />
+      {!isAppStoreCommerce() ? <GemBalanceDepositNotifier /> : null}
 
       {shippingVaultItem ? (
         <VaultReleaseModal

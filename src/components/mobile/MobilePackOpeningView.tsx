@@ -691,7 +691,15 @@ export function MobilePackOpeningView() {
                 <GlassSurface variant="default" className="flex justify-center gap-2 rounded-2xl px-2 py-2">
                   {(
                     [
-                      ["Exchange", () => void handleBurn(), isExchanging || !activeVaultItemId],
+                      ...(storeCommerce
+                        ? []
+                        : ([
+                            [
+                              "Exchange",
+                              () => void handleBurn(),
+                              isExchanging || !activeVaultItemId,
+                            ],
+                          ] as const)),
                       ["Vault", handleSendToVault, isExchanging],
                       ["Ship", handleShip, isExchanging || !activeVaultItemId],
                     ] as const

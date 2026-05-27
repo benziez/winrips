@@ -3,7 +3,7 @@ import { isManualRipEnabled, setManualRipEnabled } from "../../lib/mobileRipPref
 import { GlassSurface } from "./GlassSurface";
 import { MOBILE_COLORS, OBSIDIAN_GOLD } from "./mobileTheme";
 
-/** Rewards tab — toggle manual rip gesture vs 8s auto sequence. */
+/** Account — toggle manual rip gesture vs 8s auto sequence. */
 export function MobileRipSettingsToggle() {
   const [enabled, setEnabled] = useState(false);
 

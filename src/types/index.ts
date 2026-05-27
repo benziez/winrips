@@ -21,6 +21,7 @@ export type AppView =
   | "battle-arena"
   | "leaderboard"
   | "showroom"
+  | "account"
   | "rewards"
   | "marketplace"
   | "fairness"

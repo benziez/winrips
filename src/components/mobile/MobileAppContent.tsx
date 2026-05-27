@@ -5,6 +5,7 @@ import { LeaderboardView } from "../views/LeaderboardView";
 import { RewardsView } from "../views/RewardsView";
 import { MobileLobbyView } from "./MobileLobbyView";
 import { MobileShowroomView } from "./MobileShowroomView";
+import { MobileAccountView } from "./MobileAccountView";
 import { MobileErrorBoundary } from "./MobileErrorBoundary";
 
 /** Mobile-only routes — no web hero, sidebar, footer, or live feed. */
@@ -39,6 +40,12 @@ export function MobileAppContent() {
       return (
         <MobileErrorBoundary label="Showroom unavailable">
           <MobileShowroomView />
+        </MobileErrorBoundary>
+      );
+    case "account":
+      return (
+        <MobileErrorBoundary label="Account unavailable">
+          <MobileAccountView />
         </MobileErrorBoundary>
       );
     case "rewards":

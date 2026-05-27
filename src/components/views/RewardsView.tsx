@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { Button } from "../ui/Button";
-import { MobileRipSettingsToggle } from "../mobile/MobileRipSettingsToggle";
 import { GlassSurface } from "../mobile/GlassSurface";
 import { MOBILE_COLORS, OBSIDIAN_GOLD } from "../mobile/mobileTheme";
 
@@ -26,8 +25,6 @@ export function RewardsView() {
           Rewards &amp; Affiliates
         </h1>
       </header>
-
-      <MobileRipSettingsToggle />
 
       <GlassSurface
         variant="default"

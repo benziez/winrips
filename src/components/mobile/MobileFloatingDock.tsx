@@ -7,9 +7,9 @@ import { GlassSurface } from "./GlassSurface";
 
 const TAB_ITEMS: { id: AppView; label: string; icon: NavIconName }[] = [
   { id: "lobby", label: "Packs", icon: "package" },
-  { id: "leaderboard", label: "Showroom", icon: "trophy" },
-  { id: "vault", label: "Collection", icon: "vault" },
-  { id: "rewards", label: "Account", icon: "users" },
+  { id: "showroom", label: "Showroom", icon: "grid" },
+  { id: "vault", label: "Vault", icon: "vault" },
+  { id: "account", label: "Account", icon: "users" },
 ];
 
 /** Space reserved above home indicator + floating dock. */

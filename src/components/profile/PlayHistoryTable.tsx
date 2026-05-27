@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
-import { formatGems } from "../../constants/retail";
+import { formatGems, formatUsd, gemsToUsd } from "../../constants/retail";
+import { isAppStoreCommerce } from "../../constants/commerce";
 import { fetchPlayHistory, type PlayHistoryRow } from "../../lib/playHistory";
 import { isSupabaseConfigured } from "../../lib/supabaseClient";
 import { CollectibleImage } from "../ui/CollectibleImage";
@@ -25,6 +26,12 @@ function formatPlayedAt(iso: string): string {
 
 function formatRollPercent(rolledNumber: number): string {
   return `${rolledNumber.toFixed(3)}%`;
+}
+
+function formatHistoryAmount(gemAmount: number): string {
+  return isAppStoreCommerce()
+    ? formatUsd(gemsToUsd(gemAmount))
+    : formatGems(gemAmount);
 }
 
 interface PlayHistoryTableProps {
@@ -151,7 +158,7 @@ export function PlayHistoryTable({ className = "", embedded = false }: PlayHisto
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-sm tabular-nums text-muted">
-                    {formatGems(entry.spin_cost)}
+                    {formatHistoryAmount(entry.spin_cost)}
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex min-w-0 flex-nowrap items-center gap-2">
@@ -169,7 +176,7 @@ export function PlayHistoryTable({ className = "", embedded = false }: PlayHisto
                     </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 text-sm font-bold tabular-nums text-gold">
-                    {formatGems(entry.won_item_value)}
+                    {formatHistoryAmount(entry.won_item_value)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3 font-mono text-sm tabular-nums text-muted">
                     {formatRollPercent(entry.rolled_number)}
@@ -214,8 +221,8 @@ export function PlayHistoryTable({ className = "", embedded = false }: PlayHisto
                   {entry.won_item_name}
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] tabular-nums">
-                  <span className="text-muted">{formatGems(entry.spin_cost)}</span>
-                  <span className="font-bold text-gold">{formatGems(entry.won_item_value)}</span>
+                  <span className="text-muted">{formatHistoryAmount(entry.spin_cost)}</span>
+                  <span className="font-bold text-gold">{formatHistoryAmount(entry.won_item_value)}</span>
                   <span className="font-mono text-muted">
                     {formatRollPercent(entry.rolled_number)}
                   </span>

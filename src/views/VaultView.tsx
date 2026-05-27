@@ -9,7 +9,13 @@ import {
 import { queryKeys } from "../queries/queryKeys";
 import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { PlayHistoryTable } from "../components/profile/PlayHistoryTable";
-import { exchangeButtonLabel, formatGems, formatUsd, gemsToUsd } from "../constants/retail";
+import {
+  exchangeButtonLabel,
+  exchangeButtonLabelUsd,
+  formatGems,
+  formatUsd,
+  gemsToUsd,
+} from "../constants/retail";
 import { isAppStoreCommerce } from "../constants/commerce";
 import { mobileSafeAreaTopStyle } from "../components/mobile/mobileTheme";
 import { isNativeCapacitorApp } from "../utils/platform";
@@ -37,6 +43,7 @@ function VaultInventoryCard({
   isExchanging: boolean;
 }) {
   const isPendingShipment = card.status === "pending_shipment";
+  const storeCommerce = isAppStoreCommerce();
 
   return (
     <article className="vault-door group relative flex flex-col overflow-hidden">
@@ -68,7 +75,11 @@ function VaultInventoryCard({
               disabled={isExchanging}
               className="w-full rounded-md border border-border bg-slate-elevated py-1.5 text-[10px] font-bold uppercase leading-tight text-muted transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isExchanging ? "Exchanging…" : exchangeButtonLabel(card.value)}
+              {isExchanging
+                ? "Exchanging…"
+                : storeCommerce
+                  ? exchangeButtonLabelUsd(card.value)
+                  : exchangeButtonLabel(card.value)}
             </button>
           </div>
         )}

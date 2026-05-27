@@ -33,7 +33,7 @@ function mapShippingError(message: string): ProcessShippingRequestResult {
     return {
       ok: false,
       insufficientGems: true,
-      error: "You don't have enough gems for shipping.",
+      error: "You don't have enough balance to cover the shipping fee.",
     };
   }
   if (normalized.includes("not_authenticated")) {

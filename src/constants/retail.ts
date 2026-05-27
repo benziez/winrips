@@ -67,4 +67,10 @@ export function exchangeButtonLabel(itemValueGems: number): string {
   return `EXCHANGE FOR ${credit.toLocaleString()} GEMS (65% CREDIT)`;
 }
 
+/** e.g. EXCHANGE FOR $0.27 (65% CREDIT) — display only; settlement stays gem-denominated */
+export function exchangeButtonLabelUsd(itemValueGems: number): string {
+  const credit = exchangeCreditGems(itemValueGems);
+  return `EXCHANGE FOR ${formatUsd(gemsToUsd(credit))} (65% CREDIT)`;
+}
+
 export const SHIP_BUTTON_LABEL = "REQUEST PHYSICAL SHIPPING";

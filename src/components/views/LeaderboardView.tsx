@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { formatGems } from "../../constants/retail";
+import { formatGems, formatUsd, gemsToUsd } from "../../constants/retail";
 import { isAppStoreCommerce } from "../../constants/commerce";
 import { LEADERBOARD } from "../../data/leaderboard";
 import { UserProfileModal } from "../dashboard/UserProfileModal";
@@ -60,7 +60,7 @@ export function LeaderboardView() {
                   </td>
                   <td className="px-4 py-3 text-right font-medium tabular-nums text-gold">
                     {isAppStoreCommerce()
-                      ? row.volume.toLocaleString()
+                      ? formatUsd(gemsToUsd(row.volume))
                       : formatGems(row.volume)}
                   </td>
                   <td className="px-4 py-3 text-right text-muted tabular-nums hidden sm:table-cell">

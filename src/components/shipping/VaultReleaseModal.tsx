@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { formatGems } from "../../constants/retail";
+import { formatGems, formatUsd, gemsToUsd } from "../../constants/retail";
+import { isAppStoreCommerce } from "../../constants/commerce";
 import { VAULT_SHIPPING_COST } from "../../constants/shipping";
 import { BRAND_FUCHSIA, BRAND_GOLD, BRAND_GRADIENT } from "../../constants/theme";
 import type { VaultShippingConfirmInput } from "../../lib/vaultReleaseFlow";
@@ -93,6 +94,11 @@ function VaultReleaseSuccessView({
 }
 
 function ShippingSummary({ shippingCost }: { shippingCost: number }) {
+  const storeCommerce = isAppStoreCommerce();
+  const feeLabel = storeCommerce
+    ? formatUsd(gemsToUsd(shippingCost))
+    : formatGems(shippingCost);
+
   return (
     <section
       className="rounded-xl border bg-obsidian/70 p-4"
@@ -119,13 +125,15 @@ function ShippingSummary({ shippingCost }: { shippingCost: number }) {
       <div className="flex items-center justify-between gap-4 border-t border-border/60 pt-3">
         <div>
           <p className="text-sm font-semibold text-white">Physical fulfillment fee</p>
-          <p className="mt-0.5 text-xs text-muted">Deducted from your gem balance on release</p>
+          <p className="mt-0.5 text-xs text-muted">
+            {storeCommerce ? "Shipping fee" : "Deducted from your gem balance on release"}
+          </p>
         </div>
         <p
           className="shrink-0 text-lg font-black tabular-nums"
           style={{ color: BRAND_GOLD }}
         >
-          −{formatGems(shippingCost)}
+          −{feeLabel}
         </p>
       </div>
     </section>
@@ -262,7 +270,11 @@ export function VaultReleaseModal({
               {itemValue != null && itemValue > 0 ? (
                 <p className="mt-1 text-xs font-mono text-muted">
                   Stated value:{" "}
-                  <span style={{ color: BRAND_GOLD }}>{formatGems(itemValue)}</span>
+                  <span style={{ color: BRAND_GOLD }}>
+                    {isAppStoreCommerce()
+                      ? formatUsd(gemsToUsd(itemValue))
+                      : formatGems(itemValue)}
+                  </span>
                 </p>
               ) : null}
             </div>

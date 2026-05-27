@@ -24,7 +24,7 @@ export function AuthModal() {
   const isLogin = authModalMode === "login";
   const title = isLogin ? "Welcome Back" : "Create Account";
   const subtitle = isLogin
-    ? "Sign in to sync your vault and gem balance."
+    ? "Sign in to sync your vault and collection."
     : "Join WinRips — pick a username and start ripping.";
 
   useEffect(() => {

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { getRevealGlowGradient } from "../../utils/revealGlow";
 import type { StoreRarity } from "../../types/store";
 
@@ -49,23 +50,35 @@ export function rarityGlowGradient(rarity?: string): string {
   return `radial-gradient(circle at 50% 42%, ${core} 0%, transparent 70%)`;
 }
 
-/** Exact store-tier glow colors for Showroom tiles (rarest → commonest). */
+/** Store-tier accent rgba — text-shadow glow on Showroom row labels. */
 export const STORE_RARITY_GLOW_COLOR: Record<StoreRarity, string> = {
-  Mythic: "rgba(242, 214, 128, 0.55)",
-  Legendary: "rgba(255, 0, 127, 0.5)",
-  Epic: "rgba(168, 85, 247, 0.5)",
-  Rare: "rgba(59, 130, 246, 0.45)",
-  Common: "rgba(255, 255, 255, 0.06)",
+  Mythic: "rgba(242, 214, 128, 0.28)",
+  Legendary: "rgba(255, 0, 127, 0.24)",
+  Epic: "rgba(168, 85, 247, 0.24)",
+  Rare: "rgba(59, 130, 246, 0.22)",
+  Common: "rgba(255, 255, 255, 0.04)",
 };
 
-export function storeRarityGlowColor(tier: StoreRarity): string {
-  return STORE_RARITY_GLOW_COLOR[tier];
-}
+/** Store-tier label text colors (Showroom row headers). */
+export const STORE_RARITY_LABEL_COLOR: Record<StoreRarity, string> = {
+  Mythic: "#F2D680",
+  Legendary: "#FF007F",
+  Epic: "#A855F7",
+  Rare: "#3B82F6",
+  Common: "#71717A",
+};
 
-/** Soft outer neon halo — no hard border. */
-export function storeRarityOuterGlow(tier: StoreRarity): string {
-  const c = storeRarityGlowColor(tier);
-  return `0 0 12px 2px ${c}, 0 0 28px 6px ${c}`;
+/** Colored row label + soft text-shadow (no glow on Common). */
+export function storeRarityLabelStyle(tier: StoreRarity): CSSProperties {
+  const color = STORE_RARITY_LABEL_COLOR[tier];
+  if (tier === "Common") {
+    return { color };
+  }
+  const glow = STORE_RARITY_GLOW_COLOR[tier];
+  return {
+    color,
+    textShadow: `0 0 4px ${glow}, 0 0 8px ${glow}`,
+  };
 }
 
 /** Glass layer — composes from single CSS primitive (see index.css). */

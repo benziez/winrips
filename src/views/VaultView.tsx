@@ -17,7 +17,11 @@ import {
   gemsToUsd,
 } from "../constants/retail";
 import { isAppStoreCommerce } from "../constants/commerce";
-import { mobileSafeAreaTopStyle } from "../components/mobile/mobileTheme";
+import {
+  BTN_GHOST_OUTLINE,
+  mobileSafeAreaTopStyle,
+  OBSIDIAN_GOLD,
+} from "../components/mobile/mobileTheme";
 import { isNativeCapacitorApp } from "../utils/platform";
 import { CollectibleImage } from "../components/ui/CollectibleImage";
 import {
@@ -30,6 +34,11 @@ const REVENUE_VALUE_THRESHOLD = 10_000;
 
 const PAGE_SHELL =
   "mx-auto w-full max-w-[1600px] space-y-8 overflow-x-hidden px-4 pb-8 pt-3 sm:px-6 sm:pb-10 sm:pt-4 lg:px-8";
+
+const VAULT_TOUCH_SHIP_BTN =
+  "flex-1 rounded-lg bg-[#FF007F] py-2 text-center text-[10px] font-bold uppercase tracking-wide text-white transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50";
+
+const VAULT_TOUCH_EXCHANGE_BTN = `${BTN_GHOST_OUTLINE} flex-1 !rounded-lg !px-2 !py-2 text-[10px] font-bold uppercase tracking-wide transition-transform active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40`;
 
 function VaultInventoryCard({
   card,
@@ -44,9 +53,15 @@ function VaultInventoryCard({
 }) {
   const isPendingShipment = card.status === "pending_shipment";
   const storeCommerce = isAppStoreCommerce();
+  const touchActions = isNativeCapacitorApp();
+  const exchangeLabel = storeCommerce
+    ? exchangeButtonLabelUsd(card.value)
+    : exchangeButtonLabel(card.value);
 
   return (
-    <article className="vault-door group relative flex flex-col overflow-hidden">
+    <article
+      className={`vault-door relative flex flex-col overflow-hidden ${touchActions ? "" : "group"}`}
+    >
       <div className="relative aspect-[2.5/3.5] w-full bg-slate-elevated/40 p-2 sm:p-3">
         <CollectibleImage
           src={card.image}
@@ -59,7 +74,7 @@ function VaultInventoryCard({
               Pending Shipment
             </p>
           </div>
-        ) : (
+        ) : !touchActions ? (
           <div className="pointer-events-none absolute inset-0 flex flex-col items-stretch justify-end gap-1.5 bg-gradient-to-t from-slate/95 via-slate/40 to-transparent p-2 opacity-0 transition-opacity duration-200 group-hover:pointer-events-auto group-hover:opacity-100">
             <button
               type="button"
@@ -75,23 +90,43 @@ function VaultInventoryCard({
               disabled={isExchanging}
               className="w-full rounded-md border border-border bg-slate-elevated py-1.5 text-[10px] font-bold uppercase leading-tight text-muted transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isExchanging
-                ? "Exchanging…"
-                : storeCommerce
-                  ? exchangeButtonLabelUsd(card.value)
-                  : exchangeButtonLabel(card.value)}
+              {isExchanging ? "Exchanging…" : exchangeLabel}
             </button>
           </div>
-        )}
+        ) : null}
       </div>
-      <div className="flex items-center justify-between gap-2 border-t border-border bg-slate px-2.5 py-2 sm:px-3">
-        <h3 className="line-clamp-2 min-w-0 flex-1 text-[10px] font-bold leading-snug text-white sm:text-xs">
-          {card.name}
-        </h3>
-        {!isAppStoreCommerce() ? (
-          <span className="shrink-0 text-[10px] font-bold tabular-nums text-gold sm:text-xs">
-            {formatGems(card.value)}
-          </span>
+      <div className="flex flex-col border-t border-border bg-slate px-2.5 py-2 sm:px-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="line-clamp-2 min-w-0 flex-1 text-[10px] font-bold leading-snug text-white sm:text-xs">
+            {card.name}
+          </h3>
+          {!storeCommerce ? (
+            <span className="shrink-0 text-[10px] font-bold tabular-nums text-gold sm:text-xs">
+              {formatGems(card.value)}
+            </span>
+          ) : null}
+        </div>
+        {!isPendingShipment && touchActions ? (
+          <div className="mt-2 flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => onShip(card)}
+              disabled={isExchanging}
+              className={VAULT_TOUCH_SHIP_BTN}
+            >
+              Ship
+            </button>
+            <button
+              type="button"
+              onClick={() => onSell(card)}
+              disabled={isExchanging}
+              aria-label={isExchanging ? "Exchanging" : exchangeLabel}
+              className={VAULT_TOUCH_EXCHANGE_BTN}
+              style={{ color: OBSIDIAN_GOLD.bright, borderColor: `${OBSIDIAN_GOLD.base}66` }}
+            >
+              {isExchanging ? "Exchanging…" : "Exchange"}
+            </button>
+          </div>
         ) : null}
       </div>
     </article>

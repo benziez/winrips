@@ -1,13 +1,15 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
+import { deleteAccount } from "../../lib/deleteAccountApi";
 import { clearLoggedIn } from "../../constants/userSession";
 import { AppleSignInButton } from "../auth/AppleSignInButton";
 import { MobileRipSettingsToggle } from "./MobileRipSettingsToggle";
 import { GlassSurface } from "./GlassSurface";
 import type { FooterPageSlug } from "../../constants/footerContent";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
-import { MOBILE_COLORS, OBSIDIAN_GOLD, BTN_GHOST_OUTLINE } from "./mobileTheme";
+import { MOBILE_COLORS, OBSIDIAN_GOLD, BTN_GHOST_OUTLINE, BTN_PRIMARY } from "./mobileTheme";
 import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 
 const LEGAL_LINKS: { label: string; slug: FooterPageSlug }[] = [
@@ -68,6 +70,115 @@ function profileInitial(label: string): string {
   return char ? char.toUpperCase() : "?";
 }
 
+const DELETE_CONFIRM_WORD = "DELETE";
+
+function DeleteAccountModal({
+  open,
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  loading: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const [typed, setTyped] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      setTyped("");
+    }
+  }, [open]);
+
+  const canConfirm = typed === DELETE_CONFIRM_WORD && !loading;
+
+  return (
+    <AnimatePresence>
+      {open ? (
+        <>
+          <motion.button
+            type="button"
+            aria-label="Dismiss"
+            className="fixed inset-0 z-[80] bg-black/75"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={loading ? undefined : onCancel}
+          />
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-account-title"
+            className="fixed inset-x-6 z-[81] mx-auto max-w-md"
+            style={{ top: "max(4rem, calc(env(safe-area-inset-top) + 2rem))" }}
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 12, scale: 0.96 }}
+          >
+            <GlassSurface variant="default" className="rounded-2xl p-6">
+              <h2 id="delete-account-title" className="text-lg font-semibold text-white">
+                Delete account?
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed" style={{ color: MOBILE_COLORS.textMuted }}>
+                This is permanent and cannot be undone. You will lose:
+              </p>
+              <ul
+                className="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-relaxed"
+                style={{ color: MOBILE_COLORS.textMuted }}
+              >
+                <li>Your vault collection and any vaulted cards</li>
+                <li>Your play and pull history</li>
+                <li>Your profile and username</li>
+                <li>Your battle history</li>
+              </ul>
+              <p className="mt-4 text-sm leading-relaxed" style={{ color: MOBILE_COLORS.textMuted }}>
+                If you have a shipment in progress, complete it or contact support before
+                deleting your account.
+              </p>
+              <label className="mt-5 block">
+                <span className="text-xs font-medium uppercase tracking-wider text-white/80">
+                  Type {DELETE_CONFIRM_WORD} to confirm
+                </span>
+                <input
+                  type="text"
+                  value={typed}
+                  onChange={(event) => setTyped(event.target.value)}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  disabled={loading}
+                  className="mt-2 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2.5 text-sm text-white outline-none focus:border-red-500/40"
+                  placeholder={DELETE_CONFIRM_WORD}
+                />
+              </label>
+              <div className="mt-6 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={onConfirm}
+                  disabled={!canConfirm}
+                  className={`${BTN_PRIMARY} border-red-500/40 !text-red-200 disabled:opacity-40`}
+                >
+                  {loading ? "Deleting…" : "Delete account"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  disabled={loading}
+                  className={BTN_GHOST_OUTLINE}
+                >
+                  Cancel
+                </button>
+              </div>
+            </GlassSurface>
+          </motion.div>
+        </>
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
 /** Profile, manual rip preference, and sign-out for the mobile shell. */
 export function MobileAccountView() {
   const {
@@ -84,7 +195,9 @@ export function MobileAccountView() {
     setPurchaseModalOpen,
     setDepositModalOpen,
   } = useApp();
-  const { user, signOut } = useAuth();
+  const { user, session, signOut } = useAuth();
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const metadataUsername = readAuthMetadataUsername(user?.user_metadata);
   const displayUsername = profileUsername || metadataUsername;
@@ -109,6 +222,50 @@ export function MobileAccountView() {
     } finally {
       clearLoggedIn();
       logout();
+    }
+  }
+
+  async function handleDeleteAccount() {
+    const accessToken = session?.access_token?.trim();
+    if (!accessToken || isDeletingAccount) return;
+
+    setIsDeletingAccount(true);
+
+    try {
+      const result = await deleteAccount(accessToken);
+
+      if (result.ok) {
+        setDeleteModalOpen(false);
+        closeWalletModal();
+        setPurchaseModalOpen(false);
+        setDepositModalOpen(false);
+
+        try {
+          await signOut();
+        } finally {
+          clearLoggedIn();
+          logout();
+        }
+
+        showCashoutToast("Your account has been deleted.");
+        return;
+      }
+
+      if (result.status === 401) {
+        showCashoutToast("Your session expired. Please sign in again.");
+        return;
+      }
+
+      if (result.status === 409 && result.code === "pending_shipment") {
+        showCashoutToast(result.error);
+        return;
+      }
+
+      showCashoutToast(
+        result.error || "Account could not be deleted. Try again or contact support.",
+      );
+    } finally {
+      setIsDeletingAccount(false);
     }
   }
 
@@ -187,8 +344,18 @@ export function MobileAccountView() {
 
             <button
               type="button"
+              onClick={() => setDeleteModalOpen(true)}
+              disabled={isDeletingAccount}
+              className={`${BTN_GHOST_OUTLINE} w-full border-red-500/30 text-red-300 disabled:opacity-40`}
+            >
+              Delete account
+            </button>
+
+            <button
+              type="button"
               onClick={() => void handleSignOut()}
-              className={`${BTN_GHOST_OUTLINE} w-full border-red-500/30 text-red-300`}
+              disabled={isDeletingAccount}
+              className={`${BTN_GHOST_OUTLINE} w-full border-red-500/30 text-red-300 disabled:opacity-40`}
             >
               Sign out
             </button>
@@ -200,6 +367,13 @@ export function MobileAccountView() {
           </div>
         )}
       </div>
+
+      <DeleteAccountModal
+        open={deleteModalOpen}
+        loading={isDeletingAccount}
+        onCancel={() => setDeleteModalOpen(false)}
+        onConfirm={() => void handleDeleteAccount()}
+      />
     </div>
   );
 }

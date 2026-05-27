@@ -55,6 +55,7 @@ function MobileAppLayoutInner() {
     isLoggedIn,
     userId,
     currentView,
+    infoPageSlug,
     shippingVaultItem,
     closeVaultShipping,
     markVaultItemPendingShipment,
@@ -76,7 +77,7 @@ function MobileAppLayoutInner() {
 
   const showSignIn = !isLoggedIn && !guestSession;
   const immersive = IMMERSIVE_VIEWS.includes(currentView);
-  const showDock = !immersive;
+  const showDock = !immersive && !infoPageSlug;
 
   if (showSignIn) {
     return (

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { parseAppPath, parseBattleIdFromPath, pathForView } from "../constants/appRoutes";
+import { navigateMobilePath } from "../lib/mobileNavigation";
 import type { FooterPageSlug } from "../constants/footerContent";
 import {
   infoPathForSlug,
@@ -86,8 +87,10 @@ interface AppContextValue extends AppState {
   navigateToBattle: (battleId: string) => void;
   setView: (view: AppView) => void;
   goToLobby: () => void;
+  syncFromPathname: (pathname: string) => void;
   infoPageSlug: FooterPageSlug | null;
   openInfoPage: (slug: FooterPageSlug) => void;
+  closeInfoPage: () => void;
   toggleWallet: () => void;
   setActiveCurrency: (currency: Currency) => void;
   selectPack: (pack: Pack) => void;
@@ -175,42 +178,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(INITIAL_STATE);
   const spinInProgressRef = useRef(false);
 
-  useEffect(() => {
-    const syncFromUrl = () => {
-      const slug = readInfoSlugFromLocation();
-      if (slug) {
-        setState((s) => ({ ...s, infoPageSlug: slug, currentView: "lobby" }));
-        return;
-      }
-      const battleId = parseBattleIdFromPath(window.location.pathname);
-      if (battleId) {
-        setState((s) => ({
-          ...s,
-          infoPageSlug: null,
-          currentView: "battle-arena",
-          selectedBattleId: battleId,
-        }));
-        return;
-      }
-      const view = parseAppPath(window.location.pathname);
-      if (view) {
-        setState((s) => ({
-          ...s,
-          infoPageSlug: null,
-          currentView: view,
-          selectedBattleId: null,
-        }));
-      }
-    };
+  const syncFromPathname = useCallback((pathname: string) => {
+    const slug = parseInfoPath(pathname);
+    if (slug) {
+      setState((s) => ({
+        ...s,
+        infoPageSlug: slug,
+        currentView: "lobby",
+        selectedPack: null,
+      }));
+      return;
+    }
+    const battleId = parseBattleIdFromPath(pathname);
+    if (battleId) {
+      setState((s) => ({
+        ...s,
+        infoPageSlug: null,
+        currentView: "battle-arena",
+        selectedBattleId: battleId,
+        selectedPack: null,
+      }));
+      return;
+    }
+    const view = parseAppPath(pathname);
+    if (view) {
+      setState((s) => ({
+        ...s,
+        infoPageSlug: null,
+        currentView: view,
+        selectedBattleId: null,
+        selectedPack: view === "pack-open" ? s.selectedPack : null,
+      }));
+    }
+  }, []);
 
+  useEffect(() => {
+    const syncFromUrl = () => syncFromPathname(window.location.pathname);
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
-  }, []);
+  }, [syncFromPathname]);
 
   const navigateToView = useCallback((nextView: AppView) => {
     const currentView = normalizeView(nextView);
     const path = pathForView(currentView);
-    window.history.pushState({ view: currentView }, "", path);
+    navigateMobilePath(path);
     setState((s) => ({
       ...s,
       currentView,
@@ -229,7 +240,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!normalizedId) return;
 
     const path = pathForView("battle-arena", normalizedId);
-    window.history.pushState({ view: "battle-arena", battleId: normalizedId }, "", path);
+    navigateMobilePath(path);
     setState((s) => ({
       ...s,
       currentView: "battle-arena",
@@ -246,9 +257,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const setView = navigateToView;
 
   const goToLobby = useCallback(() => {
-    if (readInfoSlugFromLocation()) {
-      window.history.pushState({}, "", "/");
-    }
+    navigateMobilePath("/");
     setState((s) => ({
       ...s,
       currentView: "lobby",
@@ -262,15 +271,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const openInfoPage = useCallback((slug: FooterPageSlug) => {
     const path = infoPathForSlug(slug);
-    window.history.pushState({ infoSlug: slug }, "", path);
+    navigateMobilePath(path);
     setState((s) => ({
       ...s,
       infoPageSlug: slug,
-      currentView: "lobby",
       selectedPack: null,
       mobileMenuOpen: false,
       shippingModalOpen: false,
     }));
+    window.scrollTo(0, 0);
+  }, []);
+
+  const closeInfoPage = useCallback(() => {
+    setState((s) => {
+      const view = normalizeView(s.currentView);
+      navigateMobilePath(pathForView(view));
+      return {
+        ...s,
+        infoPageSlug: null,
+        mobileMenuOpen: false,
+        shippingModalOpen: false,
+      };
+    });
     window.scrollTo(0, 0);
   }, []);
 
@@ -284,12 +306,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const selectPack = useCallback((pack: Pack) => {
+    navigateMobilePath(pathForView("pack-open"));
     setState((s) => ({
       ...s,
       selectedPack: pack,
       currentView: "pack-open",
       mobileMenuOpen: false,
     }));
+    window.scrollTo(0, 0);
   }, []);
 
   const deductPackCost = useCallback((cost: number, quantity: number): boolean => {
@@ -783,8 +807,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigateToBattle,
       setView,
       goToLobby,
+      syncFromPathname,
       infoPageSlug: state.infoPageSlug,
       openInfoPage,
+      closeInfoPage,
       toggleWallet,
       setActiveCurrency,
       selectPack,
@@ -832,7 +858,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       navigateToBattle,
       setView,
       goToLobby,
+      syncFromPathname,
       openInfoPage,
+      closeInfoPage,
       toggleWallet,
       setActiveCurrency,
       selectPack,

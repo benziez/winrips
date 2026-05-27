@@ -1,5 +1,8 @@
 import { useApp } from "../../context/AppContext";
+import { InfoPageView } from "../views/InfoPageView";
 import { PackOpeningView } from "../pack-opening/PackOpeningView";
+import { DismissPill } from "./DismissPill";
+import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 import { VaultView } from "../../views/VaultView";
 import { LeaderboardView } from "../views/LeaderboardView";
 import { RewardsView } from "../views/RewardsView";
@@ -10,7 +13,30 @@ import { MobileErrorBoundary } from "./MobileErrorBoundary";
 
 /** Mobile-only routes — no web hero, sidebar, footer, or live feed. */
 export function MobileAppContent() {
-  const { currentView } = useApp();
+  const { currentView, infoPageSlug, closeInfoPage } = useApp();
+
+  if (infoPageSlug) {
+    return (
+      <MobileErrorBoundary label="Page unavailable">
+        <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-black">
+          <DismissPill
+            onClick={closeInfoPage}
+            className="absolute right-6 z-20"
+            style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
+          />
+          <div
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            style={{
+              paddingTop: "calc(max(1rem, env(safe-area-inset-top)) + 3.25rem)",
+              paddingBottom: MOBILE_DOCK_CLEARANCE,
+            }}
+          >
+            <InfoPageView pageSlug={infoPageSlug} mobile onBack={closeInfoPage} />
+          </div>
+        </div>
+      </MobileErrorBoundary>
+    );
+  }
 
   switch (currentView) {
     case "pack-open":

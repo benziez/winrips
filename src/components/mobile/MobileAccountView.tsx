@@ -5,8 +5,47 @@ import { clearLoggedIn } from "../../constants/userSession";
 import { AppleSignInButton } from "../auth/AppleSignInButton";
 import { MobileRipSettingsToggle } from "./MobileRipSettingsToggle";
 import { GlassSurface } from "./GlassSurface";
+import type { FooterPageSlug } from "../../constants/footerContent";
+import { hapticTabSelect } from "../../utils/mobileHaptics";
 import { MOBILE_COLORS, OBSIDIAN_GOLD, BTN_GHOST_OUTLINE } from "./mobileTheme";
 import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
+
+const LEGAL_LINKS: { label: string; slug: FooterPageSlug }[] = [
+  { label: "Privacy Policy", slug: "privacy" },
+  { label: "Terms of Service", slug: "terms" },
+];
+
+function AccountLegalSection({ onOpen }: { onOpen: (slug: FooterPageSlug) => void }) {
+  return (
+    <GlassSurface variant="default" className="rounded-2xl px-4 py-3">
+      <p
+        className="text-[11px] font-medium uppercase tracking-wider"
+        style={{ color: MOBILE_COLORS.textMuted }}
+      >
+        Legal
+      </p>
+      <ul className="mt-2 divide-y divide-white/10">
+        {LEGAL_LINKS.map((link) => (
+          <li key={link.slug}>
+            <button
+              type="button"
+              onClick={() => {
+                void hapticTabSelect();
+                onOpen(link.slug);
+              }}
+              className="flex w-full items-center justify-between gap-3 py-3 text-left text-sm font-medium text-white"
+            >
+              <span>{link.label}</span>
+              <span className="text-base" style={{ color: MOBILE_COLORS.textMuted }} aria-hidden>
+                ›
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </GlassSurface>
+  );
+}
 
 function readAuthMetadataUsername(
   metadata: Record<string, unknown> | undefined,
@@ -39,6 +78,7 @@ export function MobileAccountView() {
     syncUserProfileFromServer,
     logout,
     openAuthModal,
+    openInfoPage,
     showCashoutToast,
     closeWalletModal,
     setPurchaseModalOpen,
@@ -143,6 +183,8 @@ export function MobileAccountView() {
 
             <MobileRipSettingsToggle />
 
+            <AccountLegalSection onOpen={openInfoPage} />
+
             <button
               type="button"
               onClick={() => void handleSignOut()}
@@ -152,7 +194,10 @@ export function MobileAccountView() {
             </button>
           </div>
         ) : (
-          guestCta
+          <div className="space-y-5 pb-4">
+            {guestCta}
+            <AccountLegalSection onOpen={openInfoPage} />
+          </div>
         )}
       </div>
     </div>

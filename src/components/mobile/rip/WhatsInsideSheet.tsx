@@ -4,6 +4,7 @@ import { getPackDropTable } from "../../../data/packDropTables";
 import { ChevronDown } from "../../icons/AppIcons";
 import { RipBottomSheet } from "./RipBottomSheet";
 import { RipCardTile } from "./RipCardTile";
+import { PackSlabMark } from "./PackSlabMark";
 import { hapticTabSelect } from "../../../utils/mobileHaptics";
 
 interface WhatsInsideSheetProps {
@@ -31,7 +32,13 @@ export function WhatsInsideSheet({ pack, open, onClose }: WhatsInsideSheetProps)
   if (!pack) return null;
 
   return (
-    <RipBottomSheet open={open} onClose={onClose} heightClass="h-[calc(100dvh-5rem)]" showClose={false}>
+    <RipBottomSheet
+      open={open}
+      onClose={onClose}
+      heightClass="h-[calc(100dvh-5rem)]"
+      showClose={false}
+      className="rip-ambient-bg !bg-transparent"
+    >
       <button
         type="button"
         onClick={() => {
@@ -46,15 +53,12 @@ export function WhatsInsideSheet({ pack, open, onClose }: WhatsInsideSheetProps)
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-10">
         <div className="mt-4 flex items-start gap-4">
-          <div
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl bg-[var(--rip-surface)]"
-            aria-hidden
-          >
-            <span className="text-2xl font-bold text-[var(--rip-green-bright)]">WR</span>
-          </div>
-          <div>
-            <p className="text-[17px] text-[var(--rip-text-muted)]">{pack.name}</p>
-            <h2 className="text-[32px] font-bold leading-tight text-white">What&apos;s Inside</h2>
+          <PackSlabMark size={64} className="rounded-2xl" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[17px] font-medium text-[var(--rip-text-muted)]">{pack.name}</p>
+            <h2 className="mt-1 text-[32px] font-bold leading-tight text-white">
+              What&apos;s Inside
+            </h2>
           </div>
         </div>
 
@@ -67,7 +71,7 @@ export function WhatsInsideSheet({ pack, open, onClose }: WhatsInsideSheetProps)
           </p>
         </section>
 
-        <section className="mt-10">
+        <section className="mb-8 mt-8">
           <h3 className="text-2xl font-bold text-white">Recent Wins</h3>
           <div className="mt-3 border-b border-[var(--rip-border)]" />
           <div className="rip-hide-scrollbar mt-4 flex gap-3 overflow-x-auto pb-2">
@@ -88,7 +92,7 @@ export function WhatsInsideSheet({ pack, open, onClose }: WhatsInsideSheetProps)
           </div>
         </section>
 
-        <section className="mt-10">
+        <section className="mb-8">
           <h3 className="text-2xl font-bold text-white">Grails</h3>
           <div className="mt-3 border-b border-[var(--rip-border)]" />
           <div className="mt-4 grid grid-cols-2 gap-3">

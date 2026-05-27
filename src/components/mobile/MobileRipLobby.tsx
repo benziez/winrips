@@ -96,7 +96,7 @@ export function MobileRipLobby() {
   }, [activePack, canAfford, selectPack]);
 
   const oddsLabel =
-    oddsMode === "normal" ? "Normal" : oddsMode === "better" ? "Better Odds" : "Best Odds";
+    oddsMode === "normal" ? "Normal" : oddsMode === "better" ? "Better" : "Best";
 
   return (
     <RipAmbientShell scratch>
@@ -215,7 +215,7 @@ export function MobileRipLobby() {
                 onClick={handleBuy}
                 className="mt-4 flex h-14 w-full items-center justify-center rounded-full bg-[var(--rip-orange)] text-[16px] font-semibold text-white active:bg-[var(--rip-orange-pressed)]"
               >
-                Buy for {formatUsd(priceUsd)}
+                Spin for {formatUsd(priceUsd)}
               </motion.button>
             </motion.div>
           ) : null}
@@ -240,6 +240,7 @@ export function MobileRipLobby() {
         onClose={() => setWhatsInsideOpen(false)}
       />
       <AdjustOddsSheet
+        pack={activePack}
         open={adjustOddsOpen}
         onClose={() => setAdjustOddsOpen(false)}
         selected={oddsMode}

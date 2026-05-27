@@ -37,7 +37,7 @@ export function InsufficientBalanceToast({
           <div className="min-w-0 flex-1">
             <p className="text-[15px] font-bold text-white">Insufficient balance</p>
             <p className="mt-0.5 text-[13px] text-[var(--rip-text-muted)]">
-              Make a deposit to purchase this pack
+              Make a deposit to spin this pack
             </p>
           </div>
           <button

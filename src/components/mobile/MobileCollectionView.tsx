@@ -8,6 +8,7 @@ import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { BalancePill } from "./rip/BalancePill";
 import { AddFundsModal } from "./rip/AddFundsModal";
 import { CardDetailOverlay } from "./rip/CardDetailOverlay";
+import { PortfolioGraph } from "./collection/PortfolioGraph";
 import { ChevronDown, ChevronRight, GridViewIcon, ListViewIcon } from "../icons/AppIcons";
 import { CollectibleImage } from "../ui/CollectibleImage";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
@@ -61,13 +62,18 @@ export function MobileCollectionView() {
         className="flex shrink-0 items-center justify-between px-6 pb-3"
         style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
       >
-        <h1 className="text-[36px] font-bold leading-tight text-white">My Collection</h1>
+        <h1 className="text-[28px] font-bold leading-tight text-white">My Collection</h1>
         <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
       </header>
 
-      <div className="flex items-center justify-between gap-3 px-6 pb-3">
-        <div className="flex items-center gap-3">
-          <button type="button" className="flex items-center gap-1 text-[15px] font-medium text-white">
+      <PortfolioGraph />
+
+      <div className="flex items-center justify-between gap-4 px-6 pb-3">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            className="flex items-center gap-1 text-[14px] font-medium text-white"
+          >
             All <ChevronDown size={14} className="text-[var(--rip-text-muted)]" />
           </button>
           <button
@@ -76,7 +82,7 @@ export function MobileCollectionView() {
               void hapticTabSelect();
               setSortKey((k) => (k === "price-desc" ? "price-asc" : "price-desc"));
             }}
-            className="flex items-center gap-1 text-[15px] font-medium text-white"
+            className="flex items-center gap-1 text-[14px] font-medium text-white"
           >
             ↓ Price <ChevronDown size={14} className="text-[var(--rip-text-muted)]" />
           </button>
@@ -84,27 +90,41 @@ export function MobileCollectionView() {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => setViewMode("list")}
+            onClick={() => {
+              void hapticTabSelect();
+              setViewMode("list");
+            }}
             aria-label="List view"
-            className={viewMode === "list" ? "text-white" : "text-[var(--rip-text-subtle)]"}
+            className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+              viewMode === "list"
+                ? "bg-[var(--rip-surface-strong)] text-white ring-1 ring-[var(--rip-border-strong)]"
+                : "text-[var(--rip-text-muted)]"
+            }`}
           >
-            <ListViewIcon size={22} />
+            <ListViewIcon size={20} />
           </button>
           <button
             type="button"
-            onClick={() => setViewMode("grid")}
+            onClick={() => {
+              void hapticTabSelect();
+              setViewMode("grid");
+            }}
             aria-label="Grid view"
-            className={viewMode === "grid" ? "text-white" : "text-[var(--rip-text-subtle)]"}
+            className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+              viewMode === "grid"
+                ? "bg-[var(--rip-surface-strong)] text-white ring-1 ring-[var(--rip-border-strong)]"
+                : "text-[var(--rip-text-muted)]"
+            }`}
           >
-            <GridViewIcon size={22} />
+            <GridViewIcon size={20} />
           </button>
         </div>
       </div>
       <div className="mx-6 border-b border-[var(--rip-border)]" />
 
       <div
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-6"
-        style={{ paddingBottom: `calc(${MOBILE_DOCK_CLEARANCE} + 7rem)` }}
+        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-6"
+        style={{ paddingBottom: `calc(${MOBILE_DOCK_CLEARANCE} + 5.5rem)` }}
       >
         {vaultItemsLoading ? (
           <p className="text-center text-[15px] text-[var(--rip-text-muted)]">Loading collection…</p>
@@ -124,16 +144,16 @@ export function MobileCollectionView() {
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedCard(card)}
-                  className="flex flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] text-left"
+                  className="flex aspect-[3/4.2] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] p-3 text-left"
                 >
-                  <div className="relative aspect-[3/4.2] p-2">
+                  <div className="flex min-h-0 flex-[0.65] items-center justify-center">
                     <CollectibleImage
                       src={item.image}
                       alt={item.name}
-                      className="h-full w-full object-contain"
+                      className="max-h-full max-w-full object-contain"
                     />
                   </div>
-                  <div className="border-t border-[var(--rip-border)] px-3 py-2">
+                  <div className="mt-auto pt-2">
                     <p className="text-[16px] font-bold text-[var(--rip-green-bright)]">
                       {formatUsd(gemsToUsd(item.value))}
                     </p>
@@ -177,10 +197,10 @@ export function MobileCollectionView() {
       </div>
 
       <div
-        className="fixed left-0 right-0 z-30 px-4"
-        style={{ bottom: `calc(${MOBILE_DOCK_CLEARANCE} + 0.25rem)` }}
+        className="pointer-events-none fixed left-0 right-0 z-30 px-4"
+        style={{ bottom: `calc(${MOBILE_DOCK_CLEARANCE} + 0.5rem)` }}
       >
-        <p className="rounded-2xl bg-[var(--rip-surface)] p-4 text-[15px] leading-relaxed text-white">
+        <p className="rip-surface-glass pointer-events-auto rounded-2xl p-3.5 text-[13px] leading-relaxed text-white backdrop-blur-md">
           Your vaulted cards will be{" "}
           <strong className="font-bold">automatically sold after 7 days</strong> at fair market
           value unless you have them shipped to you.

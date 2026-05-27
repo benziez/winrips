@@ -1,4 +1,5 @@
 import { getRevealGlowGradient } from "../../utils/revealGlow";
+import type { StoreRarity } from "../../types/store";
 
 /** Obsidian & Gold — accent palette (never use as full-bleed fills). */
 export const OBSIDIAN_GOLD = {
@@ -46,6 +47,25 @@ export function rarityGlowColor(rarity?: string): string {
 export function rarityGlowGradient(rarity?: string): string {
   const core = rarityGlowColor(rarity);
   return `radial-gradient(circle at 50% 42%, ${core} 0%, transparent 70%)`;
+}
+
+/** Exact store-tier glow colors for Showroom tiles (rarest → commonest). */
+export const STORE_RARITY_GLOW_COLOR: Record<StoreRarity, string> = {
+  Mythic: "rgba(242, 214, 128, 0.55)",
+  Legendary: "rgba(255, 0, 127, 0.5)",
+  Epic: "rgba(168, 85, 247, 0.5)",
+  Rare: "rgba(59, 130, 246, 0.45)",
+  Common: "rgba(255, 255, 255, 0.06)",
+};
+
+export function storeRarityGlowColor(tier: StoreRarity): string {
+  return STORE_RARITY_GLOW_COLOR[tier];
+}
+
+/** Soft outer neon halo — no hard border. */
+export function storeRarityOuterGlow(tier: StoreRarity): string {
+  const c = storeRarityGlowColor(tier);
+  return `0 0 12px 2px ${c}, 0 0 28px 6px ${c}`;
 }
 
 /** Glass layer — composes from single CSS primitive (see index.css). */

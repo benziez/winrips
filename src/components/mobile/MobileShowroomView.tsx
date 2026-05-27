@@ -1,17 +1,43 @@
 import { useMemo } from "react";
 import type { Card } from "../../types";
+import type { StoreRarity } from "../../types/store";
 import { formatUsd, gemsToUsd } from "../../constants/retail";
 import { useBoxesCatalog } from "../../context/BoxesCatalogContext";
 import { buildGlobalCardCatalog } from "../../utils/globalCardCatalog";
+import {
+  buildStoreRarityByCardId,
+  groupCardsByStoreRarity,
+  resolveStoreRarity,
+  SHOWROOM_RARITY_ORDER,
+} from "../../utils/showroomGrouping";
 import { useFallbackImageSrc, IMAGE_PLACEHOLDER } from "../../hooks/useFallbackImageSrc";
 import { resolveAssetUrl, isRenderableAssetUrl } from "../../utils/resolveAssetUrl";
 import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
-import { MOBILE_COLORS, OBSIDIAN_GOLD, mobileSafeAreaTopStyle } from "./mobileTheme";
+import {
+  MOBILE_COLORS,
+  OBSIDIAN_GOLD,
+  mobileSafeAreaTopStyle,
+  storeRarityOuterGlow,
+} from "./mobileTheme";
 import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 import { GlassSurface } from "./GlassSurface";
 import { ObsidianImage } from "./ObsidianImage";
 
-function ShowroomCardTile({ card }: { card: Card }) {
+const ROW_LABEL: Record<StoreRarity, string> = {
+  Mythic: "Mythic",
+  Legendary: "Legendary",
+  Epic: "Epic",
+  Rare: "Rare",
+  Common: "Common",
+};
+
+function ShowroomCardTile({
+  card,
+  storeRarity,
+}: {
+  card: Card;
+  storeRarity: StoreRarity;
+}) {
   const remoteSrc = useMemo(() => {
     const trimmed = card.image?.trim() ?? "";
     const candidate = isRenderableAssetUrl(trimmed) ? trimmed : CARD_PLACEHOLDER_IMAGE;
@@ -21,8 +47,11 @@ function ShowroomCardTile({ card }: { card: Card }) {
   const priceLabel = formatUsd(gemsToUsd(card.value));
 
   return (
-    <article className="flex flex-col overflow-hidden">
-      <GlassSurface variant="default" className="aspect-[2.5/3.5] w-full overflow-hidden rounded-xl p-0">
+    <article
+      className="relative w-[140px] shrink-0 overflow-visible"
+      style={{ boxShadow: storeRarityOuterGlow(storeRarity) }}
+    >
+      <GlassSurface variant="default" className="relative z-[1] aspect-[2.5/3.5] w-full overflow-hidden rounded-xl p-0">
         <ObsidianImage
           imgSrc={imgSrc}
           fallbackSrc={IMAGE_PLACEHOLDER}
@@ -31,11 +60,11 @@ function ShowroomCardTile({ card }: { card: Card }) {
           imgClassName="h-full w-full object-contain object-center"
         />
       </GlassSurface>
-      <p className="mt-2 line-clamp-2 text-center text-xs font-semibold leading-snug text-white">
+      <p className="relative z-[1] mt-2 line-clamp-2 text-center text-xs font-semibold leading-snug text-white">
         {card.name}
       </p>
       <p
-        className="mt-0.5 text-center text-sm font-semibold tabular-nums"
+        className="relative z-[1] mt-0.5 text-center text-sm font-semibold tabular-nums"
         style={{ color: OBSIDIAN_GOLD.bright }}
       >
         {priceLabel}
@@ -44,14 +73,65 @@ function ShowroomCardTile({ card }: { card: Card }) {
   );
 }
 
-/** Global gallery of every pullable card, sorted by USD value (high → low). */
-export function MobileShowroomView() {
-  const { packs, loading } = useBoxesCatalog();
+function ShowroomRarityRow({
+  tier,
+  cards,
+  storeRarityByCardId,
+}: {
+  tier: StoreRarity;
+  cards: Card[];
+  storeRarityByCardId: Map<string, StoreRarity>;
+}) {
+  return (
+    <section className="pb-6">
+      <h2
+        className="mb-3 px-1 text-[11px] font-bold uppercase tracking-[0.2em]"
+        style={{ color: MOBILE_COLORS.textMuted }}
+      >
+        {ROW_LABEL[tier]}
+      </h2>
+      <div
+        className="-mx-1 flex gap-4 overflow-x-auto overflow-y-visible overscroll-x-contain px-1 py-2"
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        {cards.map((card) => (
+          <ShowroomCardTile
+            key={card.id}
+            card={card}
+            storeRarity={resolveStoreRarity(card, storeRarityByCardId)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
 
-  const cards = useMemo(() => {
-    if (loading || packs.length === 0) return [];
-    return buildGlobalCardCatalog(packs);
-  }, [loading, packs]);
+/** Global gallery of every pullable card, grouped by store rarity tier. */
+export function MobileShowroomView() {
+  const { packs, storeItemsByPackId, loading } = useBoxesCatalog();
+
+  const { cards, rows, storeRarityByCardId } = useMemo(() => {
+    if (loading || packs.length === 0) {
+      return {
+        cards: [] as Card[],
+        rows: groupCardsByStoreRarity([], new Map()),
+        storeRarityByCardId: new Map<string, StoreRarity>(),
+      };
+    }
+
+    const catalog = buildGlobalCardCatalog(packs);
+    const rarityMap = buildStoreRarityByCardId(packs, storeItemsByPackId);
+    return {
+      cards: catalog,
+      rows: groupCardsByStoreRarity(catalog, rarityMap),
+      storeRarityByCardId: rarityMap,
+    };
+  }, [loading, packs, storeItemsByPackId]);
+
+  const visibleRows = useMemo(
+    () => SHOWROOM_RARITY_ORDER.filter((tier) => rows[tier].length > 0),
+    [rows],
+  );
 
   const isCatalogPending = loading && packs.length === 0;
 
@@ -60,7 +140,7 @@ export function MobileShowroomView() {
       <header className="relative z-10 shrink-0 px-6 pb-3" style={mobileSafeAreaTopStyle}>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Showroom</h1>
         <p className="mt-1 text-sm font-light" style={{ color: MOBILE_COLORS.textMuted }}>
-          Every pullable card · highest value first
+          Five tiers · swipe each row to explore
         </p>
       </header>
 
@@ -83,13 +163,16 @@ export function MobileShowroomView() {
             No cards available yet.
           </p>
         ) : (
-          <ul className="grid grid-cols-2 gap-4 pb-4 sm:grid-cols-3">
-            {cards.map((card) => (
-              <li key={card.id}>
-                <ShowroomCardTile card={card} />
-              </li>
+          <div className="pb-4">
+            {visibleRows.map((tier) => (
+              <ShowroomRarityRow
+                key={tier}
+                tier={tier}
+                cards={rows[tier]}
+                storeRarityByCardId={storeRarityByCardId}
+              />
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </div>

@@ -29,7 +29,7 @@ import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { isManualRipEnabled } from "../../lib/mobileRipPreferences";
 import { formatProbability, getPackDropTable } from "../../data/packDropTables";
-import { getRevealGlowGradient } from "../../utils/revealGlow";
+import { getRevealGlowColor } from "../../utils/revealGlow";
 import { usePackAudio } from "../../hooks/usePackAudio";
 import { useHapticRip } from "../../hooks/useHapticRip";
 import { useManualRip } from "../../hooks/useManualRip";
@@ -59,6 +59,18 @@ const REVEAL_GLOW_TRANSITION = {
   repeat: Infinity,
   ease: "easeInOut" as const,
 };
+
+function RevealCardGlow({ rarity }: { rarity?: string }) {
+  return (
+    <motion.div
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 top-1/2 z-[1] h-[130%] w-[115%] -translate-x-1/2 -translate-y-1/2 rounded-[2rem] blur-3xl"
+      style={{ backgroundColor: getRevealGlowColor(rarity) }}
+      animate={REVEAL_GLOW_PULSE}
+      transition={REVEAL_GLOW_TRANSITION}
+    />
+  );
+}
 
 function displayName(name: string): string {
   return name.replace(/ Pack$| Box$| Drop$| Edition$| Booster$/, "");
@@ -589,9 +601,9 @@ export function MobilePackOpeningView() {
 
         <MobileErrorBoundary label="Pack opening failed">
           <div
-            className={`relative z-10 flex min-h-0 flex-1 flex-col items-center overflow-hidden p-0 ${
-              phase === "complete" ? "" : "justify-center"
-            }`}
+            className={`relative z-10 flex min-h-0 flex-1 flex-col items-center p-0 ${
+              isRevealScreen ? "overflow-visible" : "overflow-hidden"
+            } ${phase === "complete" ? "" : "justify-center"}`}
           >
             <AnimatePresence mode="wait">
               {showPack ? (
@@ -640,7 +652,7 @@ export function MobilePackOpeningView() {
                   className={
                     phase === "complete"
                       ? "flex min-h-0 w-full flex-1 flex-col items-center gap-4 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
-                      : "flex h-full w-full flex-col items-center justify-center overflow-hidden"
+                      : "flex h-full w-full flex-col items-center justify-center overflow-visible"
                   }
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -649,20 +661,14 @@ export function MobilePackOpeningView() {
                   <div
                     className={
                       phase === "complete"
-                        ? "relative flex min-h-0 w-full flex-1 items-center justify-center"
-                        : "relative flex h-full w-full flex-1 items-center justify-center overflow-hidden"
+                        ? "relative flex min-h-0 w-full flex-1 items-center justify-center overflow-visible"
+                        : "relative flex h-full w-full flex-1 items-center justify-center overflow-visible"
                     }
                   >
                     {phase === "complete" ? (
-                      <div className="reveal-card-frame relative mx-auto h-[min(62dvh,520px)] w-[min(88vw,360px)] shrink-0">
-                        <motion.div
-                          aria-hidden
-                          className="pointer-events-none absolute inset-[-14%] -z-10 rounded-[2rem] blur-3xl"
-                          style={{ background: getRevealGlowGradient(revealGlowRarity) }}
-                          animate={REVEAL_GLOW_PULSE}
-                          transition={REVEAL_GLOW_TRANSITION}
-                        />
-                        <div className="h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
+                      <div className="reveal-card-frame relative mx-auto h-[min(62dvh,520px)] w-[min(88vw,360px)] shrink-0 overflow-visible">
+                        <RevealCardGlow rarity={revealGlowRarity} />
+                        <div className="relative z-[2] h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
                           <FlippingSlabReveal
                             card={activePullCard}
                             revealRarity={revealRarity}
@@ -672,14 +678,9 @@ export function MobilePackOpeningView() {
                         </div>
                       </div>
                     ) : (
-                      <div className="relative flex h-full w-full items-center justify-center">
-                        <motion.div
-                          aria-hidden
-                          className="pointer-events-none absolute inset-[-12%] -z-10 rounded-[2rem] blur-3xl"
-                          style={{ background: getRevealGlowGradient(revealGlowRarity) }}
-                          animate={REVEAL_GLOW_PULSE}
-                          transition={REVEAL_GLOW_TRANSITION}
-                        />
+                      <div className="relative flex h-full w-full items-center justify-center overflow-visible">
+                        <RevealCardGlow rarity={revealGlowRarity} />
+                        <div className="relative z-[2] w-full">
                         <FlippingSlabReveal
                           card={activePullCard}
                           revealRarity={revealRarity}
@@ -690,6 +691,7 @@ export function MobilePackOpeningView() {
                             setSpinInProgress(false);
                           }}
                         />
+                        </div>
                       </div>
                     )}
                   </div>

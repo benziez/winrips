@@ -11,15 +11,9 @@ import { apiUrl } from "../utils/apiBaseUrl";
 
 export async function deleteAccount(accessToken: string): Promise<DeleteAccountResult> {
   const trimmedToken = accessToken.trim();
-  const requestUrl = apiUrl("/api/account/delete");
-  console.log("[deleteAccountApi] sending request", {
-    requestUrl,
-    hasToken: trimmedToken.length > 0,
-    tokenLength: trimmedToken.length,
-  });
 
   try {
-    const response = await fetch(requestUrl, {
+    const response = await fetch(apiUrl("/api/account/delete"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -29,24 +23,12 @@ export async function deleteAccount(accessToken: string): Promise<DeleteAccountR
     });
 
     const rawBody = await response.text();
-    console.log("[deleteAccountApi] response received", {
-      requestUrl,
-      status: response.status,
-      rawBody,
-    });
 
     let payload: { ok?: boolean; error?: string; code?: string } | null = null;
     if (rawBody.trim()) {
       try {
         payload = JSON.parse(rawBody) as { ok?: boolean; error?: string; code?: string };
-      } catch (error) {
-        console.error("[deleteAccountApi] failed to parse response JSON", {
-          requestUrl,
-          status: response.status,
-          rawBody,
-          error,
-        });
-      }
+      } catch {}
     }
 
     if (response.ok && payload?.ok !== false) {
@@ -59,11 +41,7 @@ export async function deleteAccount(accessToken: string): Promise<DeleteAccountR
       code: typeof payload?.code === "string" ? payload.code : undefined,
       error: payload?.error ?? "Account could not be deleted. Try again or contact support.",
     };
-  } catch (error) {
-    console.error("[deleteAccountApi] request failed", {
-      requestUrl,
-      error,
-    });
+  } catch {
     return {
       ok: false,
       status: 0,

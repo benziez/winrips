@@ -1,6 +1,7 @@
 import { useApp } from "../../context/AppContext";
 import { InfoPageView } from "../views/InfoPageView";
 import { PackOpeningView } from "../pack-opening/PackOpeningView";
+import { BackPill } from "./BackPill";
 import { DismissPill } from "./DismissPill";
 import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 import { VaultView } from "../../views/VaultView";
@@ -19,6 +20,11 @@ export function MobileAppContent() {
     return (
       <MobileErrorBoundary label="Page unavailable">
         <div className="relative flex h-full min-h-0 flex-col overflow-hidden bg-black">
+          <BackPill
+            onClick={closeInfoPage}
+            className="absolute left-6 z-20"
+            style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
+          />
           <DismissPill
             onClick={closeInfoPage}
             className="absolute right-6 z-20"

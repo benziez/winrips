@@ -20,6 +20,7 @@ export type AppView =
   | "battles"
   | "battle-arena"
   | "leaderboard"
+  | "showroom"
   | "rewards"
   | "marketplace"
   | "fairness"

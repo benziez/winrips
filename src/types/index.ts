@@ -22,6 +22,8 @@ export type AppView =
   | "leaderboard"
   | "showroom"
   | "account"
+  | "settings"
+  | "refer"
   | "rewards"
   | "marketplace"
   | "fairness"

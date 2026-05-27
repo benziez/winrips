@@ -1,5 +1,6 @@
 import { purchasePackProduct } from "./revenueCat";
 import { fulfillIapPackOpen } from "./iapFulfillApi";
+import { Capacitor } from "@capacitor/core";
 
 export interface NativePackPurchaseOutcome {
   ok: true;
@@ -24,6 +25,11 @@ export async function purchasePackForOpening(
   quantity: number,
   accessToken: string,
 ): Promise<NativePackPurchaseResult> {
+  // Dev-only IAP skip for simulator. Production hits real chain.
+  if (Capacitor.isNativePlatform() && import.meta.env.DEV) {
+    return { ok: true, transactionId: `dev-${packId}-${Date.now()}` };
+  }
+
   const purchase = await purchasePackProduct(packId, quantity);
   if (!purchase.ok) {
     return { ok: false, error: purchase.error, cancelled: purchase.cancelled };

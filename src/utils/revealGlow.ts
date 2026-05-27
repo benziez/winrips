@@ -2,6 +2,32 @@ import type { StoreRarity } from "../types/store";
 
 const STORE_TIERS: StoreRarity[] = ["Common", "Rare", "Epic", "Legendary", "Mythic"];
 
+/** Phase 3.5a — multi-revolution Y-spin timing (constant across tiers). */
+export const REVEAL_SPIN_DURATION_MS = 2_400;
+export const REVEAL_SPIN_DELAY_MS = 300;
+export const REVEAL_SPIN_EASE = [0.15, 0, 0.05, 1] as const;
+
+/** Phase 3.6 — slower spin for Legendary/Mythic buildup (capped at 5s). */
+export function getRevealSpinDuration(
+  _storeRarity: StoreRarity,
+  spinSpeedMultiplier: number,
+): number {
+  const multiplier = spinSpeedMultiplier > 0 ? spinSpeedMultiplier : 1;
+  return Math.min(REVEAL_SPIN_DURATION_MS / multiplier, 5_000);
+}
+
+/** Neutral gray card back before rarity lands (Phase 3.5b). */
+export const REVEAL_BACK_BASE = "#E8E5DF";
+
+/** Rarity destination colors at ~15% blend strength for back tint during spin. */
+const STORE_RARITY_BACK_TINT: Record<StoreRarity, string> = {
+  Common: REVEAL_BACK_BASE,
+  Rare: "#D8E4EF",
+  Epic: "#E9D5F5",
+  Legendary: "#EDE4C8",
+  Mythic: "#F0E6C8",
+};
+
 /** 5-tier reveal ambient colors — mirrors mobileTheme RARITY_GLOW_COLOR tokens. */
 export const STORE_RARITY_REVEAL_GLOW_COLOR: Record<StoreRarity, string> = {
   Common: "rgba(255, 255, 255, 0.08)",
@@ -70,6 +96,24 @@ export function normalizeStoreRarity(tier?: string | null): StoreRarity {
 
 export function getStoreRevealIntensity(tier?: string | null): StoreRevealIntensity {
   return STORE_REVEAL_INTENSITY[normalizeStoreRarity(tier)];
+}
+
+/**
+ * Total rotateY degrees for the slot-machine spin.
+ * Starts on back (0°), ends on front (180° + n×360°).
+ * Common: 4 revs, Rare: 5 revs, Epic/Legendary/Mythic: 6 revs.
+ */
+export function getRevealSpinDegrees(tier?: string | null): number {
+  const normalized = normalizeStoreRarity(tier);
+  const fullRevolutions = normalized === "Common" ? 4 : normalized === "Rare" ? 5 : 6;
+  return fullRevolutions * 360 + 180;
+}
+
+/** Landed front-face rotation (static complete state). */
+export const REVEAL_SPIN_FRONT_ROTATION = 180;
+
+export function getRevealBackTintTarget(tier?: string | null): string {
+  return STORE_RARITY_BACK_TINT[normalizeStoreRarity(tier)];
 }
 
 export function getStoreRevealGlowColor(tier?: string | null): string {

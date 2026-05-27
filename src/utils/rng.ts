@@ -5,6 +5,7 @@ import {
   findStaticPackById,
   getPackRollPool,
 } from "../data/boxCatalog";
+import { getPackDropTable } from "../data/packDropTables";
 import {
   cardPoolForCategory,
   getPackStoreItems,
@@ -270,6 +271,98 @@ export function buildCarouselStrip(
     } else {
       const filler = categoryFallback[secureRandomIndex(categoryFallback.length)];
       strip[i] = snapshotCard(filler);
+    }
+  }
+
+  return { strip, winnerItem };
+}
+
+function hashSeedString(seed: string): number {
+  let hash = 2_166_136_261;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return hash >>> 0;
+}
+
+function createSeededRng(seed: string): () => number {
+  let state = hashSeedString(seed) || 1;
+  return () => {
+    state |= 0;
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
+}
+
+function shuffleDeterministic<T>(items: readonly T[], seed: string): T[] {
+  const rng = createSeededRng(seed);
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = copy[i]!;
+    copy[i] = copy[j]!;
+    copy[j] = tmp;
+  }
+  return copy;
+}
+
+function buildDeterministicFillers(pool: Card[], count: number, seed: string): Card[] {
+  if (count <= 0) return [];
+  if (pool.length === 0) return [];
+
+  const shuffled = shuffleDeterministic(pool, seed);
+  if (shuffled.length >= count) {
+    return shuffled.slice(0, count);
+  }
+
+  const result: Card[] = [];
+  for (let i = 0; i < count; i += 1) {
+    result.push(shuffled[i % shuffled.length]!);
+  }
+  return result;
+}
+
+/**
+ * Mobile roulette tape — full drop table pool (deterministic order) + winner at center index.
+ */
+export function buildFullDropTableStrip(
+  winner: Card,
+  packId: string,
+  length: number = ROULETTE_TAPE_LENGTH,
+  winnerIndex: number = ROULETTE_WINNER_INDEX,
+): CarouselStripResult {
+  const winnerItem = resolveCardByItemId(packId, winner.id);
+  const dropTable = getPackDropTable(packId);
+  const seen = new Set<string>();
+  const pool: Card[] = [];
+
+  for (const entry of dropTable) {
+    const card = resolveCardByItemId(packId, entry.card.id);
+    if (card.id === winnerItem.id || seen.has(card.id)) continue;
+    seen.add(card.id);
+    pool.push(card);
+  }
+
+  const fillersNeeded = Math.max(0, length - 1);
+  const fillers = buildDeterministicFillers(
+    pool,
+    fillersNeeded,
+    `${packId}:${winnerItem.id}`,
+  );
+
+  const strip: Card[] = new Array(length);
+  let fillerIndex = 0;
+  for (let i = 0; i < length; i += 1) {
+    if (i === winnerIndex) {
+      strip[i] = winnerItem;
+    } else {
+      strip[i] =
+        fillers[fillerIndex] ??
+        winnerItem;
+      fillerIndex += 1;
     }
   }
 

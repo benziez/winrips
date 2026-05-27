@@ -1,6 +1,20 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { isNativeCapacitorApp } from "../utils/platform";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
+
+interface AppleSignInPlugin {
+  signIn(): Promise<{
+    identityToken?: string;
+    user?: string;
+    email?: string;
+    givenName?: string;
+    familyName?: string;
+    authorizationCode?: string;
+    cancelled?: boolean;
+  }>;
+}
+
+const AppleSignInNative = registerPlugin<AppleSignInPlugin>("AppleSignInPlugin");
 
 export async function signInWithApple(): Promise<{ error: string | null }> {
   if (!isSupabaseConfigured() || !supabase) {
@@ -9,21 +23,19 @@ export async function signInWithApple(): Promise<{ error: string | null }> {
 
   if (Capacitor.getPlatform() === "ios" && isNativeCapacitorApp()) {
     try {
-      const { SignInWithApple } = await import("@capacitor-community/apple-sign-in");
-      const result = await SignInWithApple.authorize({
-        clientId: "com.winrips.app",
-        redirectURI: "https://winrips.app/auth/apple",
-        scopes: "email name",
-      });
+      const result = await AppleSignInNative.signIn();
 
-      const identityToken = result.response?.identityToken;
-      if (!identityToken) {
+      if (result.cancelled) {
+        return { error: null };
+      }
+
+      if (!result.identityToken) {
         return { error: "Apple Sign In did not return a valid token." };
       }
 
       const { error } = await supabase.auth.signInWithIdToken({
         provider: "apple",
-        token: identityToken,
+        token: result.identityToken,
       });
 
       return { error: error?.message ?? null };
@@ -38,7 +50,6 @@ export async function signInWithApple(): Promise<{ error: string | null }> {
 
   const redirectTo =
     typeof window !== "undefined" ? `${window.location.origin}/` : undefined;
-
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: "apple",
     options: {

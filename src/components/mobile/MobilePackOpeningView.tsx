@@ -6,61 +6,51 @@ import { useAuth } from "../../context/AuthContext";
 import { recordPlayHistory } from "../../lib/playHistory";
 import { handleSpin } from "../../lib/spinLogic";
 import {
-  exchangeVaultItemInUi,
-  formatExchangeSuccessToast,
-} from "../../lib/exchangeLogic";
-import { rollMultipleWithRoll, resolveCardByItemId, type PackPullEntry } from "../../utils/rng";
+  buildFullDropTableStrip,
+  rollMultipleWithRoll,
+  resolveCardByItemId,
+  ROULETTE_WINNER_INDEX,
+  type PackPullEntry,
+} from "../../utils/rng";
 import { formatPackPriceUsd, formatUsd, gemsToUsd, RETAIL_COPY } from "../../constants/retail";
 import { isAppStoreCommerce } from "../../constants/commerce";
 import { purchasePackForOpening } from "../../lib/nativePackPurchase";
 import { PackCatalogImage } from "./PackCatalogImage";
-import { FlippingSlabReveal } from "./FlippingSlabReveal";
-import { MobileRevealPayoff } from "./MobileRevealPayoff";
-import { PackTearOverlay } from "./PackTearOverlay";
+import { UnboxingCarousel } from "../pack-opening/UnboxingCarousel";
 import { MobileWhatsInsideDrawer } from "./MobileWhatsInsideDrawer";
-import { hapticTabSelect } from "../../utils/mobileHaptics";
+import { hapticHeavyImpact, hapticSpinnerTick, hapticTabSelect } from "../../utils/mobileHaptics";
 import {
   buildPendingFairnessSession,
   commitFairnessSession,
   type FairnessSession,
 } from "../../utils/provablyFair";
-import { unlockSoundManager } from "../../lib/SoundManager";
 import { TransactionFailureModal } from "../pack-opening/TransactionFailureModal";
 import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
-import { isManualRipEnabled } from "../../lib/mobileRipPreferences";
 import { formatProbability, getPackDropTable } from "../../data/packDropTables";
-import {
-  buildRevealGlowPulse,
-  getStoreRevealGlowColor,
-  getStoreRevealIntensity,
-  revealGlowPulseTransition,
-} from "../../utils/revealGlow";
-import { getStoreRevealPayoff } from "../../utils/revealPayoff";
 import type { StoreRarity } from "../../types/store";
 import type { Card } from "../../types";
-import { usePackAudio } from "../../hooks/usePackAudio";
-import { useHapticRip } from "../../hooks/useHapticRip";
-import { useManualRip } from "../../hooks/useManualRip";
-import { useRipSequence, type RipSubPhase } from "../../hooks/useRipSequence";
-import {
-  BTN_GHOST_OUTLINE,
-  BTN_PRIMARY,
-  MOBILE_COLORS,
-  OBSIDIAN_GOLD,
-  PAGE_STACK_SPRING,
-} from "./mobileTheme";
+import { CollectibleImage } from "../ui/CollectibleImage";
+import { ChevronLeft, InfoIcon } from "../icons/AppIcons";
+import { MOBILE_COLORS, BTN_GHOST_OUTLINE, BTN_PRIMARY, PAGE_STACK_SPRING } from "./mobileTheme";
 import { MobileErrorBoundary } from "./MobileErrorBoundary";
 import { DismissPill } from "./DismissPill";
 import { GlassSurface } from "./GlassSurface";
+import { RipBottomSheet } from "./rip/RipBottomSheet";
 
-type RipPhase = "pre-rip" | "ripping" | "revealing" | "complete";
+type OpenPhase = "pre-rip" | "spinning" | "complete";
 
 const BUTTON_SPRING = { type: "spring" as const, stiffness: 500, damping: 26 };
+const SPINNER_EXIT_TRANSITION = { duration: 0.25 };
+const COMPLETE_ENTER_TRANSITION = { duration: 0.4, ease: "easeOut" as const, delay: 0.15 };
+const COMPLETE_EXIT_TRANSITION = { duration: 0.4, ease: "easeOut" as const };
+const MOBILE_SPIN_DURATION_MS = 6_500;
+const MOBILE_SPIN_LAND_BUFFER_MS = 250;
+const SPINNER_HAPTIC_INTERVAL_MS = 120;
+const MOBILE_SPIN_CARD_WIDTH = 160;
 
-/** Vertical-video card frame — shared by revealing + complete phases. */
-const REVEAL_CARD_FRAME_CLASS =
-  "reveal-card-frame relative mx-auto h-[min(72dvh,520px)] w-[min(85vw,400px)] shrink-0 overflow-visible";
+const COMPLETE_ACTION_BTN =
+  "flex h-12 flex-1 items-center justify-center rounded-full text-[15px] font-semibold transition-opacity active:opacity-80 disabled:opacity-30";
 
 function resolveStoreRarityForCard(
   card: Card | null | undefined,
@@ -70,26 +60,32 @@ function resolveStoreRarityForCard(
   return dropTable.find((entry) => entry.card.id === card.id)?.storeRarity ?? "Common";
 }
 
-function RevealCardGlow({ storeRarity }: { storeRarity: StoreRarity }) {
-  const intensity = getStoreRevealIntensity(storeRarity);
-  const pulse = buildRevealGlowPulse(intensity);
-  const glowSize =
-    storeRarity === "Mythic"
-      ? "h-[175%] w-[150%]"
-      : storeRarity === "Legendary"
-        ? "h-[155%] w-[130%]"
-        : storeRarity === "Epic"
-          ? "h-[140%] w-[120%]"
-          : "h-[130%] w-[115%]";
-
+function TrophyCardHero({ card }: { card: Card }) {
   return (
     <motion.div
-      aria-hidden
-      className={`pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 rounded-[2rem] blur-3xl ${glowSize}`}
-      style={{ backgroundColor: getStoreRevealGlowColor(storeRarity) }}
-      animate={pulse}
-      transition={revealGlowPulseTransition(intensity)}
-    />
+      animate={{ y: [0, -4, 0] }}
+      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+      className="relative w-[min(58vw,300px)]"
+    >
+      <div
+        aria-hidden
+        className="rip-trophy-halo pointer-events-none absolute left-1/2 top-1/2 z-0 h-[110%] w-[110%] -translate-x-1/2 -translate-y-1/2"
+      />
+      <div
+        className="pointer-events-none absolute -bottom-4 left-1/2 h-8 w-3/4 -translate-x-1/2 rounded-full bg-white/10 blur-2xl"
+        aria-hidden
+      />
+      <div className="relative z-[1]">
+        <CollectibleImage
+          src={card.image}
+          alt={card.name}
+          className="w-full object-contain"
+          priority
+          optimize={false}
+          forceShow
+        />
+      </div>
+    </motion.div>
   );
 }
 
@@ -124,7 +120,6 @@ export function MobilePackOpeningView() {
     userId,
     appendVaultPullFromSpin,
     setSpinInProgress,
-    applyVaultExchange,
     syncGemBalanceFromServer,
     markVaultItemPendingShipment,
   } = useApp();
@@ -132,33 +127,25 @@ export function MobilePackOpeningView() {
   const storeCommerce = isAppStoreCommerce();
   const isGuest = !userId;
 
-  const [phase, setPhase] = useState<RipPhase>("pre-rip");
-  const [ripSubPhase, setRipSubPhase] = useState<RipSubPhase>("shake");
-  const [tearProgress, setTearProgress] = useState(0);
+  const [phase, setPhase] = useState<OpenPhase>("pre-rip");
   const [isChargingSpin, setIsChargingSpin] = useState(false);
   const [pullQueue, setPullQueue] = useState<PackPullEntry[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const [pullVaultIds, setPullVaultIds] = useState<string[]>([]);
-  const [isExchanging, setIsExchanging] = useState(false);
   const [fairnessSession, setFairnessSession] = useState<FairnessSession | null>(null);
   const [transactionFailureOpen, setTransactionFailureOpen] = useState(false);
-  const [flipPlayKey, setFlipPlayKey] = useState(0);
   const [whatsInsideOpen, setWhatsInsideOpen] = useState(false);
-  const [revealRarity, setRevealRarity] = useState<string | undefined>(undefined);
   const [revealStoreRarity, setRevealStoreRarity] = useState<StoreRarity>("Common");
-  const [manualRipMode, setManualRipMode] = useState(false);
-  const [payoffBurstKey, setPayoffBurstKey] = useState(0);
-  const [revealShakeClass, setRevealShakeClass] = useState<string | null>(null);
+  const [carouselCards, setCarouselCards] = useState<Card[]>([]);
+  const [isCarouselSpinning, setIsCarouselSpinning] = useState(false);
+  const [spinKey, setSpinKey] = useState(0);
+  const [completeInfoOpen, setCompleteInfoOpen] = useState(false);
 
-  const pullQueueRef = useRef(pullQueue);
-  const queueIndexRef = useRef(queueIndex);
-  pullQueueRef.current = pullQueue;
-  queueIndexRef.current = queueIndex;
+  const spinLandTimerRef = useRef<number | null>(null);
+  const spinnerHapticIntervalRef = useRef<number | null>(null);
 
   const quantity = 1;
   const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
-  const haptics = useHapticRip();
-  const packAudio = usePackAudio();
   const activePullCard = useMemo(() => {
     if (!selectedPack) return null;
     const entry = pullQueue[queueIndex];
@@ -178,161 +165,93 @@ export function MobilePackOpeningView() {
 
   const stackPop = useCallback(() => {
     void hapticTabSelect();
-    haptics.stop();
-    packAudio.stopAll();
     if (window.history.length > 1) {
       navigate(-1);
     }
     goToLobby();
-  }, [goToLobby, haptics, navigate, packAudio]);
+  }, [goToLobby, navigate]);
 
-  const handleDismiss = useCallback(() => {
-    setSpinInProgress(false);
-    setShippingModalOpen(false);
-    stackPop();
-  }, [setShippingModalOpen, setSpinInProgress, stackPop]);
+  const clearCarouselSpin = useCallback(() => {
+    if (spinLandTimerRef.current != null) {
+      clearTimeout(spinLandTimerRef.current);
+      spinLandTimerRef.current = null;
+    }
+    if (spinnerHapticIntervalRef.current != null) {
+      clearInterval(spinnerHapticIntervalRef.current);
+      spinnerHapticIntervalRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => () => clearCarouselSpin(), [clearCarouselSpin]);
 
   const completeReveal = useCallback(() => {
     setPhase("complete");
     setSpinInProgress(false);
   }, [setSpinInProgress]);
 
-  const triggerRevealPayoff = useCallback(() => {
-    setPayoffBurstKey((key) => key + 1);
-  }, []);
-
-  const clearRevealPayoff = useCallback(() => {
-    setPayoffBurstKey(0);
-    setRevealShakeClass(null);
-  }, []);
-
-  const enterReveal = useCallback(() => {
-    haptics.stop();
-    packAudio.stopTensionAndBurst();
-    const entry = pullQueueRef.current[queueIndexRef.current];
-    const card =
-      entry && selectedPack ? resolveCardByItemId(selectedPack.id, entry.itemId) : null;
-    const dropEntry = card ? dropTable.find((row) => row.card.id === card.id) : undefined;
-    if (card) {
-      setRevealRarity(card.rarity);
-      setRevealStoreRarity(dropEntry?.storeRarity ?? "Common");
-    } else {
-      setRevealRarity(undefined);
-      setRevealStoreRarity("Common");
+  const landCarouselSpin = useCallback(() => {
+    clearCarouselSpin();
+    setIsCarouselSpinning(false);
+    void hapticHeavyImpact();
+    if (import.meta.env.DEV) {
+      console.log("[SpinnerHaptic] land");
     }
-    setFlipPlayKey((key) => key + 1);
-    setPhase("revealing");
-  }, [dropTable, haptics, packAudio, selectedPack]);
-
-  const handleSkipReveal = useCallback(() => {
-    void hapticTabSelect();
     completeReveal();
-  }, [completeReveal]);
+  }, [clearCarouselSpin, completeReveal]);
 
-  const { start: startAutoRip, cancel: cancelAutoRip } = useRipSequence({
-    onSubPhase: setRipSubPhase,
-    onTensionStart: () => {
-      void packAudio.startTensionFade();
-    },
-    onRevealTransition: () => {
-      setTearProgress(1);
-    },
-    onComplete: enterReveal,
-  });
+  const startCarouselSpin = useCallback(() => {
+    clearCarouselSpin();
+    setSpinKey((key) => key + 1);
+    setIsCarouselSpinning(true);
+    void hapticSpinnerTick();
+    spinnerHapticIntervalRef.current = window.setInterval(() => {
+      void hapticSpinnerTick();
+    }, SPINNER_HAPTIC_INTERVAL_MS);
+    spinLandTimerRef.current = window.setTimeout(() => {
+      landCarouselSpin();
+    }, MOBILE_SPIN_DURATION_MS + MOBILE_SPIN_LAND_BUFFER_MS);
+  }, [clearCarouselSpin, landCarouselSpin]);
 
-  const hapticsRef = useRef(haptics);
-  const packAudioRef = useRef(packAudio);
-  const cancelAutoRipRef = useRef(cancelAutoRip);
-  hapticsRef.current = haptics;
-  packAudioRef.current = packAudio;
-  cancelAutoRipRef.current = cancelAutoRip;
+  const handleDismiss = useCallback(() => {
+    clearCarouselSpin();
+    setIsCarouselSpinning(false);
+    setSpinInProgress(false);
+    setShippingModalOpen(false);
+    stackPop();
+  }, [clearCarouselSpin, setShippingModalOpen, setSpinInProgress, stackPop]);
 
-  const handleManualBurst = useCallback(() => {
-    if (phase !== "ripping") return;
-    haptics.burst();
-    packAudio.stopTensionAndBurst();
-    setRipSubPhase("transition");
-    setTearProgress(1);
-    window.setTimeout(() => enterReveal(), 450);
-  }, [enterReveal, haptics, packAudio, phase]);
-
-  const manualRip = useManualRip({
-    onBurst: handleManualBurst,
-    onProgress: (progress) => {
-      setTearProgress(progress);
-      setRipSubPhase(progress > 0.12 ? "tear" : "shake");
-      haptics.pulseForDrag(progress);
-      if (progress > 0.25 && progress < 0.85) {
-        void packAudio.startTensionFade();
-      }
-    },
-  });
+  const handleSkipSpinner = useCallback(() => {
+    void hapticTabSelect();
+    clearCarouselSpin();
+    setIsCarouselSpinning(false);
+    void hapticHeavyImpact();
+    completeReveal();
+  }, [clearCarouselSpin, completeReveal]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
-    setManualRipMode(isManualRipEnabled());
-    packAudioRef.current.preload();
     return () => {
       document.body.style.overflow = "";
-      cancelAutoRipRef.current();
-      hapticsRef.current.stop();
-      packAudioRef.current.stopAll();
+      clearCarouselSpin();
     };
-  }, []);
+  }, [clearCarouselSpin]);
 
   useEffect(() => {
     if (!selectedPack) return;
+    clearCarouselSpin();
     setPhase("pre-rip");
-    setRipSubPhase("shake");
-    setTearProgress(0);
     setPullQueue([]);
     setQueueIndex(0);
     setPullVaultIds([]);
-    setIsExchanging(false);
     setTransactionFailureOpen(false);
-    setFlipPlayKey(0);
     setWhatsInsideOpen(false);
-    setRevealRarity(undefined);
+    setCompleteInfoOpen(false);
     setRevealStoreRarity("Common");
-    clearRevealPayoff();
-    manualRip.reset();
+    setCarouselCards([]);
+    setIsCarouselSpinning(false);
+    setSpinKey(0);
     void buildPendingFairnessSession(selectedPack.id).then(setFairnessSession);
-  }, [selectedPack?.id, clearRevealPayoff]);
-
-  useEffect(() => {
-    clearRevealPayoff();
-  }, [flipPlayKey, clearRevealPayoff]);
-
-  useEffect(() => {
-    if (phase !== "revealing" && phase !== "complete") {
-      clearRevealPayoff();
-    }
-  }, [phase, clearRevealPayoff]);
-
-  useEffect(() => {
-    if (ripSubPhase === "tear" && phase === "ripping" && !manualRipMode) {
-      haptics.stop();
-    }
-  }, [haptics, manualRipMode, phase, ripSubPhase]);
-
-  useEffect(() => {
-    if (phase !== "ripping" || manualRipMode || ripSubPhase !== "tear") return;
-
-    const durationMs = 4_000;
-    const startedAt = performance.now();
-    let frame = 0;
-
-    const tick = () => {
-      const t = Math.min(1, (performance.now() - startedAt) / durationMs);
-      setTearProgress(0.22 + t * 0.72);
-      if (t < 1) {
-        frame = requestAnimationFrame(tick);
-      }
-    };
-
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [manualRipMode, phase, ripSubPhase]);
+  }, [clearCarouselSpin, selectedPack?.id]);
 
   const executeRip = useCallback(async (): Promise<RipResult> => {
     if (!selectedPack) return { ok: false };
@@ -354,7 +273,12 @@ export function MobilePackOpeningView() {
       if (!purchase.ok) {
         return { ok: false, cancelled: purchase.cancelled };
       }
-      await syncGemBalanceFromServer(userId);
+      try {
+        await syncGemBalanceFromServer(userId);
+      } catch (syncError) {
+        console.error("[OpenPack] syncGemBalanceFromServer threw", syncError);
+        throw syncError;
+      }
     }
 
     if (!isGuest && !storeCommerce && goldVolts < totalCost) {
@@ -427,7 +351,8 @@ export function MobilePackOpeningView() {
       }
 
       return { ok: true, entries: pullEntries, vaultIds };
-    } catch {
+    } catch (ripError) {
+      console.error("[OpenPack] executeRip failed", ripError);
       setTransactionFailureOpen(true);
       return { ok: false };
     }
@@ -448,48 +373,41 @@ export function MobilePackOpeningView() {
     syncGemBalanceFromServer,
   ]);
 
-  const beginRipSequence = useCallback(
+  const beginSpinSequence = useCallback(
     (entries: PackPullEntry[], vaultIds: string[]) => {
+      if (!selectedPack || entries.length === 0) return;
+
+      const firstCard = resolveCardByItemId(selectedPack.id, entries[0]!.itemId);
+      const { strip } = buildFullDropTableStrip(firstCard, selectedPack.id);
+
       setPullQueue(entries);
       setQueueIndex(0);
       setPullVaultIds(vaultIds);
-      const firstCard = resolveCardByItemId(selectedPack!.id, entries[0]!.itemId);
-      setRevealRarity(firstCard.rarity);
-      setRevealStoreRarity(
-        resolveStoreRarityForCard(firstCard, getPackDropTable(selectedPack!.id)),
-      );
-      setPhase("ripping");
-      setRipSubPhase("shake");
-      setTearProgress(0);
-      manualRip.reset();
-
-      if (manualRipMode) {
-        return;
-      }
-
-      haptics.startShakePulses();
-      startAutoRip();
+      setRevealStoreRarity(resolveStoreRarityForCard(firstCard, dropTable));
+      setCarouselCards(strip);
+      setPhase("spinning");
+      startCarouselSpin();
     },
-    [haptics, manualRip, manualRipMode, selectedPack, startAutoRip],
+    [dropTable, selectedPack, startCarouselSpin],
   );
 
   const handleOpenPack = useCallback(async () => {
     if (!selectedPack || phase !== "pre-rip" || isChargingSpin) return;
 
     void hapticTabSelect();
-    unlockSoundManager();
-    packAudio.preload();
+    // Spinner audio deferred — web uses SoundManager; mobile reveal is visual + haptics only.
     setIsChargingSpin(true);
 
     try {
       const result = await executeRip();
-
       if (!result.ok) {
         setSpinInProgress(false);
         return;
       }
-
-      beginRipSequence(result.entries, result.vaultIds);
+      beginSpinSequence(result.entries, result.vaultIds);
+    } catch (openPackError) {
+      console.error("[OpenPack] handleOpenPack failed", openPackError);
+      setSpinInProgress(false);
     } finally {
       setIsChargingSpin(false);
     }
@@ -498,19 +416,25 @@ export function MobilePackOpeningView() {
     phase,
     isChargingSpin,
     executeRip,
-    beginRipSequence,
-    packAudio,
+    beginSpinSequence,
     setSpinInProgress,
   ]);
 
   const finishReveal = useCallback(() => {
+    clearCarouselSpin();
+    setIsCarouselSpinning(false);
+
     if (queueIndex < pullQueue.length - 1 && selectedPack) {
-      setQueueIndex(queueIndex + 1);
-      setFlipPlayKey((key) => key + 1);
-      const next = resolveCardByItemId(selectedPack.id, pullQueue[queueIndex + 1]!.itemId);
-      setRevealRarity(next.rarity);
-      setRevealStoreRarity(resolveStoreRarityForCard(next, dropTable));
-      setPhase("revealing");
+      const nextIndex = queueIndex + 1;
+      const nextEntry = pullQueue[nextIndex]!;
+      const nextCard = resolveCardByItemId(selectedPack.id, nextEntry.itemId);
+      const { strip } = buildFullDropTableStrip(nextCard, selectedPack.id);
+
+      setQueueIndex(nextIndex);
+      setRevealStoreRarity(resolveStoreRarityForCard(nextCard, dropTable));
+      setCarouselCards(strip);
+      setPhase("spinning");
+      startCarouselSpin();
       return;
     }
 
@@ -520,54 +444,17 @@ export function MobilePackOpeningView() {
     setPhase("pre-rip");
     setShippingModalOpen(false);
     setSpinInProgress(false);
-    packAudio.stopAll();
     stackPop();
   }, [
+    clearCarouselSpin,
     pullQueue,
     queueIndex,
     selectedPack,
     setShippingModalOpen,
     setSpinInProgress,
-    packAudio,
     stackPop,
     dropTable,
-  ]);
-
-  const handleBurn = useCallback(async () => {
-    if (!activePullCard || isGuest || isExchanging) return;
-    const vaultItemId = pullVaultIds[queueIndex];
-    if (!vaultItemId) {
-      showCashoutToast("Unable to exchange this pull.");
-      return;
-    }
-    setIsExchanging(true);
-    try {
-      await exchangeVaultItemInUi(vaultItemId, {
-        removeVaultItem: (id, gemsAdded, serverGemsBalance) => {
-          applyVaultExchange(id, gemsAdded, serverGemsBalance);
-        },
-        syncGemBalance: userId ? () => syncGemBalanceFromServer(userId) : undefined,
-        closeModal: finishReveal,
-        toastError: showErrorToast,
-        toastSuccess: (gemsAdded) => {
-          showCashoutToast(formatExchangeSuccessToast(gemsAdded));
-        },
-      });
-    } finally {
-      setIsExchanging(false);
-    }
-  }, [
-    activePullCard,
-    isGuest,
-    isExchanging,
-    pullVaultIds,
-    queueIndex,
-    finishReveal,
-    showCashoutToast,
-    showErrorToast,
-    applyVaultExchange,
-    syncGemBalanceFromServer,
-    userId,
+    startCarouselSpin,
   ]);
 
   const handleSendToVault = useCallback(() => {
@@ -599,93 +486,84 @@ export function MobilePackOpeningView() {
         ? `Open Pack · ${formatPackPriceUsd(totalCost)}`
         : "Open Pack";
 
-  const showPack = phase === "pre-rip" || phase === "ripping";
-  const showCard = (phase === "revealing" || phase === "complete") && activePullCard;
-  const isRevealScreen = phase === "revealing" || phase === "complete";
-  const showTear =
-    phase === "ripping" && (ripSubPhase === "tear" || ripSubPhase === "transition" || manualRipMode);
-  const tearAmount =
-    manualRipMode && phase === "ripping"
-      ? manualRip.progress
-      : ripSubPhase === "transition"
-        ? 1
-        : ripSubPhase === "tear"
-          ? Math.max(tearProgress, 0.35)
-          : 0;
+  const showPack = phase === "pre-rip";
+  const showSpinner = phase === "spinning";
+  const showComplete = phase === "complete" && activePullCard;
 
   const bottomInset = { bottom: "max(1rem, env(safe-area-inset-bottom))" } as const;
-
-  const packShakeAnimate =
-    phase === "ripping" && ripSubPhase === "shake"
-      ? {
-          x: [-8, 10, -10, 12, -8, 8],
-          y: [6, -8, 10, -10, 6, -6],
-          rotate: [-3, 4, -4, 5, -3, 3],
-        }
-      : phase === "ripping" && ripSubPhase === "tear"
-        ? {
-            x: [-14, 16, -16, 18, -12, 14],
-            y: [10, -12, 14, -14, 10, -10],
-            rotate: [-5, 6, -6, 7, -5, 5],
-          }
-        : phase === "pre-rip"
-          ? { y: [0, -16, 0], rotate: [0, 0.8, 0, -0.8, 0] }
-          : undefined;
-
-  const packShakeTransition =
-    phase === "ripping"
-      ? { duration: 0.1, repeat: Infinity, ease: "linear" as const }
-      : phase === "pre-rip"
-        ? { duration: 4.2, repeat: Infinity, ease: "easeInOut" as const }
-        : undefined;
 
   return (
     <>
       <motion.div
-        className={`fixed inset-0 z-[100] flex flex-col overflow-hidden bg-black ${revealShakeClass ?? ""}`}
-        style={
-          revealShakeClass
-            ? {
-                animationDuration: `${getStoreRevealPayoff(revealStoreRarity).shakeDurationMs}ms`,
-              }
-            : undefined
-        }
+        className="rip-ambient-bg fixed inset-0 z-[100] flex flex-col overflow-hidden"
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={PAGE_STACK_SPRING}
       >
-        {(phase === "revealing" || phase === "complete") && payoffBurstKey > 0 ? (
-          <MobileRevealPayoff
-            burstKey={payoffBurstKey}
-            storeRarity={revealStoreRarity}
-            onShakeClassChange={setRevealShakeClass}
-            onFinished={clearRevealPayoff}
-          />
-        ) : null}
-        {phase === "ripping" && ripSubPhase === "transition" ? (
-          <div className="mobile-lens-flare pointer-events-none absolute inset-0 z-0" aria-hidden />
-        ) : null}
-
-        <DismissPill
-          onClick={handleDismiss}
-          className={`absolute right-6 z-50 transition-opacity duration-200 ${
-            phase === "revealing" ? "pointer-events-none opacity-0" : "opacity-100"
-          }`}
-          style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
-        />
-
-        {phase === "revealing" ? (
-          <button
-            type="button"
-            onClick={handleSkipReveal}
-            className="absolute left-6 top-[max(0.6rem,env(safe-area-inset-top))] z-50 rounded-full border border-white/15 bg-black/45 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/80 transition-colors active:scale-[0.97]"
+        {phase === "spinning" ? (
+          <header
+            className="relative z-50 flex shrink-0 items-center justify-between px-6 pb-3"
+            style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
           >
-            Skip
-          </button>
-        ) : null}
+            <p className="max-w-[55%] truncate text-[13px] font-medium uppercase tracking-wider text-[var(--rip-text-muted)]">
+              {displayName(selectedPack.name)}
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSkipSpinner}
+                className="text-[13px] font-medium tracking-wide text-[var(--rip-text-muted)] transition-opacity active:opacity-70"
+              >
+                Skip
+              </button>
+              <button
+                type="button"
+                onClick={handleDismiss}
+                aria-label="Close"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--rip-surface)] text-lg leading-none text-white"
+              >
+                ×
+              </button>
+            </div>
+          </header>
+        ) : phase === "complete" ? (
+          <header
+            className="relative z-50 flex shrink-0 items-center justify-between px-6 pb-3"
+            style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                void hapticTabSelect();
+                finishReveal();
+              }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--rip-surface)] text-white"
+              aria-label="Back"
+            >
+              <ChevronLeft size={22} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void hapticTabSelect();
+                setCompleteInfoOpen(true);
+              }}
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--rip-surface)] text-white"
+              aria-label="Card info"
+            >
+              <InfoIcon size={20} />
+            </button>
+          </header>
+        ) : (
+          <DismissPill
+            onClick={handleDismiss}
+            className="absolute right-6 z-50 opacity-100"
+            style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
+          />
+        )}
 
-        {!isRevealScreen ? (
+        {phase === "pre-rip" ? (
           <p
             className="pointer-events-none absolute inset-x-0 z-20 text-center text-[11px] font-medium tracking-[0.25em] uppercase text-[#A1A1AA]"
             style={{
@@ -700,8 +578,8 @@ export function MobilePackOpeningView() {
         <MobileErrorBoundary label="Pack opening failed">
           <div
             className={`relative z-10 flex min-h-0 flex-1 flex-col items-center p-0 ${
-              isRevealScreen ? "overflow-visible" : "overflow-hidden"
-            } ${phase === "complete" ? "" : "justify-center"}`}
+              showComplete ? "overflow-visible" : "overflow-hidden"
+            } ${showComplete ? "" : "justify-center"}`}
           >
             <AnimatePresence mode="wait">
               {showPack ? (
@@ -716,13 +594,12 @@ export function MobilePackOpeningView() {
                 >
                   <GlassSurface
                     variant="default"
-                    className="relative aspect-[3/4] w-[min(96vw,420px)] touch-none overflow-hidden rounded-2xl p-0"
-                    {...(manualRipMode && phase === "ripping" ? manualRip.handlers : {})}
+                    className="relative aspect-[3/4] w-[min(96vw,420px)] overflow-hidden rounded-2xl p-0"
                   >
                     <motion.div
                       className="relative h-full w-full"
-                      animate={packShakeAnimate}
-                      transition={packShakeTransition}
+                      animate={{ y: [0, -16, 0], rotate: [0, 0.8, 0, -0.8, 0] }}
+                      transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
                     >
                       <PackCatalogImage
                         packId={selectedPack.id}
@@ -730,152 +607,131 @@ export function MobilePackOpeningView() {
                         alt={selectedPack.name}
                         priority
                       />
-                      {showTear ? <PackTearOverlay progress={tearAmount} /> : null}
                     </motion.div>
                   </GlassSurface>
-                  {manualRipMode && phase === "ripping" ? (
-                    <p
-                      className="mt-6 text-center text-xs font-bold tracking-[0.3em] uppercase"
-                      style={{ color: MOBILE_COLORS.textMuted }}
-                    >
-                      Pull down to rip
-                    </p>
-                  ) : null}
                 </motion.div>
               ) : null}
 
-              {showCard ? (
+              {showSpinner ? (
                 <motion.div
-                  key={`card-${flipPlayKey}`}
-                  data-store-rarity={revealStoreRarity}
-                  className={
-                    phase === "complete"
-                      ? "flex min-h-0 w-full flex-1 flex-col items-center gap-4 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2"
-                      : "flex h-full w-full flex-col items-center justify-center overflow-visible"
-                  }
+                  key={`spin-${spinKey}`}
+                  className="flex min-h-0 w-full flex-1 flex-col justify-center px-0"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  transition={{ duration: 0.35 }}
+                  exit={{ opacity: 0 }}
+                  transition={SPINNER_EXIT_TRANSITION}
                 >
-                  <div
-                    className={
-                      phase === "complete"
-                        ? "relative flex min-h-0 w-full flex-1 items-center justify-center overflow-visible"
-                        : "relative flex h-full w-full flex-1 items-center justify-center overflow-visible"
-                    }
-                  >
-                    {phase === "complete" ? (
-                      <div className={REVEAL_CARD_FRAME_CLASS}>
-                        <RevealCardGlow storeRarity={revealStoreRarity} />
-                        <div className="relative z-[2] h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
-                          <FlippingSlabReveal
-                            card={activePullCard}
-                            revealRarity={revealRarity}
-                            storeRarity={revealStoreRarity}
-                            playFlip={false}
-                            immersive={false}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        className="relative flex h-full w-full items-start justify-center overflow-visible"
-                        style={{
-                          paddingTop:
-                            "calc(max(0.5rem, env(safe-area-inset-top)) + 6dvh)",
-                        }}
-                      >
-                        <div className={REVEAL_CARD_FRAME_CLASS}>
-                          <RevealCardGlow storeRarity={revealStoreRarity} />
-                          <div className="relative z-[2] h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
-                            <FlippingSlabReveal
-                              card={activePullCard}
-                              revealRarity={revealRarity}
-                              storeRarity={revealStoreRarity}
-                              playFlip
-                              immersive={false}
-                              onRevealPayoff={triggerRevealPayoff}
-                              onFlipComplete={completeReveal}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                  <div className="mobile-spinner-wrapper relative w-full max-w-full">
+                    <div
+                      className="pointer-events-none absolute inset-y-0 left-0 z-30 w-[8%] bg-gradient-to-r from-[var(--rip-bg-primary)] to-transparent"
+                      aria-hidden
+                    />
+                    <div
+                      className="pointer-events-none absolute inset-y-0 right-0 z-30 w-[8%] bg-gradient-to-l from-[var(--rip-bg-primary)] to-transparent"
+                      aria-hidden
+                    />
+                    <UnboxingCarousel
+                      cards={carouselCards}
+                      isSpinning={isCarouselSpinning}
+                      winnerIndex={ROULETTE_WINNER_INDEX}
+                      spinDurationMs={MOBILE_SPIN_DURATION_MS}
+                      cardWidth={MOBILE_SPIN_CARD_WIDTH}
+                      compactCards
+                      suppressEdgeFades
+                    />
+                  </div>
+                </motion.div>
+              ) : null}
+
+              {showComplete ? (
+                <motion.div
+                  key={`won-${queueIndex}-${activePullCard.id}`}
+                  data-store-rarity={revealStoreRarity}
+                  className="flex min-h-0 w-full flex-1 flex-col px-6"
+                  variants={{
+                    initial: { opacity: 0, scale: 0.92 },
+                    animate: {
+                      opacity: 1,
+                      scale: 1,
+                      transition: COMPLETE_ENTER_TRANSITION,
+                    },
+                    exit: {
+                      opacity: 0,
+                      scale: 0.92,
+                      transition: COMPLETE_EXIT_TRANSITION,
+                    },
+                  }}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                >
+                  <div className="flex min-h-0 flex-[0.65] flex-col items-center justify-center">
+                    <TrophyCardHero card={activePullCard} />
                   </div>
 
-                  {phase === "complete" ? (
-                    <>
-                      <motion.div
-                        className="flex w-full shrink-0 flex-col items-center gap-2 px-2 text-center"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={BUTTON_SPRING}
-                      >
-                        <p className="text-xl font-semibold text-white">{activePullCard.name}</p>
-                        <p
-                          className="text-lg font-semibold tabular-nums tracking-tight"
-                          style={{ color: OBSIDIAN_GOLD.bright }}
-                        >
-                          {formatUsd(gemsToUsd(activePullCard.value))}
-                        </p>
-                        {activeDropEntry ? (
-                          <p className="text-sm" style={{ color: MOBILE_COLORS.textMuted }}>
-                            {formatProbability(activeDropEntry.probability)} chance
-                          </p>
-                        ) : null}
-                      </motion.div>
+                  <motion.div
+                    className="mt-8 shrink-0 text-center"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={BUTTON_SPRING}
+                  >
+                    <p className="text-[24px] font-semibold text-white">{activePullCard.name}</p>
+                    <p className="rip-glow-price-green mt-1 text-[32px] font-bold tabular-nums text-[var(--rip-green-bright)]">
+                      {formatUsd(gemsToUsd(activePullCard.value))}
+                    </p>
+                    {activeDropEntry ? (
+                      <p className="mt-1 text-[13px] text-[var(--rip-text-muted)]">
+                        {formatProbability(activeDropEntry.probability)} chance
+                      </p>
+                    ) : null}
+                  </motion.div>
 
-                      <motion.div
-                        className="flex w-full shrink-0 flex-col gap-3"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={BUTTON_SPRING}
+                  <motion.div
+                    className="mt-auto w-full shrink-0 pt-8"
+                    style={bottomInset}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={BUTTON_SPRING}
+                  >
+                    {isGuest ? (
+                      <button
+                        type="button"
+                        onClick={finishReveal}
+                        className={`${COMPLETE_ACTION_BTN} w-full bg-[var(--rip-orange)] text-white active:bg-[var(--rip-orange-pressed)]`}
                       >
-                        {!isGuest ? (
-                          <GlassSurface
-                            variant="default"
-                            className="flex justify-center gap-2 rounded-2xl px-2 py-2"
-                          >
-                            {(
-                              [
-                                ...(storeCommerce
-                                  ? []
-                                  : ([
-                                      [
-                                        "Exchange",
-                                        () => void handleBurn(),
-                                        isExchanging || !activeVaultItemId,
-                                      ],
-                                    ] as const)),
-                                ["Vault", handleSendToVault, isExchanging],
-                                ["Ship", handleShip, isExchanging || !activeVaultItemId],
-                              ] as const
-                            ).map(([label, onClick, disabled]) => (
-                              <button
-                                key={label}
-                                type="button"
-                                onClick={onClick}
-                                disabled={disabled}
-                                className={`${BTN_GHOST_OUTLINE} !py-2 !text-xs disabled:opacity-30`}
-                              >
-                                {label}
-                              </button>
-                            ))}
-                          </GlassSurface>
-                        ) : null}
+                        {pullQueue.length > 1 && queueIndex < pullQueue.length - 1
+                          ? "Next Pull"
+                          : "Done"}
+                      </button>
+                    ) : (
+                      <div className="flex w-full gap-3">
+                        <button
+                          type="button"
+                          onClick={handleSendToVault}
+                          className={`${COMPLETE_ACTION_BTN} bg-[var(--rip-surface)] text-white`}
+                        >
+                          Vault
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleShip}
+                          disabled={!activeVaultItemId}
+                          className={`${COMPLETE_ACTION_BTN} bg-[var(--rip-surface)] text-white`}
+                        >
+                          Ship
+                        </button>
                         <button
                           type="button"
                           onClick={finishReveal}
-                          disabled={isExchanging}
-                          className={BTN_PRIMARY}
+                          className={`${COMPLETE_ACTION_BTN} bg-[var(--rip-orange)] text-white active:bg-[var(--rip-orange-pressed)]`}
                         >
                           {pullQueue.length > 1 && queueIndex < pullQueue.length - 1
                             ? "Next Pull"
                             : "Done"}
                         </button>
-                      </motion.div>
-                    </>
-                  ) : null}
+                      </div>
+                    )}
+                  </motion.div>
                 </motion.div>
               ) : null}
             </AnimatePresence>
@@ -914,23 +770,6 @@ export function MobilePackOpeningView() {
               </motion.button>
             </motion.div>
           ) : null}
-
-          {phase === "ripping" && !manualRipMode ? (
-            <motion.p
-              key="ripping-status"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="fixed inset-x-0 z-40 text-center text-xs font-bold tracking-[0.35em] uppercase"
-              style={{ ...bottomInset, color: OBSIDIAN_GOLD.bright }}
-            >
-              {ripSubPhase === "shake"
-                ? "Ripping…"
-                : ripSubPhase === "tear"
-                  ? "Tearing…"
-                  : "Revealing…"}
-            </motion.p>
-          ) : null}
-
         </AnimatePresence>
       </motion.div>
 
@@ -960,6 +799,28 @@ export function MobilePackOpeningView() {
       {transactionFailureOpen ? (
         <TransactionFailureModal onClose={() => setTransactionFailureOpen(false)} />
       ) : null}
+
+      <RipBottomSheet open={completeInfoOpen} onClose={() => setCompleteInfoOpen(false)} heightClass="h-auto max-h-[50dvh]">
+        {activePullCard ? (
+          <div className="px-6 pb-8 pt-14">
+            <h3 className="text-xl font-bold text-white">Card details</h3>
+            <dl className="mt-4 space-y-3 text-[15px]">
+              <div>
+                <dt className="text-[var(--rip-text-muted)]">Name</dt>
+                <dd className="text-white">{activePullCard.name}</dd>
+              </div>
+              <div>
+                <dt className="text-[var(--rip-text-muted)]">Rarity</dt>
+                <dd className="text-white">{activePullCard.rarity}</dd>
+              </div>
+              <div>
+                <dt className="text-[var(--rip-text-muted)]">Fair market value</dt>
+                <dd className="text-white">{formatUsd(gemsToUsd(activePullCard.value))}</dd>
+              </div>
+            </dl>
+          </div>
+        ) : null}
+      </RipBottomSheet>
     </>
   );
 }

@@ -10,7 +10,11 @@ import { RewardsView } from "../views/RewardsView";
 import { MobileLobbyView } from "./MobileLobbyView";
 import { MobileShowroomView } from "./MobileShowroomView";
 import { MobileAccountView } from "./MobileAccountView";
+import { MobileCollectionView } from "./MobileCollectionView";
+import { MobileSettingsView } from "./MobileSettingsView";
+import { MobileReferView } from "./MobileReferView";
 import { MobileErrorBoundary } from "./MobileErrorBoundary";
+import { isNativeCapacitorApp } from "../../utils/platform";
 
 /** Mobile-only routes — no web hero, sidebar, footer, or live feed. */
 export function MobileAppContent() {
@@ -53,6 +57,13 @@ export function MobileAppContent() {
       );
     case "vault":
     case "inventory":
+      if (isNativeCapacitorApp()) {
+        return (
+          <MobileErrorBoundary label="Collection unavailable">
+            <MobileCollectionView />
+          </MobileErrorBoundary>
+        );
+      }
       return (
         <MobileErrorBoundary label="Vault unavailable">
           <div className="flex h-full min-h-0 flex-col overflow-hidden bg-black">
@@ -80,6 +91,18 @@ export function MobileAppContent() {
       return (
         <MobileErrorBoundary label="Account unavailable">
           <MobileAccountView />
+        </MobileErrorBoundary>
+      );
+    case "settings":
+      return (
+        <MobileErrorBoundary label="Settings unavailable">
+          <MobileSettingsView />
+        </MobileErrorBoundary>
+      );
+    case "refer":
+      return (
+        <MobileErrorBoundary label="Refer unavailable">
+          <MobileReferView />
         </MobileErrorBoundary>
       );
     case "rewards":

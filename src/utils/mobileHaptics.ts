@@ -12,6 +12,33 @@ export async function hapticTabSelect(): Promise<void> {
   }
 }
 
+/** Medium impact for primary CTAs (buy, confirm). */
+export async function hapticMediumImpact(): Promise<void> {
+  if (Capacitor.getPlatform() === "web") return;
+
+  try {
+    const { Haptics, ImpactStyle } = await import("@capacitor/haptics");
+    await Haptics.impact({ style: ImpactStyle.Medium });
+  } catch {
+    /* Haptics unavailable */
+  }
+}
+
+/** Light impact for spinner needle ticks (mobile roulette). */
+export async function hapticSpinnerTick(): Promise<void> {
+  if (Capacitor.getPlatform() === "web") return;
+
+  try {
+    const { Haptics, ImpactStyle } = await import("@capacitor/haptics");
+    await Haptics.impact({ style: ImpactStyle.Light });
+    if (import.meta.env.DEV) {
+      console.log("[SpinnerHaptic] tick");
+    }
+  } catch {
+    /* Haptics unavailable */
+  }
+}
+
 /** Heavy impact for pack rip moments. */
 export async function hapticHeavyImpact(): Promise<void> {
   if (Capacitor.getPlatform() === "web") return;

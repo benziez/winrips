@@ -1,6 +1,6 @@
-import { MobileCatalogLobby } from "./MobileCatalogLobby";
+import { MobileRipLobby } from "./MobileRipLobby";
 
-/** App-first premium pack catalog (hero cards, What's inside modal). */
+/** Pack browse lobby — carousel, stats, buy CTA. */
 export function MobileLobbyView() {
-  return <MobileCatalogLobby />;
+  return <MobileRipLobby />;
 }

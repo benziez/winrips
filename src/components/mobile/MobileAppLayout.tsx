@@ -20,7 +20,7 @@ import { MOBILE_COLORS } from "./mobileTheme";
 import { shouldSuppressMobileGemToast } from "../../utils/mobileGemUi";
 import type { AppView } from "../../types";
 
-const IMMERSIVE_VIEWS: AppView[] = ["pack-open"];
+const IMMERSIVE_VIEWS: AppView[] = ["pack-open", "settings"];
 
 function MobileToast() {
   const { cashoutToast, toastVariant, clearCashoutToast } = useApp();

@@ -211,6 +211,133 @@ export function ZapIcon(props: IconProps) {
   );
 }
 
+/** Stacked cards — dock Packs tab */
+export function PacksIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20" />
+      <path d="M8 11h8" />
+      <path d="M8 7h6" />
+    </Icon>
+  );
+}
+
+/** Storefront — dock Showroom tab */
+export function ShowroomIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <path d="M10 22v-6h4v6" />
+      <path d="M2 7h20" />
+      <path d="M12 7v3" />
+    </Icon>
+  );
+}
+
+/** 2×2 grid — dock Collection tab */
+export function CollectionIcon(props: IconProps) {
+  return <GridIcon {...props} />;
+}
+
+export function ReferIcon(props: IconProps) {
+  return <GiftIcon {...props} />;
+}
+
+export function AccountIcon(props: IconProps) {
+  return <UserCircleIcon {...props} />;
+}
+
+export function PrismGlyph(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M12 2 4 8.5v7L12 22l8-6.5v-7L12 2z" />
+      <path d="M12 2v20" />
+      <path d="M4 8.5h16" />
+    </Icon>
+  );
+}
+
+export function ChevronRight(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="m9 18 6-6-6-6" />
+    </Icon>
+  );
+}
+
+export function EyeIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+      <circle cx="12" cy="12" r="3" />
+    </Icon>
+  );
+}
+
+export function ArrowRightIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </Icon>
+  );
+}
+
+export function XIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </Icon>
+  );
+}
+
+export function InfoIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </Icon>
+  );
+}
+
+export function CheckIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M20 6 9 17l-5-5" />
+    </Icon>
+  );
+}
+
+export function BackspaceIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z" />
+      <path d="m18 9-6 6" />
+      <path d="m12 9 6 6" />
+    </Icon>
+  );
+}
+
+export function ListViewIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M3 6h.01" />
+      <path d="M3 12h.01" />
+      <path d="M3 18h.01" />
+    </Icon>
+  );
+}
+
+export function GridViewIcon(props: IconProps) {
+  return <CollectionIcon {...props} />;
+}
+
 export type NavIconName =
   | "package"
   | "swords"

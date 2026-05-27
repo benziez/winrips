@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WinRips</string>
+    <string name="title_activity_main">WinRips</string>
+    <string name="package_name">com.winrips.app</string>
+    <string name="custom_url_scheme">com.winrips.app</string>
+</resources>

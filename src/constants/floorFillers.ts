@@ -3,7 +3,7 @@ import type { StoreItem } from "../types/store";
 import { POKEMON_FLOOR_CARD_ART } from "./pokemonFloorCards";
 import { SPORTS_PLACEHOLDER_IMAGE } from "./sportsAssets";
 
-const YUGIOH_FLOOR_IMAGE = "/images/yugioh-card-back.svg";
+const YUGIOH_FLOOR_IMAGE = "images/yugioh-card-back.svg";
 
 const FLOOR_NAME_TEMPLATES: Record<PackCategory, readonly string[]> = {
   pokemon: POKEMON_FLOOR_CARD_ART.map((card) => card.name),

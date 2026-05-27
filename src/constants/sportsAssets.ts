@@ -1,5 +1,5 @@
 /** Local sports card back — never hotlink Pokémon CDN for NBA/NFL/MLB. */
-export const SPORTS_PLACEHOLDER_IMAGE = "/images/sports-placeholder.png";
+export const SPORTS_PLACEHOLDER_IMAGE = "images/sports-placeholder.png";
 
 /** Grey luxury card-back used when sports imagery fails to load. */
 export const SPORTS_CARD_BACK_FALLBACK = "/card-back.svg";

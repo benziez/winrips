@@ -1,4 +1,5 @@
 const CLIENT_SEED_KEY = "winrips.clientSeed";
+const LOCAL_SERVER_SEED_KEY_PREFIX = "winrips.localServerSeed";
 
 export interface FairnessSession {
   packId: string;
@@ -6,8 +7,15 @@ export interface FairnessSession {
   packName?: string;
   clientSeed: string;
   nonce: number;
-  /** HMAC-SHA512 commitment shown before and after the roll. */
+  /** SHA-256 hash shown before the roll. */
+  serverSeedHash: string;
+  /** Revealed after the roll for user verification. */
+  serverSeed?: string;
+  /** SHA-512 proof hash combining seed + roll inputs. */
+  proofHash?: string;
+  /** Backwards-compatible alias used by existing UI surfaces. */
   commitmentHash: string;
+  sessionId?: string;
   rolledNumber?: number;
 }
 
@@ -15,6 +23,28 @@ function toHex(buffer: ArrayBuffer): string {
   return Array.from(new Uint8Array(buffer))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function randomHex(bytes = 32): string {
+  const data = new Uint8Array(bytes);
+  crypto.getRandomValues(data);
+  return Array.from(data)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function shaHex(algorithm: "SHA-256" | "SHA-512", input: string): Promise<string> {
+  const encoded = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest(algorithm, encoded);
+  return toHex(digest);
+}
+
+async function sha256Hex(input: string): Promise<string> {
+  return shaHex("SHA-256", input);
+}
+
+async function sha512Hex(input: string): Promise<string> {
+  return shaHex("SHA-512", input);
 }
 
 export function getOrCreateClientSeed(): string {
@@ -60,73 +90,167 @@ function incrementSessionNonce(packId: string): number {
   return next;
 }
 
-function serverSeedForSession(packId: string, nonce: number): string {
-  return `winrips_srv_${packId}_${nonce}`;
+function localServerSeedStorageKey(packId: string, nonce: number): string {
+  return `${LOCAL_SERVER_SEED_KEY_PREFIX}.${packId}.${nonce}`;
 }
 
-export async function computeFairnessCommitment(input: {
+function cacheLocalServerSeed(packId: string, nonce: number, seed: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(localServerSeedStorageKey(packId, nonce), seed);
+  } catch {
+    /* ignore */
+  }
+}
+
+function consumeLocalServerSeed(packId: string, nonce: number): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const key = localServerSeedStorageKey(packId, nonce);
+  try {
+    const value = window.sessionStorage.getItem(key) ?? undefined;
+    window.sessionStorage.removeItem(key);
+    return value?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function computeProofHash(input: {
+  serverSeed: string;
   packId: string;
   clientSeed: string;
   nonce: number;
   rolledNumber?: number;
 }): Promise<string> {
-  const serverSeed = serverSeedForSession(input.packId, input.nonce);
   const payload = [
-    serverSeed,
+    input.serverSeed,
     input.clientSeed,
     String(input.nonce),
     input.packId,
     input.rolledNumber != null ? input.rolledNumber.toFixed(6) : "pending",
   ].join(":");
+  return sha512Hex(payload);
+}
 
-  const encoder = new TextEncoder();
-  const keyMaterial = encoder.encode(serverSeed);
-  const key = await crypto.subtle.importKey(
-    "raw",
-    keyMaterial,
-    { name: "HMAC", hash: "SHA-512" },
-    false,
-    ["sign"],
-  );
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(payload));
-  return toHex(signature);
+interface CreateFairnessSessionResponse {
+  sessionId: string;
+  serverSeedHash: string;
+}
+
+interface RevealFairnessSessionResponse {
+  serverSeed: string;
+}
+
+async function createServerSession(
+  packId: string,
+): Promise<{ sessionId: string; serverSeedHash: string } | null> {
+  if (typeof window === "undefined") return null;
+  const response = await fetch("/api/fairness/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "create", packId }),
+  });
+  if (!response.ok) return null;
+  const payload = (await response.json()) as Partial<CreateFairnessSessionResponse>;
+  if (typeof payload.sessionId !== "string" || typeof payload.serverSeedHash !== "string") {
+    return null;
+  }
+  return {
+    sessionId: payload.sessionId,
+    serverSeedHash: payload.serverSeedHash,
+  };
+}
+
+async function revealServerSeed(
+  sessionId: string,
+): Promise<{ serverSeed: string } | null> {
+  if (typeof window === "undefined") return null;
+  const response = await fetch("/api/fairness/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "reveal", sessionId }),
+  });
+  if (!response.ok) return null;
+  const payload = (await response.json()) as Partial<RevealFairnessSessionResponse>;
+  if (typeof payload.serverSeed !== "string" || !payload.serverSeed.trim()) return null;
+  return { serverSeed: payload.serverSeed.trim() };
 }
 
 export async function buildPendingFairnessSession(packId: string): Promise<FairnessSession> {
   const clientSeed = getOrCreateClientSeed();
   const nonce = readSessionNonce(packId) + 1;
-  const commitmentHash = await computeFairnessCommitment({
-    packId,
-    clientSeed,
-    nonce,
-  });
+  const remote = await createServerSession(packId).catch(() => null);
+  if (remote) {
+    return {
+      packId,
+      clientSeed,
+      nonce,
+      sessionId: remote.sessionId,
+      serverSeedHash: remote.serverSeedHash,
+      commitmentHash: remote.serverSeedHash,
+    };
+  }
 
+  const localServerSeed = randomHex(32);
+  cacheLocalServerSeed(packId, nonce, localServerSeed);
+  const serverSeedHash = await sha256Hex(localServerSeed);
   return {
     packId,
     clientSeed,
     nonce,
-    commitmentHash,
+    serverSeedHash,
+    commitmentHash: serverSeedHash,
   };
 }
 
 export async function commitFairnessSession(
   packId: string,
   rolledNumber: number,
+  pendingSession?: FairnessSession | null,
 ): Promise<FairnessSession> {
   const clientSeed = getOrCreateClientSeed();
   const nonce = incrementSessionNonce(packId);
-  const commitmentHash = await computeFairnessCommitment({
+
+  let serverSeed: string | undefined;
+  let serverSeedHash: string | undefined;
+  let sessionId: string | undefined;
+
+  if (pendingSession?.packId === packId && pendingSession.nonce === nonce) {
+    sessionId = pendingSession.sessionId;
+    serverSeedHash = pendingSession.serverSeedHash;
+  }
+
+  if (sessionId) {
+    const revealed = await revealServerSeed(sessionId).catch(() => null);
+    serverSeed = revealed?.serverSeed;
+  }
+
+  if (!serverSeed) {
+    serverSeed = consumeLocalServerSeed(packId, nonce);
+  }
+
+  if (!serverSeed) {
+    serverSeed = randomHex(32);
+  }
+
+  const resolvedServerSeedHash = serverSeedHash ?? (await sha256Hex(serverSeed));
+  const proofHash = await computeProofHash({
+    serverSeed,
     packId,
     clientSeed,
     nonce,
-    rolledNumber,
+    rolledNumber: Math.max(0, rolledNumber),
   });
 
   return {
     packId,
     clientSeed,
     nonce,
-    commitmentHash,
+    serverSeed,
+    serverSeedHash: resolvedServerSeedHash,
+    proofHash,
+    commitmentHash: resolvedServerSeedHash,
+    sessionId,
     rolledNumber,
   };
 }
@@ -139,7 +263,10 @@ export async function buildHistoryAuditSession(input: {
 }): Promise<FairnessSession> {
   const clientSeed = getOrCreateClientSeed();
   const packId = `history:${input.entryId}`;
-  const commitmentHash = await computeFairnessCommitment({
+  const derivedServerSeed = `history_seed_${input.entryId}`;
+  const serverSeedHash = await sha256Hex(derivedServerSeed);
+  const proofHash = await computeProofHash({
+    serverSeed: derivedServerSeed,
     packId,
     clientSeed,
     nonce: Math.round(input.rolledNumber * 1000),
@@ -151,7 +278,9 @@ export async function buildHistoryAuditSession(input: {
     packName: input.packName,
     clientSeed,
     nonce: Math.round(input.rolledNumber * 1000),
-    commitmentHash,
+    serverSeedHash,
+    proofHash,
+    commitmentHash: serverSeedHash,
     rolledNumber: input.rolledNumber,
   };
 }

@@ -32,8 +32,6 @@ interface BoxesCatalogContextValue {
 
 const BoxesCatalogContext = createContext<BoxesCatalogContextValue | null>(null);
 
-initBoxCatalogFallback(LOBBY_PACK_CATALOG);
-
 function buildStoreItemsMap(
   catalog: CatalogPack[],
   remoteItems?: Record<string, StoreItem[]>,
@@ -57,7 +55,10 @@ function catalogsEqual(a: CatalogPack[], b: CatalogPack[]): boolean {
 }
 
 export function BoxesCatalogProvider({ children }: { children: ReactNode }) {
-  const [packs, setPacks] = useState<CatalogPack[]>(() => getLobbyPackCatalog());
+  const [packs, setPacks] = useState<CatalogPack[]>(() => {
+    initBoxCatalogFallback(LOBBY_PACK_CATALOG);
+    return getLobbyPackCatalog();
+  });
   const [storeItemsByPackId, setStoreItemsByPackId] = useState<Record<string, StoreItem[]>>(
     {},
   );
@@ -111,6 +112,7 @@ export function BoxesCatalogProvider({ children }: { children: ReactNode }) {
       });
 
       setUsingRemote(remote);
+
     },
     [],
   );

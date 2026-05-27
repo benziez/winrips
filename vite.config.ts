@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
   resolve: {
     dedupe: ["react", "react-dom"],
     alias: {
+      "@": path.join(root, "src"),
       react: path.join(root, "node_modules/react"),
       "react-dom": path.join(root, "node_modules/react-dom"),
     },
@@ -24,6 +25,7 @@ export default defineConfig(({ mode }) => {
     include: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime"],
   },
   server: {
+    host: "0.0.0.0",
     port: 4444,
     open: false,
     fs: {

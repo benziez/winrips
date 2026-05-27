@@ -14,14 +14,31 @@ function formatRollPercent(rolledNumber?: number): string | null {
   return `${rolledNumber.toFixed(3)}%`;
 }
 
+function buildVerificationPayload(session: FairnessSession): string | null {
+  if (session.serverSeed == null || session.rolledNumber == null) return null;
+  return JSON.stringify(
+    {
+      serverSeed: session.serverSeed,
+      clientSeed: session.clientSeed,
+      nonce: session.nonce,
+      packId: session.packId,
+      roll: session.rolledNumber,
+    },
+    null,
+    2,
+  );
+}
+
 export function FairnessVerifyModal({
   session,
   packLabel,
   onClose,
   onVerify,
 }: FairnessVerifyModalProps) {
-  const [copied, setCopied] = useState(false);
+  const [hashCopied, setHashCopied] = useState(false);
+  const [payloadCopied, setPayloadCopied] = useState(false);
   const rollLabel = formatRollPercent(session.rolledNumber);
+  const canCopyPayload = buildVerificationPayload(session) != null;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -32,17 +49,34 @@ export function FairnessVerifyModal({
   }, [onClose]);
 
   useEffect(() => {
-    if (!copied) return;
-    const timer = window.setTimeout(() => setCopied(false), 2000);
+    if (!hashCopied) return;
+    const timer = window.setTimeout(() => setHashCopied(false), 2000);
     return () => window.clearTimeout(timer);
-  }, [copied]);
+  }, [hashCopied]);
+
+  useEffect(() => {
+    if (!payloadCopied) return;
+    const timer = window.setTimeout(() => setPayloadCopied(false), 2000);
+    return () => window.clearTimeout(timer);
+  }, [payloadCopied]);
 
   async function copyHash() {
     try {
-      await navigator.clipboard.writeText(session.commitmentHash);
-      setCopied(true);
+      await navigator.clipboard.writeText(session.serverSeedHash);
+      setHashCopied(true);
     } catch {
-      setCopied(false);
+      setHashCopied(false);
+    }
+  }
+
+  async function copyVerificationPayload() {
+    const payload = buildVerificationPayload(session);
+    if (!payload) return;
+    try {
+      await navigator.clipboard.writeText(payload);
+      setPayloadCopied(true);
+    } catch {
+      setPayloadCopied(false);
     }
   }
 
@@ -85,26 +119,48 @@ export function FairnessVerifyModal({
         <div className="space-y-4 px-5 py-4">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted">
-              Commitment Hash
+              Server Seed Hash (Pre-Commit)
             </p>
             <code className="mt-1.5 block max-h-24 overflow-y-auto rounded-lg border border-border bg-obsidian px-3 py-2.5 font-mono text-[11px] leading-relaxed text-cyan break-all select-all">
-              {session.commitmentHash}
+              {session.serverSeedHash}
             </code>
             <button
               type="button"
               onClick={() => void copyHash()}
               className="mt-2 text-[10px] font-bold uppercase tracking-wider text-muted transition-colors hover:text-white"
             >
-              {copied ? "Copied" : "Copy hash"}
+              {hashCopied ? "Copied" : "Copy hash"}
             </button>
           </div>
 
           {rollLabel ? (
-            <div className="flex items-center justify-between rounded-lg border border-border/60 bg-slate-elevated/40 px-3 py-2.5">
-              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
-                Roll result
-              </span>
-              <span className="font-mono text-sm tabular-nums text-white">{rollLabel}</span>
+            <div className="space-y-2 rounded-lg border border-border/60 bg-slate-elevated/40 px-3 py-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
+                  Roll result
+                </span>
+                <span className="font-mono text-sm tabular-nums text-white">{rollLabel}</span>
+              </div>
+              {session.serverSeed ? (
+                <>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
+                    Revealed Server Seed
+                  </p>
+                  <code className="block max-h-20 overflow-y-auto rounded border border-border bg-obsidian px-2 py-1.5 font-mono text-[10px] leading-relaxed text-fuchsia break-all select-all">
+                    {session.serverSeed}
+                  </code>
+                </>
+              ) : null}
+              {session.proofHash ? (
+                <>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted">
+                    Proof Hash
+                  </p>
+                  <code className="block max-h-20 overflow-y-auto rounded border border-border bg-obsidian px-2 py-1.5 font-mono text-[10px] leading-relaxed text-cyan break-all select-all">
+                    {session.proofHash}
+                  </code>
+                </>
+              ) : null}
             </div>
           ) : (
             <p className="text-xs leading-relaxed text-muted">
@@ -112,6 +168,20 @@ export function FairnessVerifyModal({
               record for independent verification.
             </p>
           )}
+
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => void copyVerificationPayload()}
+              disabled={!canCopyPayload}
+              className="w-full rounded-lg border border-fuchsia-500/50 bg-slate-800 px-4 py-2.5 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {payloadCopied ? "Payload Copied" : "Copy Verification Payload"}
+            </button>
+            <p className="text-center text-[11px] leading-relaxed text-muted">
+              Copy this data to verify your result in any external provably fair calculator.
+            </p>
+          </div>
 
           <button
             type="button"

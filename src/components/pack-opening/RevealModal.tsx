@@ -106,6 +106,9 @@ export function RevealModal({
               key={`${card.id}-${card.image}`}
               src={card.image}
               alt={card.name}
+              priority
+              thumbnail={false}
+              optimize
             />
           </div>
           <div className="flex flex-col items-center gap-1 border-t border-border bg-[#0A0A0C] px-3 py-2.5">

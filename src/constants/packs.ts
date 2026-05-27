@@ -14,9 +14,13 @@ import {
   GOD_PACK_1999_ITEM_IDS,
   LEGENDARY_HUNT_ITEM_IDS,
   MEGA_EVOLUTION_ITEM_IDS,
+  OBSIDIAN_VAULT_ITEM_IDS,
   PACK_151_ITEM_IDS,
   PRISMATIC_SIR_ITEM_IDS,
+  PSA_10_CHASER_ITEM_IDS,
+  SHINY_VAULT_ITEM_IDS,
   TRAINERS_STARTER_ITEM_IDS,
+  WAIFU_VAULT_ITEM_IDS,
   WOTC_FIRST_EDITION_ITEM_IDS,
 } from "./packPokemonPools";
 import { POKEMON_ALL_ITEM_IDS, POKEMON_ITEMS } from "./pokemonCatalog";
@@ -30,6 +34,10 @@ function coverFromCatalog(catalog: StoreItem[], name: string): string {
   return catalog.find((c) => c.name === name)?.image ?? catalog[0]?.image ?? "";
 }
 
+function tcgCover(setId: string, number: string): string {
+  return `https://images.pokemontcg.io/${setId}/${number}_hires.png`;
+}
+
 /** Active launch Pokémon packs — unique ~25-card pools per tier. */
 export const ACTIVE_POKEMON_PACK_IDS = [
   "trainers-starter",
@@ -40,6 +48,10 @@ export const ACTIVE_POKEMON_PACK_IDS = [
   "evolving-skies",
   "god-pack-1999",
   "wotc-first-edition",
+  "obsidian-vault",
+  "psa-10-chaser",
+  "waifu-vault",
+  "shiny-vault",
 ] as const;
 
 /** Pokémon mystery packs — eight launch tiers with distinct registries. */
@@ -136,6 +148,50 @@ export function buildPokemonPacks(): CatalogPack[] {
       image: coverFromCatalog(POKEMON_ITEMS, "Charizard 1st Ed Holo"),
       items: [...WOTC_FIRST_EDITION_ITEM_IDS],
       accentLabel: "VINTAGE GRAIL",
+    },
+    {
+      id: "obsidian-vault",
+      name: "The Obsidian Vault",
+      cost: 10_000,
+      theme: "mystic",
+      description: "Ultra-premium obsidian-tier vault drops — vintage holos and modern alt-art grails.",
+      category: "pokemon",
+      image: tcgCover("base1", "4"),
+      items: [...OBSIDIAN_VAULT_ITEM_IDS],
+      accentLabel: "OBSIDIAN TIER",
+    },
+    {
+      id: "psa-10-chaser",
+      name: "The PSA 10 Chaser",
+      cost: 5_000,
+      theme: "fuchsia",
+      description: "Chase gem-mint PSA 10 slabs from the hottest modern sets.",
+      category: "pokemon",
+      image: tcgCover("swsh7", "215"),
+      items: [...PSA_10_CHASER_ITEM_IDS],
+      accentLabel: "PSA 10 CHASE",
+    },
+    {
+      id: "waifu-vault",
+      name: "Trainer Gallery",
+      cost: 2_500,
+      theme: "fuchsia",
+      description: "Premium supporter full-art gallery — Lillie, Iono, Miriam, and more.",
+      category: "pokemon",
+      image: tcgCover("sm1", "147"),
+      items: [...WAIFU_VAULT_ITEM_IDS],
+      accentLabel: "TRAINER GALLERY",
+    },
+    {
+      id: "shiny-vault",
+      name: "The Shiny Vault",
+      cost: 1_500,
+      theme: "gold",
+      description: "Hidden Fates shiny vault hits — rainbow-rare GX chase cards.",
+      category: "pokemon",
+      image: tcgCover("sma", "SV49"),
+      items: [...SHINY_VAULT_ITEM_IDS],
+      accentLabel: "SHINY VAULT",
     },
   ];
 }

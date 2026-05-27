@@ -1,7 +1,7 @@
 import type { Card } from "../types";
-import { getPackStoreItems, storeItemToCard } from "../constants/catalog";
+import { storeItemToCard } from "../constants/catalog";
 import type { StoreItem } from "../types/store";
-import { LOBBY_PACK_CATALOG } from "../constants/packs";
+import { getPackRollPool } from "./boxCatalog";
 import { normalizePackWeights } from "../utils/packProbability";
 
 export interface PackDropEntry {
@@ -24,20 +24,14 @@ function buildDropTableFromStoreItems(items: StoreItem[]): PackDropEntry[] {
 }
 
 function dropTableForPack(packId: string): PackDropEntry[] {
-  const pack = LOBBY_PACK_CATALOG.find((p) => p.id === packId);
-  if (!pack) return [];
-
-  const items = getPackStoreItems(pack);
-  return buildDropTableFromStoreItems(items);
+  return buildDropTableFromStoreItems(getPackRollPool(packId));
 }
 
 /** Per-pack drop tables — probabilities sum to 100% per pack */
-export const PACK_DROP_TABLES: Record<string, PackDropEntry[]> = Object.fromEntries(
-  LOBBY_PACK_CATALOG.map((pack) => [pack.id, dropTableForPack(pack.id)]),
-);
+export const PACK_DROP_TABLES: Record<string, PackDropEntry[]> = {};
 
 export function getPackDropTable(packId: string): PackDropEntry[] {
-  return PACK_DROP_TABLES[packId] ?? [];
+  return dropTableForPack(packId);
 }
 
 export function formatProbability(p: number): string {

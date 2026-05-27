@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { signInWithApple as runAppleSignIn } from "../lib/appleAuth";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
 
 export interface AuthActionResult {
@@ -30,6 +31,7 @@ interface AuthContextValue {
     username: string,
   ) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
+  signInWithApple: () => Promise<AuthActionResult>;
 }
 
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,24}$/;
@@ -143,6 +145,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthLoading(false);
   }, []);
 
+  const signInWithApple = useCallback(async (): Promise<AuthActionResult> => {
+    const { error } = await runAppleSignIn();
+    return { error };
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -152,8 +159,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithEmail,
       signUpWithEmail,
       signOut,
+      signInWithApple,
     }),
-    [user, session, authLoading, signInWithEmail, signUpWithEmail, signOut],
+    [user, session, authLoading, signInWithEmail, signUpWithEmail, signOut, signInWithApple],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

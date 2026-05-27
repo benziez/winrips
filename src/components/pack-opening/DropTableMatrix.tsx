@@ -1,24 +1,34 @@
+import { useMemo } from "react";
 import type { PackCategory } from "../../types";
-import type { StoreItem } from "../../types/store";
 import { useCardDetailModal } from "../../context/CardDetailModalContext";
+import { normalizePackId, resolveDropTableItems } from "../../data/boxCatalog";
 import { storeItemToCardDetail } from "../../types/cardDetail";
 import { resolveStoreItemImage } from "../../utils/collectibleFallback";
 import { DropTableItemCard } from "./DropTableItemCard";
 import { sortDropTableItems } from "./dropTableStyles";
 
 interface DropTableMatrixProps {
-  storeItems: StoreItem[];
+  packId: string;
   packName?: string;
 }
 
-export function DropTableMatrix({ storeItems }: DropTableMatrixProps) {
+export function DropTableMatrix({ packId, packName }: DropTableMatrixProps) {
   const { openCardDetail } = useCardDetailModal();
-  const sortedItems = sortDropTableItems(storeItems);
+  const resolvedPackId = normalizePackId(packId);
+  const storeItems = useMemo(
+    () => resolveDropTableItems(resolvedPackId) || resolveDropTableItems(packId),
+    [packId, resolvedPackId],
+  );
+  const sortedItems = useMemo(() => sortDropTableItems(storeItems), [storeItems]);
+  const showPsa10Badge =
+    resolvedPackId === "psa-10-chaser" || normalizePackId(packId) === "psa-10-chaser";
 
   if (sortedItems.length === 0) {
     return (
       <section className="mt-4 rounded-xl border border-dashed border-border bg-slate px-4 py-10 text-center">
-        <p className="text-sm text-muted">Drop table loading for this pack…</p>
+        <p className="text-sm text-muted">
+          No drop table items found{packName ? ` for ${packName}` : ""}.
+        </p>
       </section>
     );
   }
@@ -52,6 +62,7 @@ export function DropTableMatrix({ storeItems }: DropTableMatrixProps) {
               category={item.setId as PackCategory}
               detail={detail}
               onSelect={openCardDetail}
+              showPsa10Badge={showPsa10Badge}
             />
           );
         })}

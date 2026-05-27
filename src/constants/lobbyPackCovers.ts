@@ -1,14 +1,12 @@
 import type { Pack } from "../types";
-import { YUGIOH_LOBBY_COVERS } from "./yugiohAssets";
+import { BUNDLED_PACK_COVERS, BUNDLED_PLACEHOLDER_PACK } from "../assets/packCoverMap";
 
-/** Lobby box art for Supabase `public.boxes` ids — separate from `box_items` product shots. */
+/** Lobby box art for Supabase `public.boxes` ids — Vite-bundled URLs. */
 export const LOBBY_BOX_COVER_ASSETS: Record<string, string> = {
-  "trainers-starter": "/images/packs/trainers-starter-cover.png",
-  "151-booster": "/images/packs/151-booster-cover.png",
-  "legendary-hunt": "/images/packs/legendary-hunt-cover.png",
-  "1999-god": "/images/packs/1999-god-cover.png",
-  ...YUGIOH_LOBBY_COVERS,
+  ...BUNDLED_PACK_COVERS,
 };
+
+export { BUNDLED_PLACEHOLDER_PACK };
 
 const legacyPackCoverById: Record<string, string> = {};
 
@@ -21,7 +19,12 @@ export function initLobbyPackCoverMap(packs: readonly Pick<Pack, "id" | "image">
 }
 
 export function resolveLobbyPackCover(packId: string, dbImageUrl?: string): string {
-  return LOBBY_BOX_COVER_ASSETS[packId] ?? legacyPackCoverById[packId] ?? dbImageUrl ?? "";
+  return (
+    LOBBY_BOX_COVER_ASSETS[packId] ??
+    legacyPackCoverById[packId] ??
+    dbImageUrl ??
+    BUNDLED_PLACEHOLDER_PACK
+  );
 }
 
 export function applyLobbyPackCovers<T extends Pack>(packs: T[]): T[] {

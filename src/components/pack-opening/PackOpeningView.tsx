@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Card } from "../../types";
 import { useApp } from "../../context/AppContext";
 import { recordPlayHistory } from "../../lib/playHistory";
@@ -11,19 +11,24 @@ import {
   rollMultipleWithRoll,
   buildCarouselStrip,
   buildPreviewCarouselStrip,
-  resolveWinnerItem,
+  resolveCardByItemId,
+  type PackPullEntry,
   ROULETTE_WINNER_INDEX,
   ROULETTE_SPIN_MS,
 } from "../../utils/rng";
-import { getPackStoreItems } from "../../constants/catalog";
 import { QuantitySelector, type OpenQuantity } from "./QuantitySelector";
 import { UnboxingCarousel } from "./UnboxingCarousel";
 import { RevealModal } from "./RevealModal";
 import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { DropTableMatrix } from "./DropTableMatrix";
-import { formatGems, RETAIL_COPY } from "../../constants/retail";
+import { formatGems, formatPackPriceUsd, RETAIL_COPY } from "../../constants/retail";
+import { COMMERCE_COPY, isAppStoreCommerce } from "../../constants/commerce";
+import { useAuth } from "../../context/AuthContext";
+import { purchasePackForOpening } from "../../lib/nativePackPurchase";
 import { useIsNarrowViewport } from "../../hooks/useIsNarrowViewport";
+import { WhatsInsideModal } from "../mobile/WhatsInsideModal";
+import { MobilePackOpeningView } from "../mobile/MobilePackOpeningView";
 import { FairnessVerifiedBadge } from "./FairnessVerifiedBadge";
 import { FairnessVerifyModal } from "./FairnessVerifyModal";
 import {
@@ -33,6 +38,7 @@ import {
 } from "../../utils/provablyFair";
 import { CardDetailModalProvider } from "../../context/CardDetailModalContext";
 import { SoundManager } from "../../lib/SoundManager";
+import { TransactionFailureModal } from "./TransactionFailureModal";
 
 const SPIN_DURATION_MS = ROULETTE_SPIN_MS;
 const MOBILE_PREVIEW_LENGTH = 3;
@@ -57,6 +63,8 @@ export function PackOpeningView() {
     syncGemBalanceFromServer,
     markVaultItemPendingShipment,
   } = useApp();
+  const { session } = useAuth();
+  const storeCommerce = isAppStoreCommerce();
 
   const isGuest = !userId;
 
@@ -68,17 +76,25 @@ export function PackOpeningView() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [isChargingSpin, setIsChargingSpin] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [winnerItem, setWinnerItem] = useState<Card | null>(null);
   const [carouselCards, setCarouselCards] = useState<Card[]>([]);
   const [spinKey, setSpinKey] = useState(0);
-  const [queue, setQueue] = useState<Card[]>([]);
+  const [pullQueue, setPullQueue] = useState<PackPullEntry[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
   const [pullVaultIds, setPullVaultIds] = useState<string[]>([]);
   const [isExchanging, setIsExchanging] = useState(false);
   const [fairnessSession, setFairnessSession] = useState<FairnessSession | null>(null);
   const [fairnessModalOpen, setFairnessModalOpen] = useState(false);
+  const [transactionFailureOpen, setTransactionFailureOpen] = useState(false);
+  const [whatsInsideOpen, setWhatsInsideOpen] = useState(false);
 
   const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
+
+  const activePullCard = useMemo(() => {
+    if (!selectedPack) return null;
+    const entry = pullQueue[queueIndex];
+    if (!entry) return null;
+    return resolveCardByItemId(selectedPack.id, entry.itemId);
+  }, [selectedPack, pullQueue, queueIndex]);
 
   const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const spinRafRef = useRef<number | null>(null);
@@ -157,12 +173,12 @@ export function PackOpeningView() {
     setSpinKey((k) => k + 1);
     setIsSpinning(false);
     setShowModal(false);
-    setWinnerItem(null);
-    setQueue([]);
+    setPullQueue([]);
     setQueueIndex(0);
     setPullVaultIds([]);
     setIsExchanging(false);
     setFairnessModalOpen(false);
+      setTransactionFailureOpen(false);
     void buildPendingFairnessSession(selectedPack.id).then(setFairnessSession);
   }, [selectedPack?.id, buildIdlePreviewStrip]);
 
@@ -178,7 +194,31 @@ export function PackOpeningView() {
     SoundManager.unlock();
 
     const totalCost = selectedPack.cost * quantity;
-    if (!isGuest && goldVolts < totalCost) {
+
+    if (storeCommerce && !isGuest && userId) {
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        showErrorToast("Please sign in again to complete your purchase.");
+        return;
+      }
+      setIsChargingSpin(true);
+      const purchase = await purchasePackForOpening(
+        selectedPack.id,
+        selectedPack.cost,
+        quantity,
+        accessToken,
+      );
+      if (!purchase.ok) {
+        setIsChargingSpin(false);
+        if (!purchase.cancelled) {
+          showErrorToast(purchase.error);
+        }
+        return;
+      }
+      await syncGemBalanceFromServer(userId);
+    }
+
+    if (!isGuest && !storeCommerce && goldVolts < totalCost) {
       showCashoutToast(`Insufficient ${RETAIL_COPY.currency} for this opening.`);
       return;
     }
@@ -189,20 +229,22 @@ export function PackOpeningView() {
       const vaultIds: string[] = [];
       try {
         const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
-        const pulled = rollResults.map((result) =>
-          resolveWinnerItem(selectedPack.id, result.card),
-        );
+        const pullEntries: PackPullEntry[] = rollResults.map((result) => ({
+          itemId: result.card.id,
+          rolledNumber: result.rolledNumber,
+        }));
 
-        for (let index = 0; index < pulled.length; index += 1) {
-          const won = pulled[index]!;
+        for (let index = 0; index < pullEntries.length; index += 1) {
+          const cardData = resolveCardByItemId(selectedPack.id, pullEntries[index]!.itemId);
           const spinResult = await handleSpin(selectedPack.cost, {
-            itemId: won.id,
-            itemName: won.name,
-            gemValue: won.value,
-            imageUrl: won.image,
+            itemId: cardData.id,
+            itemName: cardData.name,
+            gemValue: cardData.value,
+            imageUrl: cardData.image,
           });
           if (!spinResult.ok) {
-            showCashoutToast(spinResult.error);
+            showErrorToast(spinResult.error);
+            setTransactionFailureOpen(true);
             setSpinInProgress(false);
             return;
           }
@@ -211,11 +253,11 @@ export function PackOpeningView() {
           if (spinResult.vaultItemId) {
             appendVaultPullFromSpin({
               vaultId: spinResult.vaultItemId,
-              id: won.id,
-              name: won.name,
-              rarity: won.rarity,
-              value: won.value,
-              image: won.image,
+              id: cardData.id,
+              name: cardData.name,
+              rarity: cardData.rarity,
+              value: cardData.value,
+              image: cardData.image,
               acquiredAt: new Date().toISOString(),
               status: "vaulted",
             });
@@ -230,41 +272,44 @@ export function PackOpeningView() {
 
         setPullVaultIds(vaultIds);
 
-        void commitFairnessSession(selectedPack.id, rollResults[0]!.rolledNumber).then(
+        void commitFairnessSession(
+          selectedPack.id,
+          rollResults[0]!.rolledNumber,
+          fairnessSession,
+        ).then(
           setFairnessSession,
         );
 
         if (userId) {
-          for (const result of rollResults) {
-            const won = resolveWinnerItem(selectedPack.id, result.card);
+          for (const entry of pullEntries) {
+            const cardData = resolveCardByItemId(selectedPack.id, entry.itemId);
             void recordPlayHistory({
               userId,
               packName: selectedPack.name,
               spinCost: selectedPack.cost,
-              wonItemName: won.name,
-              wonItemValue: won.value,
-              wonItemImage: won.image,
-              rolledNumber: result.rolledNumber,
+              wonItemName: cardData.name,
+              wonItemValue: cardData.value,
+              wonItemImage: cardData.image,
+              rolledNumber: entry.rolledNumber,
             }).then(() => {
               window.dispatchEvent(new Event("winrips:play-history-updated"));
             });
           }
         }
 
-        const activeWinner = pulled[0];
-        const { strip, winnerItem: centerWinner } = buildCarouselStrip(
-          activeWinner,
-          selectedPack.id,
-        );
+        const firstCard = resolveCardByItemId(selectedPack.id, pullEntries[0]!.itemId);
+        const { strip } = buildCarouselStrip(firstCard, selectedPack.id);
 
-        setQueue(pulled);
+        setPullQueue(pullEntries);
         setQueueIndex(0);
-        setWinnerItem(centerWinner);
         setCarouselCards(strip);
         setShowModal(false);
         setSpinKey((k) => k + 1);
         setIsSpinning(true);
         beginCarouselSpin();
+      } catch {
+        setSpinInProgress(false);
+        setTransactionFailureOpen(true);
       } finally {
         setIsChargingSpin(false);
       }
@@ -274,40 +319,37 @@ export function PackOpeningView() {
     clearSpinTimer();
 
     const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
-    void commitFairnessSession(selectedPack.id, rollResults[0]!.rolledNumber).then(
+    void commitFairnessSession(selectedPack.id, rollResults[0]!.rolledNumber, fairnessSession).then(
       setFairnessSession,
     );
 
-    const pulled = rollResults.map((result) =>
-      resolveWinnerItem(selectedPack.id, result.card),
-    );
+    const pullEntries: PackPullEntry[] = rollResults.map((result) => ({
+      itemId: result.card.id,
+      rolledNumber: result.rolledNumber,
+    }));
 
     if (userId) {
-      for (const result of rollResults) {
-        const won = resolveWinnerItem(selectedPack.id, result.card);
+      for (const entry of pullEntries) {
+        const cardData = resolveCardByItemId(selectedPack.id, entry.itemId);
         void recordPlayHistory({
           userId,
           packName: selectedPack.name,
           spinCost: selectedPack.cost,
-          wonItemName: won.name,
-          wonItemValue: won.value,
-          wonItemImage: won.image,
-          rolledNumber: result.rolledNumber,
+          wonItemName: cardData.name,
+          wonItemValue: cardData.value,
+          wonItemImage: cardData.image,
+          rolledNumber: entry.rolledNumber,
         }).then(() => {
           window.dispatchEvent(new Event("winrips:play-history-updated"));
         });
       }
     }
 
-    const activeWinner = pulled[0];
-    const { strip, winnerItem: centerWinner } = buildCarouselStrip(
-      activeWinner,
-      selectedPack.id,
-    );
+    const firstCard = resolveCardByItemId(selectedPack.id, pullEntries[0]!.itemId);
+    const { strip } = buildCarouselStrip(firstCard, selectedPack.id);
 
-    setQueue(pulled);
+    setPullQueue(pullEntries);
     setQueueIndex(0);
-    setWinnerItem(centerWinner);
     setCarouselCards(strip);
     setShowModal(false);
     setSpinKey((k) => k + 1);
@@ -327,30 +369,27 @@ export function PackOpeningView() {
     userId,
     appendVaultPullFromSpin,
     setSpinInProgress,
+    fairnessSession,
   ]);
 
   const finishReveal = useCallback(() => {
     setShowModal(false);
     clearSpinTimer();
 
-    if (queueIndex < queue.length - 1 && selectedPack) {
+    if (queueIndex < pullQueue.length - 1 && selectedPack) {
       const nextIndex = queueIndex + 1;
-      const nextCard = queue[nextIndex];
-      const { strip, winnerItem: centerWinner } = buildCarouselStrip(
-        nextCard,
-        selectedPack.id,
-      );
+      const nextEntry = pullQueue[nextIndex]!;
+      const nextCard = resolveCardByItemId(selectedPack.id, nextEntry.itemId);
+      const { strip } = buildCarouselStrip(nextCard, selectedPack.id);
 
       setQueueIndex(nextIndex);
-      setWinnerItem(centerWinner);
       setCarouselCards(strip);
       setSpinKey((k) => k + 1);
       setIsSpinning(true);
       setShippingModalOpen(false);
       beginCarouselSpin();
     } else {
-      setWinnerItem(null);
-      setQueue([]);
+      setPullQueue([]);
       setQueueIndex(0);
       setPullVaultIds([]);
       setIsSpinning(false);
@@ -363,10 +402,10 @@ export function PackOpeningView() {
         setCarouselCards([]);
       }
     }
-  }, [queue, queueIndex, clearSpinTimer, setShippingModalOpen, selectedPack, buildIdlePreviewStrip, setSpinInProgress, beginCarouselSpin]);
+  }, [pullQueue, queueIndex, clearSpinTimer, setShippingModalOpen, selectedPack, buildIdlePreviewStrip, setSpinInProgress, beginCarouselSpin]);
 
   const handleBurn = useCallback(async () => {
-    if (!winnerItem || isGuest || isExchanging) return;
+    if (!activePullCard || isGuest || isExchanging) return;
 
     const vaultItemId = pullVaultIds[queueIndex];
     if (!vaultItemId) {
@@ -393,7 +432,7 @@ export function PackOpeningView() {
       setIsExchanging(false);
     }
   }, [
-    winnerItem,
+    activePullCard,
     isGuest,
     isExchanging,
     pullVaultIds,
@@ -407,10 +446,10 @@ export function PackOpeningView() {
   ]);
 
   const handleSendToVault = useCallback(() => {
-    if (!winnerItem || isGuest || isExchanging) return;
-    showCashoutToast(`${winnerItem.name} secured in your vault locker.`);
+    if (!activePullCard || isGuest || isExchanging) return;
+    showCashoutToast(`${activePullCard.name} secured in your vault locker.`);
     finishReveal();
-  }, [winnerItem, isGuest, isExchanging, showCashoutToast, finishReveal]);
+  }, [activePullCard, isGuest, isExchanging, showCashoutToast, finishReveal]);
 
   const handleShip = useCallback(() => {
     if (!activeVaultItemId) {
@@ -431,20 +470,27 @@ export function PackOpeningView() {
     );
   }
 
+  if (storeCommerce) {
+    return <MobilePackOpeningView />;
+  }
+
   const totalCost = selectedPack.cost * quantity;
-  const canAfford = isGuest || goldVolts >= totalCost;
+  const canAfford = isGuest || storeCommerce || goldVolts >= totalCost;
   const openButtonLabel = isChargingSpin
-    ? "Charging Gems..."
+    ? storeCommerce
+      ? "Processing…"
+      : "Charging Gems..."
     : isSpinning
-    ? "Ripping Pack..."
-    : isGuest
-      ? quantity === 1
-        ? "Demo Spin"
-        : `Demo Spin × ${quantity}`
-      : quantity === 1
-        ? RETAIL_COPY.purchaseVerb
-        : `${RETAIL_COPY.purchaseVerb} × ${quantity}`;
-  const packStoreItems = getPackStoreItems(selectedPack);
+      ? "Ripping Pack..."
+      : isGuest
+        ? quantity === 1
+          ? "Demo Spin"
+          : `Demo Spin × ${quantity}`
+        : storeCommerce
+          ? `${COMMERCE_COPY.payWithApple} · ${formatPackPriceUsd(totalCost)}`
+          : quantity === 1
+            ? RETAIL_COPY.purchaseVerb
+            : `${RETAIL_COPY.purchaseVerb} × ${quantity}`;
   const isPreviewStrip = !isSpinning && carouselCards.length <= MOBILE_PREVIEW_LENGTH;
   const carouselWinnerIndex = isPreviewStrip ? MOBILE_PREVIEW_WINNER_INDEX : ROULETTE_WINNER_INDEX;
   const carouselCardWidth = isNarrow && isPreviewStrip ? MOBILE_CARD_WIDTH : undefined;
@@ -453,33 +499,50 @@ export function PackOpeningView() {
 
   return (
     <CardDetailModalProvider>
-    <section className="mx-auto w-full max-w-[1600px] overflow-x-hidden px-2 py-4 sm:px-6 sm:py-6 lg:px-8">
+    <section
+      className={`mx-auto w-full max-w-[1600px] overflow-x-hidden px-2 py-4 sm:px-6 sm:py-6 lg:px-8 ${
+        storeCommerce ? "bg-gradient-to-b from-black via-obsidian/40 to-transparent" : ""
+      }`}
+    >
       <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <button
             type="button"
             onClick={goToLobby}
-            className="mb-2 flex items-center gap-1 text-xs text-muted hover:text-fuchsia"
+            className="mb-2 flex items-center gap-1 text-xs font-light text-muted hover:text-fuchsia"
           >
-            ← Back to lobby
+            ← Back
           </button>
           <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate text-base font-bold text-white sm:text-xl">
+            <h1 className="truncate text-xl font-semibold tracking-tight text-white sm:text-2xl">
               {selectedPack.name}
             </h1>
             {fairnessSession ? (
               <FairnessVerifiedBadge onClick={() => setFairnessModalOpen(true)} />
             ) : null}
           </div>
-          <p className="mt-1 text-sm tracking-wide text-muted">
-            {formatGems(selectedPack.cost)} × {quantity} = {formatGems(totalCost)}
+          <p className="mt-1 text-sm font-light text-muted">
+            {storeCommerce
+              ? `${formatPackPriceUsd(selectedPack.cost)}${quantity > 1 ? ` × ${quantity} = ${formatPackPriceUsd(totalCost)}` : ""}`
+              : `${formatGems(selectedPack.cost)} × ${quantity} = ${formatGems(totalCost)}`}
           </p>
+          {storeCommerce ? (
+            <button
+              type="button"
+              onClick={() => setWhatsInsideOpen(true)}
+              className="mt-2 text-xs font-medium text-fuchsia hover:underline"
+            >
+              {COMMERCE_COPY.whatsInside}
+            </button>
+          ) : null}
         </div>
-        <QuantitySelector
-          value={quantity}
-          onChange={setQuantity}
-          disabled={isSpinning || isChargingSpin || showModal}
-        />
+        {!storeCommerce ? (
+          <QuantitySelector
+            value={quantity}
+            onChange={setQuantity}
+            disabled={isSpinning || isChargingSpin || showModal}
+          />
+        ) : null}
       </div>
 
       <div className="w-full max-w-full overflow-hidden">
@@ -504,19 +567,29 @@ export function PackOpeningView() {
             {isGuest && !isSpinning && !showModal ? (
               <p className="text-xs text-muted">Free preview — same odds as live opens</p>
             ) : null}
-            {!isGuest && !canAfford && !isSpinning && (
+            {!isGuest && !storeCommerce && !canAfford && !isSpinning && (
               <p className="text-xs text-fuchsia">Insufficient {RETAIL_COPY.currency}</p>
             )}
           </div>
         </div>
 
-        <DropTableMatrix storeItems={packStoreItems} packName={selectedPack.name} />
+        {!storeCommerce ? (
+          <DropTableMatrix packId={selectedPack.id} packName={selectedPack.name} />
+        ) : null}
       </div>
 
-      {showModal && winnerItem && !shippingModalOpen && (
+      {whatsInsideOpen && storeCommerce ? (
+        <WhatsInsideModal
+          packId={selectedPack.id}
+          packName={selectedPack.name}
+          onClose={() => setWhatsInsideOpen(false)}
+        />
+      ) : null}
+
+      {showModal && activePullCard && !shippingModalOpen && (
         <RevealModal
-          key={winnerItem.id}
-          card={winnerItem}
+          key={`${activePullCard.id}-${queueIndex}`}
+          card={activePullCard}
           isGuest={isGuest}
           isExchanging={isExchanging}
           canExchange={canExchangeReveal}
@@ -528,12 +601,12 @@ export function PackOpeningView() {
         />
       )}
 
-      {shippingModalOpen && winnerItem && activeVaultItemId ? (
+      {shippingModalOpen && activePullCard && activeVaultItemId ? (
         <VaultReleaseModal
           vaultItemId={activeVaultItemId}
-          itemName={winnerItem.name}
-          itemImage={winnerItem.image}
-          itemValue={winnerItem.value}
+          itemName={activePullCard.name}
+          itemImage={activePullCard.image}
+          itemValue={activePullCard.value}
           onClose={() => setShippingModalOpen(false)}
           onSuccessDismiss={finishReveal}
           successDismissLabel="Continue"
@@ -556,9 +629,13 @@ export function PackOpeningView() {
         />
       ) : null}
 
-      {queue.length > 1 && (isSpinning || showModal) && (
+      {transactionFailureOpen ? (
+        <TransactionFailureModal onClose={() => setTransactionFailureOpen(false)} />
+      ) : null}
+
+      {pullQueue.length > 1 && (isSpinning || showModal) && (
         <p className="mt-4 text-center text-xs text-muted">
-          Pack {queueIndex + 1} of {queue.length}
+          Pack {queueIndex + 1} of {pullQueue.length}
         </p>
       )}
     </section>

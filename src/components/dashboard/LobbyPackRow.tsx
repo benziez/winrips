@@ -13,9 +13,11 @@ export function LobbyPackRow({ packs, section, showComingSoon = false }: LobbyPa
   if (packs.length > 0) {
     return (
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-        {packs.map((pack) => (
-          <PackCardCompact key={pack.id} pack={pack} />
-        ))}
+        {packs.map((pack, index) => {
+          return (
+            <PackCardCompact key={pack.id} pack={pack} priority={index < 6} index={index} />
+          );
+        })}
       </div>
     );
   }

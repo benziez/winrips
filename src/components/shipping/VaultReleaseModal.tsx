@@ -241,6 +241,7 @@ export function VaultReleaseModal({
                 alt={itemName}
                 className="h-full w-full"
                 frameClassName="h-full rounded-lg"
+                optimize
               />
             </div>
 

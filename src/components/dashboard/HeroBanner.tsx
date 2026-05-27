@@ -1,3 +1,5 @@
+import { CollectibleImage } from "../ui/CollectibleImage";
+
 const HERO_CARDS = [
   {
     src: "https://images.pokemontcg.io/swsh4/44_hires.png",
@@ -9,13 +11,13 @@ const HERO_CARDS = [
     src: "https://images.pokemontcg.io/base1/4_hires.png",
     alt: "1st Edition Base Set Charizard",
     className: "left-[32%] top-[4%] z-20 rotate-0 scale-105",
-    delay: "0.35s",
+    delay: "1.5s",
   },
   {
     src: "https://images.pokemontcg.io/swsh7/215_hires.png",
     alt: "Umbreon VMAX Alternate Art",
     className: "right-[2%] top-[12%] z-30 rotate-6",
-    delay: "0.7s",
+    delay: "3s",
   },
 ] as const;
 
@@ -32,7 +34,10 @@ export function HeroBanner() {
 
           <h1 className="mt-3 text-2xl font-black uppercase leading-[1.1] tracking-[-0.02em] text-white sm:mt-4 sm:text-3xl lg:text-[2.125rem]">
             <span className="block sm:inline">Unbox the World&apos;s Most </span>
-            <span className="block sm:inline">Coveted Grails</span>
+            <span className="block sm:inline">Coveted </span>
+            <span className="bg-gradient-to-r from-fuchsia-500 via-pink-400 to-amber-400 bg-clip-text text-transparent animate-pulse">
+              Grails
+            </span>
           </h1>
 
           <p className="mt-3 max-w-lg text-xs leading-relaxed text-slate-400 sm:mt-4 sm:text-sm sm:leading-relaxed md:text-[15px] md:leading-[1.65]">
@@ -50,6 +55,10 @@ export function HeroBanner() {
           </div>
 
           <div className="relative mx-auto h-full w-full max-w-[340px]">
+            <div
+              className="pointer-events-none absolute inset-0 -z-10 rounded-full bg-fuchsia-600/20 blur-[100px] animate-pulse"
+              aria-hidden
+            />
             {HERO_CARDS.map((card) => (
               <HeroFloatingCard key={card.src} {...card} />
             ))}
@@ -72,18 +81,20 @@ function HeroFloatingCard({
   delay: string;
 }) {
   return (
-    <article
-      className={`absolute aspect-[2.5/3.5] w-[72px] animate-pack-float overflow-hidden rounded-lg border border-neutral-800 bg-[#0A0A0C] shadow-2xl sm:w-[84px] lg:w-[92px] ${className}`}
-      style={{ animationDelay: delay }}
-    >
-      <img
-        src={src}
-        alt={alt}
-        className="h-full w-full object-contain"
-        loading="eager"
-        decoding="async"
-        referrerPolicy="no-referrer"
-      />
-    </article>
+    <div className={`absolute ${className}`}>
+      <article
+        className="aspect-[2.5/3.5] w-[72px] animate-pack-float overflow-hidden rounded-lg border border-neutral-800 bg-[#0A0A0C] shadow-2xl sm:w-[84px] lg:w-[92px]"
+        style={{ animationDelay: delay }}
+      >
+        <CollectibleImage
+          src={src}
+          alt={alt}
+          priority
+          thumbnail={false}
+          frameClassName="bg-transparent"
+          className="h-full w-full object-contain"
+        />
+      </article>
+    </div>
   );
 }

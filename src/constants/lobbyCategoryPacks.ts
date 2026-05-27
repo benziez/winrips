@@ -12,7 +12,7 @@ import {
 import { SPORTS_PLACEHOLDER_IMAGE } from "./sportsAssets";
 import { YUGIOH_LOBBY_COVERS, yugiohLobbyCover } from "./yugiohAssets";
 
-const PACK_PLACEHOLDER = "/images/placeholder-pack.svg";
+const PACK_PLACEHOLDER = "images/placeholder-pack.svg";
 
 function allItemIds(catalog: StoreItem[]): string[] {
   return catalog.map((item) => item.id);

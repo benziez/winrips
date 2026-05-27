@@ -1,5 +1,5 @@
 import type { Pack } from "../types";
-import { getPackStoreItemsForPack } from "../data/boxCatalog";
+import { getPackRollPool } from "../data/boxCatalog";
 import { resolveStoreItemImage } from "./collectibleFallback";
 
 const CYCLE_MS = 1500;
@@ -14,7 +14,7 @@ function itemImageUrl(item: { image: string; image_url?: string; id: string }): 
 
 /** Highest gem-value drop images for lobby card autoplay cycling (full pool, no cap). */
 export function getTopValueDropImages(pack: Pack): string[] {
-  const items = getPackStoreItemsForPack(pack);
+  const items = getPackRollPool(pack.id);
   if (items.length === 0) return [];
 
   const sorted = [...items].sort((a, b) => b.value - a.value);

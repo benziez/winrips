@@ -85,7 +85,7 @@ export function UnboxingCarousel({
   return (
     <div
       className={`relative w-full max-w-full ${
-        isCompactPreview ? "min-h-[200px]" : "min-h-[220px] sm:min-h-[300px]"
+        isCompactPreview ? "min-h-[220px]" : "min-h-[220px] sm:min-h-[300px]"
       }`}
     >
       <div className="spin-center-line pointer-events-none absolute bottom-0 left-1/2 top-0 z-20 -translate-x-1/2" />
@@ -115,9 +115,9 @@ export function UnboxingCarousel({
       >
         <div
           ref={trackRef}
-          className={`flex gap-3 py-5 will-change-transform ${isSpinning && isAnimating ? "blur-[1px] opacity-95" : ""} ${
-            isCompactPreview ? "mx-auto" : ""
-          }`}
+          className={`flex gap-3 will-change-transform ${
+            isCompactPreview ? "mx-auto py-6" : "py-5"
+          } ${isSpinning && isAnimating ? "blur-[1px] opacity-95" : ""}`}
           style={{
             transform: `translateX(-${translateX}px)`,
             transition: isAnimating

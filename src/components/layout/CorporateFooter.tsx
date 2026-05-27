@@ -28,7 +28,7 @@ export function CorporateFooter() {
   const { openInfoPage } = useApp();
 
   return (
-    <footer className="mt-auto w-full shrink-0 border-t border-neutral-800 bg-[#111115]">
+    <footer className="mt-auto w-full shrink-0 border-t border-border bg-slate">
       <div className="px-4 sm:px-6 lg:px-8 py-8 sm:py-10 max-w-[1600px] mx-auto w-full">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
           {FOOTER_NAV_COLUMNS.map((col) => (
@@ -77,7 +77,7 @@ export function CorporateFooter() {
         </div>
       </div>
 
-      <div className="px-4 sm:px-6 lg:px-8 py-4 bg-obsidian border-t border-border">
+      <div className="px-4 sm:px-6 lg:px-8 py-4 border-t border-border bg-slate-elevated/40">
         <p className="text-[10px] sm:text-[11px] text-muted/55 leading-relaxed max-w-5xl mx-auto text-center">
           WINRIPS is a gamified e-commerce storefront owned and operated by Drops Retail
           Limited. All digital tokens purchased on the platform are virtual items used exclusively

@@ -211,6 +211,8 @@ export function DepositModal() {
                   alt={`QR code for ${payment.payCurrency} deposit`}
                   width={220}
                   height={220}
+                  loading="lazy"
+                  decoding="async"
                   className="h-[220px] w-[220px]"
                 />
               </div>

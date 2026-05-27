@@ -1,15 +1,51 @@
 import type { Pack } from "../types";
 import type { StoreItem } from "../types/store";
 import type { CatalogPack } from "../types/box";
+import { LOBBY_PACK_CATALOG } from "../constants/packs";
 import { getPackStoreItems } from "../constants/catalog";
 import { getFloorFillersForPackId } from "../constants/floorFillers";
+import {
+  EVOLVING_SKIES_POOL,
+  GOD_PACK_1999_POOL,
+  LEGENDARY_HUNT_POOL,
+  MEGA_EVOLUTION_POOL,
+  OBSIDIAN_VAULT_POOL,
+  PACK_151_POOL,
+  PRISMATIC_SIR_POOL,
+  PSA_10_CHASER_POOL,
+  SHINY_VAULT_POOL,
+  TRAINERS_STARTER_POOL,
+  WAIFU_VAULT_POOL,
+  WOTC_FIRST_EDITION_POOL,
+} from "../constants/packPokemonPools";
 import { applyValueScaledProbabilities } from "../utils/packProbability";
+import { logger } from "../lib/logger";
+import { normalizePackId } from "../constants/packIdAliases";
 import {
   applyLobbyPackCovers,
   initLobbyPackCoverMap,
 } from "../constants/lobbyPackCovers";
 
 export { applyLobbyPackCovers } from "../constants/lobbyPackCovers";
+export { normalizePackId } from "../constants/packIdAliases";
+
+/** Last-resort static pools keyed by remote + catalog ids. */
+const DIRECT_STATIC_POOLS: Record<string, StoreItem[]> = {
+  "trainers-starter": TRAINERS_STARTER_POOL,
+  "151-booster-collector": PACK_151_POOL,
+  "151-booster": PACK_151_POOL,
+  "mega-evolution": MEGA_EVOLUTION_POOL,
+  "legendary-hunt": LEGENDARY_HUNT_POOL,
+  "prismatic-sir": PRISMATIC_SIR_POOL,
+  "evolving-skies": EVOLVING_SKIES_POOL,
+  "god-pack-1999": GOD_PACK_1999_POOL,
+  "1999-god": GOD_PACK_1999_POOL,
+  "wotc-first-edition": WOTC_FIRST_EDITION_POOL,
+  "obsidian-vault": OBSIDIAN_VAULT_POOL,
+  "psa-10-chaser": PSA_10_CHASER_POOL,
+  "waifu-vault": WAIFU_VAULT_POOL,
+  "shiny-vault": SHINY_VAULT_POOL,
+};
 
 let remotePacks: CatalogPack[] | null = null;
 let remoteStoreItemsByPackId: Record<string, StoreItem[]> | null = null;
@@ -21,6 +57,17 @@ function isPokemonLobbyPack(pack: Pack): boolean {
 
 function filterPokemonLobbyPacks(packs: CatalogPack[]): CatalogPack[] {
   return packs.filter(isPokemonLobbyPack);
+}
+
+function mergeStoreItems(primary: StoreItem[], secondary: StoreItem[]): StoreItem[] {
+  const seen = new Set(primary.map((item) => item.id));
+  const merged = [...primary];
+  for (const item of secondary) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    merged.push(item);
+  }
+  return merged;
 }
 
 export function initBoxCatalogFallback(packs: CatalogPack[]): void {
@@ -49,29 +96,145 @@ export function hasRemoteBoxCatalog(): boolean {
 }
 
 export function getLobbyPackCatalog(): CatalogPack[] {
-  if (remotePacks?.length) return remotePacks;
-  return localFallbackPacks;
+  if (!remotePacks?.length) return localFallbackPacks;
+
+  const remoteIds = new Set(
+    remotePacks.flatMap((pack) => [pack.id, normalizePackId(pack.id)]),
+  );
+  const staticExtras = localFallbackPacks.filter(
+    (pack) => !remoteIds.has(pack.id) && !remoteIds.has(normalizePackId(pack.id)),
+  );
+  return [...remotePacks, ...staticExtras];
+}
+
+export function findStaticPackById(packId: string): CatalogPack | undefined {
+  const normalized = normalizePackId(packId);
+  return LOBBY_PACK_CATALOG.find(
+    (pack) => pack.id === normalized || pack.id === packId.trim(),
+  );
 }
 
 export function findPackById(packId: string): Pack | undefined {
-  return getLobbyPackCatalog().find((pack) => pack.id === packId);
+  const trimmed = packId.trim();
+  const normalized = normalizePackId(trimmed);
+  const staticPack = findStaticPackById(trimmed);
+  const fromLobby = getLobbyPackCatalog().find(
+    (pack) =>
+      pack.id === trimmed ||
+      pack.id === normalized ||
+      normalizePackId(pack.id) === normalized,
+  );
+
+  if (fromLobby) {
+    const staticItems = staticPack?.items ?? [];
+    const lobbyResolvesItems = getPackStoreItems(fromLobby).length > 0;
+
+    if (!lobbyResolvesItems && staticItems.length > 0) {
+      return { ...fromLobby, items: staticItems };
+    }
+    return fromLobby;
+  }
+
+  return staticPack;
+}
+
+function resolveDirectStaticPool(packId: string): StoreItem[] {
+  const trimmed = packId.trim();
+  const normalized = normalizePackId(trimmed);
+  const pool =
+    DIRECT_STATIC_POOLS[trimmed] ??
+    DIRECT_STATIC_POOLS[normalized];
+  if (!pool?.length) return [];
+
+  const pack = findStaticPackById(trimmed) ?? findPackById(trimmed);
+  return applyValueScaledProbabilities([...pool], { spinCost: pack?.cost ?? 100 });
+}
+
+function resolveStaticCatalogItems(packId: string): StoreItem[] {
+  const staticPack = findStaticPackById(packId);
+  if (!staticPack) return resolveDirectStaticPool(packId);
+
+  const fromCatalog = getPackStoreItems(staticPack);
+  return fromCatalog.length > 0 ? fromCatalog : resolveDirectStaticPool(packId);
+}
+
+function isRemoteCatalogPack(packId: string): boolean {
+  if (!remoteStoreItemsByPackId || !remotePacks?.length) return false;
+  const normalized = normalizePackId(packId);
+  return remotePacks.some(
+    (entry) =>
+      entry.id === packId ||
+      entry.id === normalized ||
+      normalizePackId(entry.id) === normalized,
+  );
 }
 
 export function getRemoteBoxStoreItems(packId: string): StoreItem[] {
   if (!remoteStoreItemsByPackId) return [];
-  return remoteStoreItemsByPackId[packId] ?? [];
+  const normalized = normalizePackId(packId);
+  return (
+    remoteStoreItemsByPackId[packId] ??
+    remoteStoreItemsByPackId[normalized] ??
+    []
+  );
 }
 
+/**
+ * Single roll-pool source for RNG rolls and reveal lookup.
+ * Merges remote DB rows with static catalog so partial Supabase seeds cannot desync rolls.
+ */
 export function getPackStoreItemsForPack(pack: Pack): StoreItem[] {
-  if (remoteStoreItemsByPackId && remotePacks?.some((entry) => entry.id === pack.id)) {
+  const normalizedId = normalizePackId(pack.id);
+  const staticFromPack = getPackStoreItems(pack);
+  const staticPool =
+    staticFromPack.length > 0 ? staticFromPack : resolveStaticCatalogItems(pack.id);
+
+  if (isRemoteCatalogPack(pack.id)) {
     const remote = getRemoteBoxStoreItems(pack.id);
     if (remote.length === 0) {
-      return getPackStoreItems(pack);
+      return staticPool;
     }
-    const floorFillers = getFloorFillersForPackId(pack.id);
-    const seen = new Set(remote.map((item) => item.id));
-    const merged = [...remote, ...floorFillers.filter((item) => !seen.has(item.id))];
+
+    const mergedCore = mergeStoreItems(remote, staticPool);
+    const floorFillers = getFloorFillersForPackId(normalizedId);
+    const seen = new Set(mergedCore.map((item) => item.id));
+    const merged = [
+      ...mergedCore,
+      ...floorFillers.filter((item) => !seen.has(item.id)),
+    ];
     return applyValueScaledProbabilities(merged, { spinCost: pack.cost });
   }
-  return getPackStoreItems(pack);
+
+  return staticPool;
+}
+
+/** Roll pool by pack id — used by RNG, drop table, and card resolution. */
+export function getPackRollPool(packId: string): StoreItem[] {
+  const trimmed = packId.trim();
+  if (!trimmed) return [];
+
+  const candidates = [trimmed, normalizePackId(trimmed)];
+  const seen = new Set<string>();
+
+  for (const id of candidates) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const pack = findPackById(id);
+    if (pack) {
+      const pool = getPackStoreItemsForPack(pack);
+      if (pool.length > 0) return pool;
+    }
+
+    const staticPool = resolveStaticCatalogItems(id);
+    if (staticPool.length > 0) return staticPool;
+  }
+
+  logger.warn("[getPackRollPool] pack not found", { packId: trimmed });
+  return [];
+}
+
+/** Synchronous drop-table source — never waits on remote catalog fetch. */
+export function resolveDropTableItems(packId: string): StoreItem[] {
+  return getPackRollPool(packId);
 }

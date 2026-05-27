@@ -1,4 +1,6 @@
-import { AppLayout } from "./components/layout/AppLayout";
+import { Capacitor } from "@capacitor/core";
+import { MobileAppLayout } from "./components/mobile/MobileAppLayout";
+import { WebDashboardLayout } from "./components/layout/AppLayout";
 import { InfoPageView } from "./components/views/InfoPageView";
 import { ViewRouter } from "./components/views/ViewRouter";
 import { useApp } from "./context/AppContext";
@@ -14,9 +16,13 @@ function AppContent() {
 }
 
 export default function App() {
+  if (Capacitor.getPlatform() !== "web") {
+    return <MobileAppLayout />;
+  }
+
   return (
-    <AppLayout>
+    <WebDashboardLayout>
       <AppContent />
-    </AppLayout>
+    </WebDashboardLayout>
   );
 }

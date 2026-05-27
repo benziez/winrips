@@ -135,6 +135,8 @@ function QrCodeFrame({
           alt={`${ticker} deposit QR code`}
           width={qrSize}
           height={qrSize}
+          loading="lazy"
+          decoding="async"
           className={QR_IMAGE_CLASS}
         />
       ) : (

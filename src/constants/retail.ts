@@ -26,6 +26,27 @@ export function formatGems(amount: number): string {
   return `${amount.toLocaleString()} Gems`;
 }
 
+/** Convert gem cost to USD list price (100 gems = $1). */
+export function gemsToUsd(gemCost: number): number {
+  const safe = Number.isFinite(gemCost) && gemCost > 0 ? gemCost : 0;
+  return safe / RETAIL_COPY.gemsPerUsd;
+}
+
+export function formatUsd(amount: number): string {
+  const safe = Number.isFinite(amount) && amount >= 0 ? amount : 0;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: safe % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  }).format(safe);
+}
+
+/** App Store / catalog price label for a pack gem cost. */
+export function formatPackPriceUsd(gemCost: number): string {
+  return formatUsd(gemsToUsd(gemCost));
+}
+
 /** Gem pill display — compact uses shorthand (e.g. 1.0M) on narrow header layouts. */
 export function formatGemBalanceDisplay(balance: number, compact = false): string {
   const safe = Number.isFinite(balance) && balance >= 0 ? balance : 0;

@@ -22,6 +22,7 @@ export interface DropTableItemCardProps {
   category?: PackCategory;
   detail?: CardDetailCard;
   onSelect?: (card: CardDetailCard) => void;
+  showPsa10Badge?: boolean;
 }
 
 function rarityDisplayLabel(rarity: DropTableRarity, appRarity?: StoreItem["appRarity"]): string {
@@ -40,6 +41,7 @@ export function DropTableItemCard({
   category,
   detail,
   onSelect,
+  showPsa10Badge = false,
 }: DropTableItemCardProps) {
   const tierLabel = rarityDisplayLabel(rarity, appRarity);
   const topLabel = subtype?.trim() ? `${tierLabel} · ${subtype.trim()}` : tierLabel;
@@ -72,6 +74,11 @@ export function DropTableItemCard({
     >
       <div className="relative flex flex-1 items-center justify-center px-1.5 pb-0.5 pt-2 sm:px-3 sm:pb-1 sm:pt-4 md:px-4 md:pt-5">
         <div className="relative aspect-square w-full max-w-[52px] sm:max-w-[80px] md:max-w-[96px]">
+          {showPsa10Badge ? (
+            <span className="absolute left-0 top-0 z-10 rounded border border-gold/50 bg-black/85 px-1 py-0.5 text-[6px] font-bold uppercase tracking-wider text-gold shadow-sm sm:text-[7px]">
+              PSA 10
+            </span>
+          ) : null}
           <CollectibleImage
             src={image}
             alt={name}

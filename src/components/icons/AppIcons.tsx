@@ -231,6 +231,16 @@ export type NavIconName =
   | "grid"
   | "zap";
 
+export function UserCircleIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="10" r="3" />
+      <path d="M7 20.66V19a5 5 0 0 1 10 0v1.66" />
+    </Icon>
+  );
+}
+
 export function ChevronDown(props: IconProps) {
   return (
     <Icon {...props}>

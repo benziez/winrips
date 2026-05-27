@@ -21,6 +21,8 @@ interface ExchangeRpcPayload {
   status?: string;
 }
 
+const inFlightExchangeIds = new Set<string>();
+
 export interface VaultExchangeUiHandlers {
   /** Remove the exchanged card from local vault state immediately. */
   removeVaultItem: (
@@ -78,49 +80,57 @@ export async function exchangeVaultItem(vaultItemId: string): Promise<ExchangeVa
   if (!cleanId) {
     return { ok: false, error: "Vault item not found." };
   }
-
-  logger.log("[exchange_vault_item] RPC request");
-
-  // @ts-expect-error Database RPC typings omit exchange_vault_item args.
-  const { data, error } = await supabase.rpc("exchange_vault_item", { p_item_id: cleanId });
-
-  if (error) {
-    logger.warn("[exchange_vault_item] RPC failed:", error.message);
-    return { ok: false, error: mapTransportError(error.message) };
+  if (inFlightExchangeIds.has(cleanId)) {
+    return { ok: false, error: "Exchange already in progress for this item." };
   }
+  inFlightExchangeIds.add(cleanId);
 
-  const payload = parseRpcPayload(data as Json);
+  try {
+    logger.log("[exchange_vault_item] RPC request");
 
-  if (payload?.success === false) {
-    const dbError = resolveDbError(payload, "Unable to exchange this item.");
-    logger.warn("[exchange_vault_item] success=false:", dbError);
-    return { ok: false, error: dbError };
-  }
+    // @ts-expect-error Database RPC typings omit exchange_vault_item args.
+    const { data, error } = await supabase.rpc("exchange_vault_item", { p_item_id: cleanId });
 
-  if (payload?.success !== true) {
-    logger.warn("[exchange_vault_item] Invalid response");
+    if (error) {
+      logger.warn("[exchange_vault_item] RPC failed:", error.message);
+      return { ok: false, error: mapTransportError(error.message) };
+    }
+
+    const payload = parseRpcPayload(data as Json);
+
+    if (payload?.success === false) {
+      const dbError = resolveDbError(payload, "Unable to exchange this item.");
+      logger.warn("[exchange_vault_item] success=false:", dbError);
+      return { ok: false, error: dbError };
+    }
+
+    if (payload?.success !== true) {
+      logger.warn("[exchange_vault_item] Invalid response");
+      return {
+        ok: false,
+        error: resolveDbError(payload, "Exchange returned an invalid response."),
+      };
+    }
+
+    const gemsAdded = Number(payload.gems_added);
+    const gemsBalance = Number(payload.gems_balance);
+    const normalizedAdded = Number.isFinite(gemsAdded) ? Math.round(gemsAdded) : 0;
+    const normalizedBalance = Number.isFinite(gemsBalance) ? Math.round(gemsBalance) : 0;
+
+    logger.log("[exchange_vault_item] credit applied:", {
+      gemsAdded: normalizedAdded,
+      gemsBalance: normalizedBalance,
+    });
+
     return {
-      ok: false,
-      error: resolveDbError(payload, "Exchange returned an invalid response."),
+      ok: true,
+      vaultItemId: sourceVaultItemId,
+      gemsAdded: normalizedAdded,
+      gemsBalance: normalizedBalance,
     };
+  } finally {
+    inFlightExchangeIds.delete(cleanId);
   }
-
-  const gemsAdded = Number(payload.gems_added);
-  const gemsBalance = Number(payload.gems_balance);
-  const normalizedAdded = Number.isFinite(gemsAdded) ? Math.round(gemsAdded) : 0;
-  const normalizedBalance = Number.isFinite(gemsBalance) ? Math.round(gemsBalance) : 0;
-
-  logger.log("[exchange_vault_item] credit applied:", {
-    gemsAdded: normalizedAdded,
-    gemsBalance: normalizedBalance,
-  });
-
-  return {
-    ok: true,
-    vaultItemId: sourceVaultItemId,
-    gemsAdded: normalizedAdded,
-    gemsBalance: normalizedBalance,
-  };
 }
 
 /**

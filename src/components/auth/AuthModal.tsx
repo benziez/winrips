@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
+import { AppleSignInButton } from "./AppleSignInButton";
+import { isAppStoreCommerce } from "../../constants/commerce";
 
 export function AuthModal() {
   const {
@@ -194,22 +196,35 @@ export function AuthModal() {
         </div>
 
         <div className="space-y-2.5">
-          <button
-            type="button"
-            onClick={() => handleSso("Google")}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-metallic py-2.5 text-sm font-semibold text-white transition-colors hover:border-fuchsia/40 hover:bg-metallic-hover"
-          >
-            <span className="text-base">G</span>
-            Continue with Google
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSso("Discord")}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-metallic py-2.5 text-sm font-semibold text-white transition-colors hover:border-fuchsia/40 hover:bg-metallic-hover"
-          >
-            <span className="text-base">◎</span>
-            Continue with Discord
-          </button>
+          {isAppStoreCommerce() ? (
+            <AppleSignInButton
+              className="rounded-lg py-2.5"
+              onError={(message) => setFormError(message)}
+              onSuccess={() => {
+                showCashoutToast("Welcome to WinRips!");
+                handleClose();
+              }}
+            />
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => handleSso("Google")}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-metallic py-2.5 text-sm font-semibold text-white transition-colors hover:border-fuchsia/40 hover:bg-metallic-hover"
+              >
+                <span className="text-base">G</span>
+                Continue with Google
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSso("Discord")}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-metallic py-2.5 text-sm font-semibold text-white transition-colors hover:border-fuchsia/40 hover:bg-metallic-hover"
+              >
+                <span className="text-base">◎</span>
+                Continue with Discord
+              </button>
+            </>
+          )}
         </div>
 
         <p className="mt-5 text-center text-xs text-muted">

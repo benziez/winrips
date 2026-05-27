@@ -28,7 +28,11 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
   return (
     <>
       <AgeGate />
-      <div className="min-h-screen w-full overflow-x-hidden bg-obsidian">
+      <div className="relative min-h-screen w-full overflow-x-hidden bg-obsidian">
+      <div
+        className="pointer-events-none absolute inset-0 -z-50 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-fuchsia-900/15 via-obsidian to-obsidian"
+        aria-hidden
+      />
       <Sidebar />
 
       <div
@@ -38,7 +42,7 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
       >
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <Header />
-          <main className="min-w-0 flex-1 bg-obsidian">{children}</main>
+          <main className="min-w-0 flex-1">{children}</main>
         </div>
 
         <CorporateFooter />
@@ -101,10 +105,14 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
   );
 }
 
-export function AppLayout({ children }: { children: ReactNode }) {
+/** Desktop / web dashboard shell — sidebar, header, footer, live feed. */
+export function WebDashboardLayout({ children }: { children: ReactNode }) {
   return (
     <NavDrawerProvider>
       <AppLayoutFrame>{children}</AppLayoutFrame>
     </NavDrawerProvider>
   );
 }
+
+/** @deprecated Use `WebDashboardLayout` */
+export const AppLayout = WebDashboardLayout;

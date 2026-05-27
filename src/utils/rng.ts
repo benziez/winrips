@@ -1,17 +1,33 @@
 import type { Card, PackCategory } from "../types";
 import type { StoreItem } from "../types/store";
-import { LOBBY_PACK_CATALOG } from "../constants/packs";
+import {
+  findPackById,
+  findStaticPackById,
+  getPackRollPool,
+} from "../data/boxCatalog";
 import {
   cardPoolForCategory,
   getPackStoreItems,
   storeItemToCard,
 } from "../constants/catalog";
+import { POKEMON_ITEMS } from "../constants/pokemonCatalog";
+import { logger } from "../lib/logger";
 import {
   normalizePackWeights,
   PROBABILITY_TOTAL,
 } from "./packProbability";
 
 export { normalizePackWeights } from "./packProbability";
+
+function secureRandomUnit(): number {
+  const bytes = new Uint32Array(1);
+  crypto.getRandomValues(bytes);
+  return bytes[0]! / 0x1_0000_0000;
+}
+
+function secureRandomIndex(length: number): number {
+  return Math.floor(secureRandomUnit() * length);
+}
 
 export interface WeightedRollResult<T> {
   item: T;
@@ -31,7 +47,7 @@ export function selectWeightedStoreItemWithRoll<T extends { probability: number 
   }
 
   const weights = normalizePackWeights(items);
-  const roll = Math.random() * PROBABILITY_TOTAL;
+  const roll = secureRandomUnit() * PROBABILITY_TOTAL;
   let cumulative = 0;
 
   for (let i = 0; i < items.length; i++) {
@@ -64,40 +80,92 @@ export function snapshotCard(card: Card): Card {
   };
 }
 
+export interface PackPullEntry {
+  itemId: string;
+  rolledNumber: number;
+}
+
+function findStoreItemInStaticCatalog(packId: string, itemId: string): StoreItem | undefined {
+  const pack = findStaticPackById(packId);
+  if (pack) {
+    const fromStaticPack = getPackStoreItems(pack).find((item) => item.id === itemId);
+    if (fromStaticPack) return fromStaticPack;
+  }
+
+  return POKEMON_ITEMS.find((item) => item.id === itemId);
+}
+
+function unknownCardFallback(itemId: string): Card {
+  return {
+    id: itemId,
+    name: "Unknown Card",
+    rarity: "Common",
+    value: 0,
+    image: "",
+  };
+}
+
+/**
+ * Single source of truth — name, image, and gem value from the same catalog row as itemId.
+ * Uses the same roll pool as RNG, then falls back to static pokemon pools if DB is partial.
+ */
+export function resolveCardByItemId(packId: string, itemId: string): Card {
+  const normalizedId = itemId.trim();
+  const rollPool = getPackRollPool(packId);
+  const fromRollPool = rollPool.find((item) => item.id === normalizedId);
+
+  if (fromRollPool) {
+    return snapshotCard(storeItemToCard(fromRollPool));
+  }
+
+  logger.warn("[resolveCardByItemId] item missing from roll pool — trying static catalog", {
+    packId,
+    itemId: normalizedId,
+    rollPoolItemIds: rollPool.map((item) => item.id),
+  });
+
+  const staticItem = findStoreItemInStaticCatalog(packId, normalizedId);
+  if (staticItem) {
+    logger.warn("[resolveCardByItemId] resolved from static packPokemonPools fallback", {
+      packId,
+      itemId: normalizedId,
+      name: staticItem.name,
+    });
+    return snapshotCard(storeItemToCard(staticItem));
+  }
+
+  logger.error("[resolveCardByItemId] item missing from DB and static catalogs", {
+    packId,
+    itemId: normalizedId,
+  });
+
+  return unknownCardFallback(normalizedId);
+}
+
 /**
  * Bind roll output to a single catalog row so name, image, and value cannot drift.
  */
 export function resolveWinnerItem(packId: string, rolled: Card): Card {
-  const pack = LOBBY_PACK_CATALOG.find((p) => p.id === packId);
-  if (!pack) return snapshotCard(rolled);
-
-  const storeItem = getPackStoreItems(pack).find((item) => item.id === rolled.id);
-  if (storeItem) return storeItemToCard(storeItem);
-
-  return snapshotCard(rolled);
+  return resolveCardByItemId(packId, rolled.id);
 }
 
 export function rollCardForPackWithRoll(packId: string): PackRollResult {
-  const pack = LOBBY_PACK_CATALOG.find((p) => p.id === packId);
-  if (!pack) {
-    const card = rollCardFromCategoryPool("pokemon");
-    return { card, rolledNumber: Math.random() * PROBABILITY_TOTAL };
-  }
+  const items = getPackRollPool(packId);
+  const pack = findPackById(packId);
 
-  const items = getPackStoreItems(pack);
   if (items.length === 0) {
-    const card = rollCardFromCategoryPool(pack.category);
-    return { card, rolledNumber: Math.random() * PROBABILITY_TOTAL };
+    const card = rollCardFromCategoryPool(pack?.category ?? "pokemon");
+    return { card, rolledNumber: secureRandomUnit() * PROBABILITY_TOTAL };
   }
 
   const roll = selectWeightedStoreItemWithRoll(items);
   if (!roll) {
-    const card = rollCardFromCategoryPool(pack.category);
-    return { card, rolledNumber: Math.random() * PROBABILITY_TOTAL };
+    const card = rollCardFromCategoryPool(pack?.category ?? "pokemon");
+    return { card, rolledNumber: secureRandomUnit() * PROBABILITY_TOTAL };
   }
 
   return {
-    card: resolveWinnerItem(packId, storeItemToCard(roll.item)),
+    card: resolveCardByItemId(packId, roll.item.id),
     rolledNumber: roll.rolledNumber,
   };
 }
@@ -117,7 +185,7 @@ function rollCardFromCategoryPool(category: PackCategory): Card {
       image: "",
     };
   }
-  return pool[Math.floor(Math.random() * pool.length)];
+  return pool[secureRandomIndex(pool.length)];
 }
 
 /** @deprecated prefer rollCardForPack when a pack is selected */
@@ -129,7 +197,7 @@ export function rollMultipleWithRoll(count: number, packId?: string): PackRollRe
   return Array.from({ length: count }, () =>
     packId
       ? rollCardForPackWithRoll(packId)
-      : { card: rollCard(), rolledNumber: Math.random() * PROBABILITY_TOTAL },
+      : { card: rollCard(), rolledNumber: secureRandomUnit() * PROBABILITY_TOTAL },
   );
 }
 
@@ -187,11 +255,11 @@ export function buildCarouselStrip(
   length: number = ROULETTE_TAPE_LENGTH,
   winnerIndex: number = ROULETTE_WINNER_INDEX,
 ): CarouselStripResult {
-  const pack = LOBBY_PACK_CATALOG.find((p) => p.id === packId);
-  const packItems = pack ? getPackStoreItems(pack) : [];
+  const packItems = getPackRollPool(packId);
+  const pack = findPackById(packId);
   const categoryFallback = cardPoolForCategory(pack?.category ?? "pokemon");
 
-  const winnerItem = resolveWinnerItem(packId, winner);
+  const winnerItem = resolveCardByItemId(packId, winner.id);
   const strip: Card[] = new Array(length);
 
   for (let i = 0; i < length; i++) {
@@ -200,7 +268,7 @@ export function buildCarouselStrip(
     } else if (packItems.length > 0) {
       strip[i] = pickWeightedCarouselFiller(packItems);
     } else {
-      const filler = categoryFallback[Math.floor(Math.random() * categoryFallback.length)];
+      const filler = categoryFallback[secureRandomIndex(categoryFallback.length)];
       strip[i] = snapshotCard(filler);
     }
   }
@@ -214,21 +282,11 @@ export function buildPreviewCarouselStrip(
   length: number = ROULETTE_TAPE_LENGTH,
   winnerIndex: number = ROULETTE_WINNER_INDEX,
 ): Card[] {
-  const pack = LOBBY_PACK_CATALOG.find((p) => p.id === packId);
-  const items = getPackStoreItems(
-    pack ?? {
-      id: packId,
-      category: "pokemon",
-      name: "",
-      cost: 0,
-      theme: "gold",
-      description: "",
-      image: "",
-    },
-  );
+  const items = getPackRollPool(packId);
+  const pack = findPackById(packId);
   const featured =
     items.length > 0
-      ? storeItemToCard(selectWeightedStoreItem(items) ?? items[0])
+      ? resolveCardByItemId(packId, (selectWeightedStoreItem(items) ?? items[0]).id)
       : rollCardFromCategoryPool(pack?.category ?? "pokemon");
 
   return buildCarouselStrip(featured, packId, length, winnerIndex).strip;

@@ -16,7 +16,7 @@ export const LOBBY_SECTIONS: LobbySection[] = [
     title: "Pokémon Drops",
     categories: ["pokemon"],
     showComingSoonWhenEmpty: true,
-    placeholderCount: 8,
+    placeholderCount: 12,
   },
 ];
 

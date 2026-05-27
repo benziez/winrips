@@ -11,17 +11,32 @@
     "preview": "vite preview --port 4444",
     "seed:pokemon": "node scripts/seedPokemon.js",
     "seed:upgrader-sql": "tsx scripts/generateUpgraderSeed.ts",
-    "dev:set-balance": "node scripts/setGemBalance.mjs"
+    "dev:set-balance": "node scripts/setGemBalance.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
+    "@capacitor-community/apple-sign-in": "^7.1.0",
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/browser": "^8.0.3",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.3.4",
+    "@revenuecat/purchases-capacitor": "^13.1.2",
     "@supabase/supabase-js": "^2.106.1",
     "@tanstack/react-query": "^5.100.14",
     "@upstash/redis": "^1.38.0",
     "@vercel/node": "^5.8.3",
+    "framer-motion": "^12.40.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.15.1",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@tailwindcss/vite": "^4.1.7",
     "@types/node": "^25.9.1",
     "@types/react": "^19.1.2",

@@ -1,20 +1,26 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { handleAccountBalanceRoute, handleDevSetBalanceRoute } from "./accountBalance.js";
+import { handleAccountDeleteRoute } from "./accountDelete.js";
 import { handlePaymentsRoute } from "./payments.js";
 import { handlePaymentsWebhookRoute } from "./paymentsWebhook.js";
 import {
   handleVaultInventoryGetRoute,
   handleVaultInventoryMutateRoute,
 } from "./vaultInventory.js";
+import { handleFairnessSessionRoute } from "./fairnessSessionHttp.js";
+import { handleIapFulfillRoute } from "./iapFulfill.js";
 
-/** Dispatches payment, balance, and vault API routes. */
+/** Dispatches payment, balance, vault, and fairness API routes. */
 export async function handlePaymentHttp(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
+  if (await handleIapFulfillRoute(req, res)) return true;
+  if (await handleFairnessSessionRoute(req, res)) return true;
   if (await handlePaymentsWebhookRoute(req, res)) return true;
   if (await handleDevSetBalanceRoute(req, res)) return true;
   if (await handleAccountBalanceRoute(req, res)) return true;
+  if (await handleAccountDeleteRoute(req, res)) return true;
   if (await handleVaultInventoryGetRoute(req, res)) return true;
   if (await handleVaultInventoryMutateRoute(req, res)) return true;
   if (await handlePaymentsRoute(req, res)) return true;

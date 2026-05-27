@@ -246,6 +246,25 @@ export async function creditGemsFromDeposit({
   };
 }
 
+/** Removes a user's KV balance entry and all deposit orders keyed to that user. */
+export async function purgeUserFromBalanceStore(userId: string): Promise<void> {
+  const trimmed = userId.trim();
+  if (!trimmed) return;
+
+  const store = await loadStore();
+  delete store.users[trimmed];
+
+  for (const [orderId, raw] of Object.entries(store.orders)) {
+    if (!raw || typeof raw !== "object") continue;
+    const record = raw as { userId?: unknown };
+    if (typeof record.userId === "string" && record.userId.trim() === trimmed) {
+      delete store.orders[orderId];
+    }
+  }
+
+  await saveStore(store);
+}
+
 /** @internal Resets in-memory cache (tests / local dev). Does not clear KV. */
 export function __resetBalancesStoreForTests(): void {
   memoryStore = defaultStore();

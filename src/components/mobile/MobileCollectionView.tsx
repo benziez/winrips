@@ -66,145 +66,136 @@ export function MobileCollectionView() {
         <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
       </header>
 
-      <PortfolioGraph />
-
-      <div className="flex items-center justify-between gap-4 px-6 pb-3">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            className="flex items-center gap-1 text-[14px] font-medium text-white"
-          >
-            All <ChevronDown size={14} className="text-[var(--rip-text-muted)]" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void hapticTabSelect();
-              setSortKey((k) => (k === "price-desc" ? "price-asc" : "price-desc"));
-            }}
-            className="flex items-center gap-1 text-[14px] font-medium text-white"
-          >
-            ↓ Price <ChevronDown size={14} className="text-[var(--rip-text-muted)]" />
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              void hapticTabSelect();
-              setViewMode("list");
-            }}
-            aria-label="List view"
-            className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-              viewMode === "list"
-                ? "bg-[var(--rip-surface-strong)] text-white ring-1 ring-[var(--rip-border-strong)]"
-                : "text-[var(--rip-text-muted)]"
-            }`}
-          >
-            <ListViewIcon size={20} />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              void hapticTabSelect();
-              setViewMode("grid");
-            }}
-            aria-label="Grid view"
-            className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-              viewMode === "grid"
-                ? "bg-[var(--rip-surface-strong)] text-white ring-1 ring-[var(--rip-border-strong)]"
-                : "text-[var(--rip-text-muted)]"
-            }`}
-          >
-            <GridViewIcon size={20} />
-          </button>
-        </div>
-      </div>
-      <div className="mx-6 border-b border-[var(--rip-border)]" />
-
       <div
-        className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-6"
-        style={{ paddingBottom: `calc(${MOBILE_DOCK_CLEARANCE} + 5.5rem)` }}
+        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+        style={{ paddingBottom: MOBILE_DOCK_CLEARANCE }}
       >
-        {vaultItemsLoading ? (
-          <p className="text-center text-[15px] text-[var(--rip-text-muted)]">Loading collection…</p>
-        ) : sortedItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center pt-16">
-            <EmptyCollectionIllustration />
-            <p className="mt-8 text-center text-[15px] text-[var(--rip-text-muted)]">
-              You don&apos;t have any cards yet.
-            </p>
+        <PortfolioGraph />
+
+        <div className="flex items-center justify-between gap-4 px-6 pb-3">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              className="flex items-center gap-1 text-[14px] font-medium text-white"
+            >
+              All <ChevronDown size={14} className="text-[var(--rip-text-muted)]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void hapticTabSelect();
+                setSortKey((k) => (k === "price-desc" ? "price-asc" : "price-desc"));
+              }}
+              className="flex items-center gap-1 text-[14px] font-medium text-white"
+            >
+              ↓ Price <ChevronDown size={14} className="text-[var(--rip-text-muted)]" />
+            </button>
           </div>
-        ) : viewMode === "grid" ? (
-          <div className="grid grid-cols-2 gap-3">
-            {sortedItems.map((item) => {
-              const card = vaultedToCard(item);
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSelectedCard(card)}
-                  className="flex aspect-[3/4.2] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] p-3 text-left"
-                >
-                  <div className="flex min-h-0 flex-[0.65] items-center justify-center">
-                    <CollectibleImage
-                      src={item.image}
-                      alt={item.name}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  </div>
-                  <div className="mt-auto pt-2">
-                    <p className="text-[16px] font-bold text-[var(--rip-green-bright)]">
-                      {formatUsd(gemsToUsd(item.value))}
-                    </p>
-                    <p className="truncate text-[13px] font-medium text-white">{item.name}</p>
-                  </div>
-                </button>
-              );
-            })}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void hapticTabSelect();
+                setViewMode("list");
+              }}
+              aria-label="List view"
+              className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                viewMode === "list"
+                  ? "bg-[var(--rip-surface-strong)] text-white ring-1 ring-[var(--rip-border-strong)]"
+                  : "text-[var(--rip-text-muted)]"
+              }`}
+            >
+              <ListViewIcon size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void hapticTabSelect();
+                setViewMode("grid");
+              }}
+              aria-label="Grid view"
+              className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                viewMode === "grid"
+                  ? "bg-[var(--rip-surface-strong)] text-white ring-1 ring-[var(--rip-border-strong)]"
+                  : "text-[var(--rip-text-muted)]"
+              }`}
+            >
+              <GridViewIcon size={20} />
+            </button>
           </div>
-        ) : (
-          <ul>
-            {sortedItems.map((item) => {
-              const card = vaultedToCard(item);
-              return (
-                <li key={item.id} className="border-b border-[var(--rip-border)]">
+        </div>
+        <div className="mx-6 border-b border-[var(--rip-border)]" />
+
+        <div className="px-4 pt-6 pb-6">
+          {vaultItemsLoading ? (
+            <p className="text-center text-[15px] text-[var(--rip-text-muted)]">Loading collection…</p>
+          ) : sortedItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center pt-16">
+              <EmptyCollectionIllustration />
+              <p className="mt-8 text-center text-[15px] text-[var(--rip-text-muted)]">
+                You don&apos;t have any cards yet.
+              </p>
+            </div>
+          ) : viewMode === "grid" ? (
+            <div className="grid grid-cols-2 gap-3">
+              {sortedItems.map((item) => {
+                const card = vaultedToCard(item);
+                return (
                   <button
+                    key={item.id}
                     type="button"
                     onClick={() => setSelectedCard(card)}
-                    className="flex h-24 w-full items-center gap-4 px-2 text-left"
+                    className="flex aspect-[3/4.2] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] p-3 text-left"
                   >
-                    <div className="h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-[var(--rip-surface)] p-1">
+                    <div className="flex min-h-0 flex-[0.65] items-center justify-center">
                       <CollectibleImage
                         src={item.image}
                         alt={item.name}
-                        className="h-full w-full object-contain"
+                        className="max-h-full max-w-full object-contain"
                       />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-medium text-white">{item.name}</p>
-                      <p className="text-[17px] font-bold text-[var(--rip-green-bright)]">
+                    <div className="mt-auto pt-2">
+                      <p className="text-[16px] font-bold text-[var(--rip-green-bright)]">
                         {formatUsd(gemsToUsd(item.value))}
                       </p>
+                      <p className="truncate text-[13px] font-medium text-white">{item.name}</p>
                     </div>
-                    <ChevronRight size={18} className="shrink-0 text-[var(--rip-text-muted)]" />
                   </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <div
-        className="pointer-events-none fixed left-0 right-0 z-30 px-4"
-        style={{ bottom: `calc(${MOBILE_DOCK_CLEARANCE} + 0.5rem)` }}
-      >
-        <p className="rip-surface-glass pointer-events-auto rounded-2xl p-3.5 text-[13px] leading-relaxed text-white backdrop-blur-md">
-          Your vaulted cards will be{" "}
-          <strong className="font-bold">automatically sold after 7 days</strong> at fair market
-          value unless you have them shipped to you.
-        </p>
+                );
+              })}
+            </div>
+          ) : (
+            <ul>
+              {sortedItems.map((item) => {
+                const card = vaultedToCard(item);
+                return (
+                  <li key={item.id} className="border-b border-[var(--rip-border)]">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCard(card)}
+                      className="flex h-24 w-full items-center gap-4 px-2 text-left"
+                    >
+                      <div className="h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-[var(--rip-surface)] p-1">
+                        <CollectibleImage
+                          src={item.image}
+                          alt={item.name}
+                          className="h-full w-full object-contain"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[15px] font-medium text-white">{item.name}</p>
+                        <p className="text-[17px] font-bold text-[var(--rip-green-bright)]">
+                          {formatUsd(gemsToUsd(item.value))}
+                        </p>
+                      </div>
+                      <ChevronRight size={18} className="shrink-0 text-[var(--rip-text-muted)]" />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
 
       <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />

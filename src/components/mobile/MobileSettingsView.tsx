@@ -1,16 +1,19 @@
+import { useState } from "react";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { useApp } from "../../context/AppContext";
 import type { FooterPageSlug } from "../../constants/footerContent";
 import { RipAmbientShell } from "./rip/RipAmbientShell";
+import { AutoSellPolicySheet } from "./settings/AutoSellPolicySheet";
 import { ChevronLeft } from "../icons/AppIcons";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 
-const LINK_ROWS: { label: string; slug?: FooterPageSlug; action?: "login" }[] = [
+const LINK_ROWS: { label: string; slug?: FooterPageSlug; action?: "login" | "auto-sell" }[] = [
   { label: "Login", action: "login" },
   { label: "Terms of Use", slug: "terms" },
   { label: "Privacy Policy", slug: "privacy" },
   { label: "Tax Information", slug: "purchase-agreement" },
+  { label: "Auto-Sell Policy", action: "auto-sell" },
   { label: "Responsible Purchasing", slug: "responsible-play" },
   { label: "Data Preferences", slug: "privacy" },
 ];
@@ -28,6 +31,7 @@ async function openExternalUrl(url: string) {
 
 export function MobileSettingsView() {
   const { navigateToView, openInfoPage, openAuthModal, isLoggedIn } = useApp();
+  const [autoSellSheetOpen, setAutoSellSheetOpen] = useState(false);
 
   return (
     <RipAmbientShell>
@@ -88,6 +92,10 @@ export function MobileSettingsView() {
                     if (!isLoggedIn) openAuthModal("login");
                     return;
                   }
+                  if (row.action === "auto-sell") {
+                    setAutoSellSheetOpen(true);
+                    return;
+                  }
                   if (row.slug) openInfoPage(row.slug);
                 }}
                 className="flex w-full py-4 text-left text-[17px] font-medium text-white"
@@ -102,6 +110,11 @@ export function MobileSettingsView() {
           Version {APP_VERSION} ({BUILD_NUMBER})
         </p>
       </div>
+
+      <AutoSellPolicySheet
+        open={autoSellSheetOpen}
+        onClose={() => setAutoSellSheetOpen(false)}
+      />
     </RipAmbientShell>
   );
 }

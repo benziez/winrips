@@ -7,9 +7,11 @@ export type DeleteAccountResult =
       error: string;
     };
 
+import { apiUrl } from "../utils/apiBaseUrl";
+
 export async function deleteAccount(accessToken: string): Promise<DeleteAccountResult> {
   try {
-    const response = await fetch("/api/account/delete", {
+    const response = await fetch(apiUrl("/api/account/delete"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

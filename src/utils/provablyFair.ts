@@ -1,3 +1,5 @@
+import { apiUrl } from "./apiBaseUrl";
+
 const CLIENT_SEED_KEY = "winrips.clientSeed";
 const LOCAL_SERVER_SEED_KEY_PREFIX = "winrips.localServerSeed";
 
@@ -145,7 +147,7 @@ async function createServerSession(
   packId: string,
 ): Promise<{ sessionId: string; serverSeedHash: string } | null> {
   if (typeof window === "undefined") return null;
-  const response = await fetch("/api/fairness/session", {
+  const response = await fetch(apiUrl("/api/fairness/session"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "create", packId }),
@@ -165,7 +167,7 @@ async function revealServerSeed(
   sessionId: string,
 ): Promise<{ serverSeed: string } | null> {
   if (typeof window === "undefined") return null;
-  const response = await fetch("/api/fairness/session", {
+  const response = await fetch(apiUrl("/api/fairness/session"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "reveal", sessionId }),

@@ -32,6 +32,7 @@ export function normalizeDepositQrAddress(rawAddress: string): string {
   return value.split("?")[0]?.split("#")[0]?.trim() ?? value;
 }
 import { supabase } from "./supabaseClient";
+import { apiUrl } from "../utils/apiBaseUrl";
 
 const CREATE_PAYMENT_PATH = "/api/payments/create";
 
@@ -58,7 +59,7 @@ export async function requestDepositPayment(
 ): Promise<DepositPaymentResponse> {
   const accessToken = await getDepositAccessToken();
 
-  const response = await fetch(CREATE_PAYMENT_PATH, {
+  const response = await fetch(apiUrl(CREATE_PAYMENT_PATH), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -78,7 +79,7 @@ export async function requestDepositPayment(
 
 export async function fetchAccountBalance(userId: string): Promise<AccountBalanceResponse> {
   const params = new URLSearchParams({ userId });
-  const response = await fetch(`/api/account/balance?${params.toString()}`);
+  const response = await fetch(apiUrl(`/api/account/balance?${params.toString()}`));
 
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
@@ -109,7 +110,7 @@ export async function setDevGemBalance(
     throw new Error("Set VITE_DEV_BALANCE_SECRET in .env to use dev balance tools.");
   }
 
-  const response = await fetch(DEV_SET_BALANCE_PATH, {
+  const response = await fetch(apiUrl(DEV_SET_BALANCE_PATH), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -1,6 +1,7 @@
 import type { Rarity, VaultedCard } from "../types";
 import { deleteVaultItem, fetchVaultItems, insertVaultItem } from "./vaultItems";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
+import { apiUrl } from "../utils/apiBaseUrl";
 
 export interface VaultInventoryResponse {
   userId: string;
@@ -43,7 +44,7 @@ function normalizeVaultCard(raw: Record<string, unknown>): VaultedCard | null {
 
 async function fetchVaultInventoryFromApi(authUserId: string): Promise<VaultedCard[]> {
   const params = new URLSearchParams({ userId: authUserId });
-  const response = await fetch(`/api/vault/inventory?${params.toString()}`);
+  const response = await fetch(apiUrl(`/api/vault/inventory?${params.toString()}`));
 
   const contentType = response.headers.get("content-type") ?? "";
   if (!contentType.includes("application/json")) {
@@ -94,7 +95,7 @@ async function mutateVaultInventory(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch("/api/vault/inventory", {
+  const response = await fetch(apiUrl("/api/vault/inventory"), {
     method: "POST",
     headers,
     body: JSON.stringify(payload),

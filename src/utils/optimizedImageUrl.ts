@@ -1,4 +1,5 @@
 import { normalizeLocalAssetPath, resolveAssetUrl } from "./resolveAssetUrl";
+import { apiUrl } from "./apiBaseUrl";
 
 const POKEMON_TCG_HOST = "images.pokemontcg.io";
 
@@ -51,7 +52,7 @@ export function optimizedImageUrl(
   }
 
   if (useWebpProxy && isPokemonTcgUrl(resolved) && import.meta.env.PROD) {
-    return `/api/image/optimize?url=${encodeURIComponent(resolved)}`;
+    return apiUrl(`/api/image/optimize?url=${encodeURIComponent(resolved)}`);
   }
 
   return resolved;

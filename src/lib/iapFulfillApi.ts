@@ -9,11 +9,13 @@ interface FulfillIapPackOpenParams {
 
 export type FulfillIapResult = { ok: true } | { ok: false; error: string };
 
+import { apiUrl } from "../utils/apiBaseUrl";
+
 export async function fulfillIapPackOpen(
   params: FulfillIapPackOpenParams,
 ): Promise<FulfillIapResult> {
   try {
-    const response = await fetch("/api/iap/fulfill", {
+    const response = await fetch(apiUrl("/api/iap/fulfill"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

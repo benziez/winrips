@@ -15,6 +15,7 @@ import { isAppStoreCommerce } from "../../constants/commerce";
 import { purchasePackForOpening } from "../../lib/nativePackPurchase";
 import { PackCatalogImage } from "./PackCatalogImage";
 import { FlippingSlabReveal } from "./FlippingSlabReveal";
+import { MobileRevealPayoff } from "./MobileRevealPayoff";
 import { PackTearOverlay } from "./PackTearOverlay";
 import { MobileWhatsInsideDrawer } from "./MobileWhatsInsideDrawer";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
@@ -35,6 +36,7 @@ import {
   getStoreRevealIntensity,
   revealGlowPulseTransition,
 } from "../../utils/revealGlow";
+import { getStoreRevealPayoff } from "../../utils/revealPayoff";
 import type { StoreRarity } from "../../types/store";
 import type { Card } from "../../types";
 import { usePackAudio } from "../../hooks/usePackAudio";
@@ -145,6 +147,8 @@ export function MobilePackOpeningView() {
   const [revealRarity, setRevealRarity] = useState<string | undefined>(undefined);
   const [revealStoreRarity, setRevealStoreRarity] = useState<StoreRarity>("Common");
   const [manualRipMode, setManualRipMode] = useState(false);
+  const [payoffBurstKey, setPayoffBurstKey] = useState(0);
+  const [revealShakeClass, setRevealShakeClass] = useState<string | null>(null);
 
   const pullQueueRef = useRef(pullQueue);
   const queueIndexRef = useRef(queueIndex);
@@ -192,6 +196,15 @@ export function MobilePackOpeningView() {
     setPhase("complete");
     setSpinInProgress(false);
   }, [setSpinInProgress]);
+
+  const triggerRevealPayoff = useCallback(() => {
+    setPayoffBurstKey((key) => key + 1);
+  }, []);
+
+  const clearRevealPayoff = useCallback(() => {
+    setPayoffBurstKey(0);
+    setRevealShakeClass(null);
+  }, []);
 
   const enterReveal = useCallback(() => {
     haptics.stop();
@@ -281,9 +294,20 @@ export function MobilePackOpeningView() {
     setWhatsInsideOpen(false);
     setRevealRarity(undefined);
     setRevealStoreRarity("Common");
+    clearRevealPayoff();
     manualRip.reset();
     void buildPendingFairnessSession(selectedPack.id).then(setFairnessSession);
-  }, [selectedPack?.id]);
+  }, [selectedPack?.id, clearRevealPayoff]);
+
+  useEffect(() => {
+    clearRevealPayoff();
+  }, [flipPlayKey, clearRevealPayoff]);
+
+  useEffect(() => {
+    if (phase !== "revealing" && phase !== "complete") {
+      clearRevealPayoff();
+    }
+  }, [phase, clearRevealPayoff]);
 
   useEffect(() => {
     if (ripSubPhase === "tear" && phase === "ripping" && !manualRipMode) {
@@ -618,12 +642,27 @@ export function MobilePackOpeningView() {
   return (
     <>
       <motion.div
-        className="fixed inset-0 z-[100] flex flex-col overflow-hidden bg-black"
+        className={`fixed inset-0 z-[100] flex flex-col overflow-hidden bg-black ${revealShakeClass ?? ""}`}
+        style={
+          revealShakeClass
+            ? {
+                animationDuration: `${getStoreRevealPayoff(revealStoreRarity).shakeDurationMs}ms`,
+              }
+            : undefined
+        }
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
         transition={PAGE_STACK_SPRING}
       >
+        {(phase === "revealing" || phase === "complete") && payoffBurstKey > 0 ? (
+          <MobileRevealPayoff
+            burstKey={payoffBurstKey}
+            storeRarity={revealStoreRarity}
+            onShakeClassChange={setRevealShakeClass}
+            onFinished={clearRevealPayoff}
+          />
+        ) : null}
         {phase === "ripping" && ripSubPhase === "transition" ? (
           <div className="mobile-lens-flare pointer-events-none absolute inset-0 z-0" aria-hidden />
         ) : null}
@@ -755,6 +794,7 @@ export function MobilePackOpeningView() {
                               storeRarity={revealStoreRarity}
                               playFlip
                               immersive={false}
+                              onRevealPayoff={triggerRevealPayoff}
                               onFlipComplete={completeReveal}
                             />
                           </div>

@@ -325,6 +325,53 @@
     animation: screen-shake 0.5s ease-in-out;
   }
 
+  @keyframes screen-shake-light {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    25% {
+      transform: translate(-1px, 1px);
+    }
+    50% {
+      transform: translate(1px, -1px);
+    }
+    75% {
+      transform: translate(-1px, -1px);
+    }
+  }
+
+  .animate-screen-shake-light {
+    animation: screen-shake-light 0.4s ease-in-out;
+  }
+
+  @keyframes screen-shake-medium {
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    15% {
+      transform: translate(-2px, 1px);
+    }
+    30% {
+      transform: translate(2px, -1px);
+    }
+    45% {
+      transform: translate(-2px, -1px);
+    }
+    60% {
+      transform: translate(2px, 1px);
+    }
+  }
+
+  .animate-screen-shake-medium {
+    animation: screen-shake-medium 0.45s ease-in-out;
+  }
+
+  .animate-screen-shake-heavy {
+    animation: screen-shake 0.5s ease-in-out;
+  }
+
   @keyframes mega-glow-pulse {
     0%,
     100% {
@@ -674,6 +721,15 @@ html.capacitor-native body {
     transparent 70%
   );
   animation: mobile-lens-flare 0.45s ease-out forwards;
+}
+
+.mobile-reveal-flare {
+  background: radial-gradient(
+    ellipse 88% 68% at 50% 38%,
+    rgba(242, 214, 128, 0.58),
+    rgba(212, 175, 55, 0.32) 42%,
+    transparent 74%
+  );
 }
 
 /* Obsidian & Gold — shared glass + mystery silhouette */

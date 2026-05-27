@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import type { Card } from "../../types";
 import type { StoreRarity } from "../../types/store";
@@ -18,6 +18,8 @@ interface FlippingSlabRevealProps {
   revealRarity?: string;
   /** 5-tier store rarity — scales flip spring and slab glow intensity. */
   storeRarity?: StoreRarity;
+  /** Fires once when the flip lands — before onFlipComplete. */
+  onRevealPayoff?: () => void;
 }
 
 export function FlippingSlabReveal({
@@ -26,8 +28,10 @@ export function FlippingSlabReveal({
   onFlipComplete,
   immersive = true,
   storeRarity,
+  onRevealPayoff,
 }: FlippingSlabRevealProps) {
   const [sheenDone, setSheenDone] = useState(false);
+  const payoffFiredRef = useRef(false);
 
   const resolvedSrc = useMemo(() => {
     const trimmed = card.image?.trim() ?? "";
@@ -54,7 +58,8 @@ export function FlippingSlabReveal({
 
   useEffect(() => {
     setSheenDone(false);
-  }, [resolvedSrc]);
+    payoffFiredRef.current = false;
+  }, [resolvedSrc, playFlip]);
 
   useEffect(() => {
     if (!playFlip) {
@@ -89,7 +94,11 @@ export function FlippingSlabReveal({
           transition={playFlip ? flipSpring : { duration: 0 }}
           onAnimationComplete={() => {
             if (!sheenDone) setSheenDone(true);
-            if (playFlip) onFlipComplete?.();
+            if (playFlip && !payoffFiredRef.current) {
+              payoffFiredRef.current = true;
+              onRevealPayoff?.();
+              onFlipComplete?.();
+            }
           }}
         >
           <div

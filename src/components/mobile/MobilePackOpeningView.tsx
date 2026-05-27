@@ -141,6 +141,11 @@ export function MobilePackOpeningView() {
   const [revealStoreRarity, setRevealStoreRarity] = useState<StoreRarity>("Common");
   const [manualRipMode, setManualRipMode] = useState(false);
 
+  const pullQueueRef = useRef(pullQueue);
+  const queueIndexRef = useRef(queueIndex);
+  pullQueueRef.current = pullQueue;
+  queueIndexRef.current = queueIndex;
+
   const quantity = 1;
   const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
   const haptics = useHapticRip();
@@ -186,17 +191,20 @@ export function MobilePackOpeningView() {
   const enterReveal = useCallback(() => {
     haptics.stop();
     packAudio.stopTensionAndBurst();
-    const card = activePullCard;
+    const entry = pullQueueRef.current[queueIndexRef.current];
+    const card =
+      entry && selectedPack ? resolveCardByItemId(selectedPack.id, entry.itemId) : null;
+    const dropEntry = card ? dropTable.find((row) => row.card.id === card.id) : undefined;
     if (card) {
       setRevealRarity(card.rarity);
-      setRevealStoreRarity(resolveStoreRarityForCard(card, dropTable));
+      setRevealStoreRarity(dropEntry?.storeRarity ?? "Common");
     } else {
       setRevealRarity(undefined);
       setRevealStoreRarity("Common");
     }
     setFlipPlayKey((key) => key + 1);
     setPhase("revealing");
-  }, [activePullCard, dropTable, haptics, packAudio]);
+  }, [dropTable, haptics, packAudio, selectedPack]);
 
   const handleSkipReveal = useCallback(() => {
     void hapticTabSelect();
@@ -619,7 +627,7 @@ export function MobilePackOpeningView() {
         <DismissPill
           onClick={handleDismiss}
           className={`absolute right-6 z-50 transition-opacity duration-200 ${
-            phase === "revealing" ? "opacity-35" : "opacity-100"
+            phase === "revealing" ? "pointer-events-none opacity-0" : "opacity-100"
           }`}
           style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
         />
@@ -727,18 +735,23 @@ export function MobilePackOpeningView() {
                       </div>
                     ) : (
                       <div
-                        className="relative flex h-full w-full items-center justify-center overflow-visible"
-                        style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
+                        className="relative flex h-full w-full items-start justify-center overflow-visible"
+                        style={{
+                          paddingTop:
+                            "calc(max(0.5rem, env(safe-area-inset-top)) + 6dvh)",
+                        }}
                       >
-                        <RevealCardGlow rarity={revealGlowRarity} />
-                        <div className="relative z-[2] w-full">
-                        <FlippingSlabReveal
-                          card={activePullCard}
-                          revealRarity={revealRarity}
-                          playFlip
-                          immersive
-                          onFlipComplete={completeReveal}
-                        />
+                        <div className={REVEAL_CARD_FRAME_CLASS}>
+                          <RevealCardGlow rarity={revealGlowRarity} />
+                          <div className="relative z-[2] h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
+                            <FlippingSlabReveal
+                              card={activePullCard}
+                              revealRarity={revealRarity}
+                              playFlip
+                              immersive={false}
+                              onFlipComplete={completeReveal}
+                            />
+                          </div>
                         </div>
                       </div>
                     )}

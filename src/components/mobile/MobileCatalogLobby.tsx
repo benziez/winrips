@@ -5,7 +5,7 @@ import { LOBBY_SECTIONS, packsForLobbySection } from "../../data/lobbySections";
 import { MobileCatalogPackTile } from "./MobileCatalogPackTile";
 import { PackDetailSheet } from "./PackDetailSheet";
 import { WhatsInsideModal } from "./WhatsInsideModal";
-import { OBSIDIAN_GOLD } from "./mobileTheme";
+import { OBSIDIAN_GOLD, mobileSafeAreaTopStyle } from "./mobileTheme";
 
 const SLIDE_WIDTH_VW = 88;
 
@@ -66,10 +66,7 @@ export function MobileCatalogLobby() {
         />
       </div>
 
-      <header
-        className="relative z-10 shrink-0 px-6 pb-3"
-        style={{ paddingTop: "max(0.25rem, env(safe-area-inset-top))" }}
-      >
+      <header className="relative z-10 shrink-0 px-6 pb-3" style={mobileSafeAreaTopStyle}>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Drops</h1>
         <p className="mt-1 text-sm font-light text-[#A1A1AA]">Swipe · tap to view</p>
       </header>

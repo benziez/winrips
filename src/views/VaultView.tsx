@@ -11,6 +11,8 @@ import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { PlayHistoryTable } from "../components/profile/PlayHistoryTable";
 import { exchangeButtonLabel, formatGems } from "../constants/retail";
 import { isAppStoreCommerce } from "../constants/commerce";
+import { mobileSafeAreaTopStyle } from "../components/mobile/mobileTheme";
+import { isNativeCapacitorApp } from "../utils/platform";
 import { CollectibleImage } from "../components/ui/CollectibleImage";
 import {
   exchangeVaultItemInUi,
@@ -185,9 +187,10 @@ export function VaultView() {
   }
 
   return (
-    <div className={`${PAGE_SHELL} data-[shell=mobile]:!pt-0`}>
+    <div className={PAGE_SHELL}>
       <header
-        className="relative bg-transparent data-[shell=mobile]:pt-[max(1rem,env(safe-area-inset-top))]"
+        className="relative bg-transparent"
+        style={isNativeCapacitorApp() ? mobileSafeAreaTopStyle : undefined}
       >
         <div
           className="pointer-events-none absolute inset-0 -mx-4 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-fuchsia-500/10 via-transparent to-transparent sm:-mx-6 lg:-mx-8"

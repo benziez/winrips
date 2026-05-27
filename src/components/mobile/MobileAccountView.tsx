@@ -9,7 +9,13 @@ import { MobileRipSettingsToggle } from "./MobileRipSettingsToggle";
 import { GlassSurface } from "./GlassSurface";
 import type { FooterPageSlug } from "../../constants/footerContent";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
-import { MOBILE_COLORS, OBSIDIAN_GOLD, BTN_GHOST_OUTLINE, BTN_PRIMARY } from "./mobileTheme";
+import {
+  MOBILE_COLORS,
+  OBSIDIAN_GOLD,
+  BTN_GHOST_OUTLINE,
+  BTN_PRIMARY,
+  mobileSafeAreaTopStyle,
+} from "./mobileTheme";
 import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 
 const LEGAL_LINKS: { label: string; slug: FooterPageSlug }[] = [
@@ -296,10 +302,7 @@ export function MobileAccountView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-black">
-      <header
-        className="relative z-10 shrink-0 px-6 pb-4"
-        style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
-      >
+      <header className="relative z-10 shrink-0 px-6 pb-4" style={mobileSafeAreaTopStyle}>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Account</h1>
       </header>
 

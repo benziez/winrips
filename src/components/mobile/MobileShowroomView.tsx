@@ -6,7 +6,7 @@ import { buildGlobalCardCatalog } from "../../utils/globalCardCatalog";
 import { useFallbackImageSrc, IMAGE_PLACEHOLDER } from "../../hooks/useFallbackImageSrc";
 import { resolveAssetUrl, isRenderableAssetUrl } from "../../utils/resolveAssetUrl";
 import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
-import { MOBILE_COLORS, OBSIDIAN_GOLD } from "./mobileTheme";
+import { MOBILE_COLORS, OBSIDIAN_GOLD, mobileSafeAreaTopStyle } from "./mobileTheme";
 import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 import { GlassSurface } from "./GlassSurface";
 import { ObsidianImage } from "./ObsidianImage";
@@ -57,10 +57,7 @@ export function MobileShowroomView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-black">
-      <header
-        className="relative z-10 shrink-0 px-6 pb-3"
-        style={{ paddingTop: "max(0.25rem, env(safe-area-inset-top))" }}
-      >
+      <header className="relative z-10 shrink-0 px-6 pb-3" style={mobileSafeAreaTopStyle}>
         <h1 className="text-3xl font-semibold tracking-tight text-white">Showroom</h1>
         <p className="mt-1 text-sm font-light" style={{ color: MOBILE_COLORS.textMuted }}>
           Every pullable card · highest value first

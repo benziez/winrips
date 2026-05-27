@@ -80,3 +80,8 @@ export function rarityRevealGlow(rarity?: string): string {
 /** Ghost CTA — 1px white border per Triumph spec. */
 export const BTN_GHOST_OUTLINE =
   "rounded-full border border-white bg-transparent px-5 py-3 text-sm font-semibold text-white transition-colors active:bg-white/5";
+
+/** Top safe-area inset for mobile screen headers (status bar / notch). */
+export const mobileSafeAreaTopStyle = {
+  paddingTop: "max(1rem, env(safe-area-inset-top))",
+} as const;

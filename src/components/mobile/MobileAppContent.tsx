@@ -55,8 +55,10 @@ export function MobileAppContent() {
     case "inventory":
       return (
         <MobileErrorBoundary label="Vault unavailable">
-          <div className="overflow-hidden px-3 pb-4 pt-0">
-            <VaultView />
+          <div className="flex h-full min-h-0 flex-col overflow-hidden bg-black">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4">
+              <VaultView />
+            </div>
           </div>
         </MobileErrorBoundary>
       );

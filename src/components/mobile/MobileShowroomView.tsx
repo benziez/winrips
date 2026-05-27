@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Card } from "../../types";
 import type { StoreRarity } from "../../types/store";
 import { formatUsd, gemsToUsd } from "../../constants/retail";
@@ -15,6 +15,7 @@ import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
 import { MOBILE_COLORS, OBSIDIAN_GOLD, mobileSafeAreaTopStyle, storeRarityLabelStyle } from "./mobileTheme";
 import { GlassSurface } from "./GlassSurface";
 import { ObsidianImage } from "./ObsidianImage";
+import { ShowroomCardDetailSheet } from "./ShowroomCardDetailSheet";
 
 const ROW_LABEL: Record<StoreRarity, string> = {
   Mythic: "Mythic",
@@ -24,7 +25,18 @@ const ROW_LABEL: Record<StoreRarity, string> = {
   Common: "Common",
 };
 
-function ShowroomCardTile({ card }: { card: Card }) {
+type ShowroomSelection = {
+  card: Card;
+  storeRarity: StoreRarity;
+};
+
+function ShowroomCardTile({
+  card,
+  onSelect,
+}: {
+  card: Card;
+  onSelect: () => void;
+}) {
   const remoteSrc = useMemo(() => {
     const trimmed = card.image?.trim() ?? "";
     const candidate = isRenderableAssetUrl(trimmed) ? trimmed : CARD_PLACEHOLDER_IMAGE;
@@ -34,12 +46,17 @@ function ShowroomCardTile({ card }: { card: Card }) {
   const priceLabel = formatUsd(gemsToUsd(card.value));
 
   return (
-    <article className="relative w-[140px] shrink-0">
+    <button
+      type="button"
+      onClick={onSelect}
+      className="relative w-[140px] shrink-0 text-left transition-transform duration-150 active:scale-[0.97]"
+      aria-label={`View ${card.name}`}
+    >
       <GlassSurface variant="default" className="relative aspect-[2.5/3.5] w-full overflow-hidden rounded-xl p-0">
         <ObsidianImage
           imgSrc={imgSrc}
           fallbackSrc={IMAGE_PLACEHOLDER}
-          alt={card.name}
+          alt=""
           onError={onError}
           imgClassName="h-full w-full object-contain object-center"
         />
@@ -53,11 +70,19 @@ function ShowroomCardTile({ card }: { card: Card }) {
       >
         {priceLabel}
       </p>
-    </article>
+    </button>
   );
 }
 
-function ShowroomRarityRow({ tier, cards }: { tier: StoreRarity; cards: Card[] }) {
+function ShowroomRarityRow({
+  tier,
+  cards,
+  onSelectCard,
+}: {
+  tier: StoreRarity;
+  cards: Card[];
+  onSelectCard: (card: Card, storeRarity: StoreRarity) => void;
+}) {
   return (
     <section className="pb-4 last:pb-1">
       <h2
@@ -71,7 +96,11 @@ function ShowroomRarityRow({ tier, cards }: { tier: StoreRarity; cards: Card[] }
         style={{ WebkitOverflowScrolling: "touch" }}
       >
         {cards.map((card) => (
-          <ShowroomCardTile key={card.id} card={card} />
+          <ShowroomCardTile
+            key={card.id}
+            card={card}
+            onSelect={() => onSelectCard(card, tier)}
+          />
         ))}
       </div>
     </section>
@@ -81,6 +110,7 @@ function ShowroomRarityRow({ tier, cards }: { tier: StoreRarity; cards: Card[] }
 /** Global gallery of every pullable card, grouped by store rarity tier. */
 export function MobileShowroomView() {
   const { packs, storeItemsByPackId, loading } = useBoxesCatalog();
+  const [selection, setSelection] = useState<ShowroomSelection | null>(null);
 
   const { cards, rows } = useMemo(() => {
     if (loading || packs.length === 0) {
@@ -132,11 +162,25 @@ export function MobileShowroomView() {
         ) : (
           <div>
             {visibleRows.map((tier) => (
-              <ShowroomRarityRow key={tier} tier={tier} cards={rows[tier]} />
+              <ShowroomRarityRow
+                key={tier}
+                tier={tier}
+                cards={rows[tier]}
+                onSelectCard={(card, storeRarity) => setSelection({ card, storeRarity })}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {selection ? (
+        <ShowroomCardDetailSheet
+          card={selection.card}
+          storeRarity={selection.storeRarity}
+          open
+          onClose={() => setSelection(null)}
+        />
+      ) : null}
     </div>
   );
 }

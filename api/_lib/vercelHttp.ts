@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { applyCorsHeaders, handleCorsPreflight } from "./cors.js";
 import { handlePaymentHttp } from "./paymentRoutes.js";
 
 async function readStreamBody(req: VercelRequest): Promise<string> {
@@ -106,6 +107,9 @@ export async function dispatchPaymentRoute(
   vercelRes: VercelResponse,
   rawBody: string,
 ): Promise<void> {
+  applyCorsHeaders(vercelReq, vercelRes);
+  if (handleCorsPreflight(vercelReq, vercelRes)) return;
+
   const nodeReq = createNodeRequest(vercelReq, rawBody);
   const nodeRes = createNodeResponse(vercelRes);
   const handled = await handlePaymentHttp(nodeReq, nodeRes);

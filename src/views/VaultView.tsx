@@ -185,8 +185,10 @@ export function VaultView() {
   }
 
   return (
-    <div className={PAGE_SHELL}>
-      <header className="relative bg-transparent">
+    <div className={`${PAGE_SHELL} data-[shell=mobile]:!pt-0`}>
+      <header
+        className="relative bg-transparent data-[shell=mobile]:pt-[max(1rem,env(safe-area-inset-top))]"
+      >
         <div
           className="pointer-events-none absolute inset-0 -mx-4 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-fuchsia-500/10 via-transparent to-transparent sm:-mx-6 lg:-mx-8"
           aria-hidden

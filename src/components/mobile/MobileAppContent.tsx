@@ -23,7 +23,7 @@ export function MobileAppContent() {
     case "inventory":
       return (
         <MobileErrorBoundary label="Vault unavailable">
-          <div className="overflow-hidden px-3 pb-4 pt-1">
+          <div className="overflow-hidden px-3 pb-4 pt-0">
             <VaultView />
           </div>
         </MobileErrorBoundary>

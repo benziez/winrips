@@ -9,7 +9,7 @@ import {
 import { queryKeys } from "../queries/queryKeys";
 import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { PlayHistoryTable } from "../components/profile/PlayHistoryTable";
-import { exchangeButtonLabel, formatGems } from "../constants/retail";
+import { exchangeButtonLabel, formatGems, formatUsd, gemsToUsd } from "../constants/retail";
 import { isAppStoreCommerce } from "../constants/commerce";
 import { mobileSafeAreaTopStyle } from "../components/mobile/mobileTheme";
 import { isNativeCapacitorApp } from "../utils/platform";
@@ -134,6 +134,8 @@ export function VaultView() {
     [inventory],
   );
 
+  const storeCommerce = isAppStoreCommerce();
+
   async function handleSell(card: VaultedCard) {
     if (exchangingVaultId) return;
 
@@ -211,8 +213,16 @@ export function VaultView() {
               Estimated Portfolio Value
             </p>
             <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">
-              {authLoading ? "…" : portfolioValue.toLocaleString()}{" "}
-              <span className="text-lg font-semibold text-muted sm:text-xl">GEMS</span>
+              {authLoading
+                ? "…"
+                : storeCommerce
+                  ? formatUsd(gemsToUsd(portfolioValue))
+                  : (
+                    <>
+                      {portfolioValue.toLocaleString()}{" "}
+                      <span className="text-lg font-semibold text-muted sm:text-xl">GEMS</span>
+                    </>
+                  )}
             </p>
           </div>
         </div>

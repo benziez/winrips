@@ -29,7 +29,12 @@ import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { isManualRipEnabled } from "../../lib/mobileRipPreferences";
 import { formatProbability, getPackDropTable } from "../../data/packDropTables";
-import { getRevealGlowColor } from "../../utils/revealGlow";
+import {
+  buildRevealGlowPulse,
+  getStoreRevealGlowColor,
+  getStoreRevealIntensity,
+  revealGlowPulseTransition,
+} from "../../utils/revealGlow";
 import type { StoreRarity } from "../../types/store";
 import type { Card } from "../../types";
 import { usePackAudio } from "../../hooks/usePackAudio";
@@ -51,17 +56,6 @@ type RipPhase = "pre-rip" | "ripping" | "revealing" | "complete";
 
 const BUTTON_SPRING = { type: "spring" as const, stiffness: 500, damping: 26 };
 
-const REVEAL_GLOW_PULSE = {
-  opacity: [0.36, 0.58, 0.36],
-  scale: [0.93, 1.06, 0.93],
-};
-
-const REVEAL_GLOW_TRANSITION = {
-  duration: 3.6,
-  repeat: Infinity,
-  ease: "easeInOut" as const,
-};
-
 /** Vertical-video card frame — shared by revealing + complete phases. */
 const REVEAL_CARD_FRAME_CLASS =
   "reveal-card-frame relative mx-auto h-[min(72dvh,520px)] w-[min(85vw,400px)] shrink-0 overflow-visible";
@@ -74,14 +68,25 @@ function resolveStoreRarityForCard(
   return dropTable.find((entry) => entry.card.id === card.id)?.storeRarity ?? "Common";
 }
 
-function RevealCardGlow({ rarity }: { rarity?: string }) {
+function RevealCardGlow({ storeRarity }: { storeRarity: StoreRarity }) {
+  const intensity = getStoreRevealIntensity(storeRarity);
+  const pulse = buildRevealGlowPulse(intensity);
+  const glowSize =
+    storeRarity === "Mythic"
+      ? "h-[175%] w-[150%]"
+      : storeRarity === "Legendary"
+        ? "h-[155%] w-[130%]"
+        : storeRarity === "Epic"
+          ? "h-[140%] w-[120%]"
+          : "h-[130%] w-[115%]";
+
   return (
     <motion.div
       aria-hidden
-      className="pointer-events-none absolute left-1/2 top-1/2 z-[1] h-[130%] w-[115%] -translate-x-1/2 -translate-y-1/2 rounded-[2rem] blur-3xl"
-      style={{ backgroundColor: getRevealGlowColor(rarity) }}
-      animate={REVEAL_GLOW_PULSE}
-      transition={REVEAL_GLOW_TRANSITION}
+      className={`pointer-events-none absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 rounded-[2rem] blur-3xl ${glowSize}`}
+      style={{ backgroundColor: getStoreRevealGlowColor(storeRarity) }}
+      animate={pulse}
+      transition={revealGlowPulseTransition(intensity)}
     />
   );
 }
@@ -585,7 +590,6 @@ export function MobilePackOpeningView() {
           : 0;
 
   const bottomInset = { bottom: "max(1rem, env(safe-area-inset-bottom))" } as const;
-  const revealGlowRarity = revealRarity ?? activePullCard?.rarity;
 
   const packShakeAnimate =
     phase === "ripping" && ripSubPhase === "shake"
@@ -723,11 +727,12 @@ export function MobilePackOpeningView() {
                   >
                     {phase === "complete" ? (
                       <div className={REVEAL_CARD_FRAME_CLASS}>
-                        <RevealCardGlow rarity={revealGlowRarity} />
+                        <RevealCardGlow storeRarity={revealStoreRarity} />
                         <div className="relative z-[2] h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
                           <FlippingSlabReveal
                             card={activePullCard}
                             revealRarity={revealRarity}
+                            storeRarity={revealStoreRarity}
                             playFlip={false}
                             immersive={false}
                           />
@@ -742,11 +747,12 @@ export function MobilePackOpeningView() {
                         }}
                       >
                         <div className={REVEAL_CARD_FRAME_CLASS}>
-                          <RevealCardGlow rarity={revealGlowRarity} />
+                          <RevealCardGlow storeRarity={revealStoreRarity} />
                           <div className="relative z-[2] h-full w-full [&>div]:h-full [&>div]:w-full [&>div>div:nth-child(2)]:!h-full [&>div>div:nth-child(2)]:!max-h-full [&>div>div:nth-child(2)]:!w-full">
                             <FlippingSlabReveal
                               card={activePullCard}
                               revealRarity={revealRarity}
+                              storeRarity={revealStoreRarity}
                               playFlip
                               immersive={false}
                               onFlipComplete={completeReveal}

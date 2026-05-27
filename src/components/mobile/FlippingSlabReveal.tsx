@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import type { Card } from "../../types";
+import type { StoreRarity } from "../../types/store";
 import { resolveAssetUrl, isRenderableAssetUrl } from "../../utils/resolveAssetUrl";
 import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
 import { useFallbackImageSrc, IMAGE_PLACEHOLDER } from "../../hooks/useFallbackImageSrc";
+import { getStoreRevealIntensity, getStoreRevealGlowGradient } from "../../utils/revealGlow";
 import { GlassSurface } from "./GlassSurface";
-import { rarityGlowGradient } from "./mobileTheme";
 import { ObsidianImage } from "./ObsidianImage";
-
-const FLIP_SPRING = { type: "spring" as const, stiffness: 175, damping: 21 };
 
 interface FlippingSlabRevealProps {
   card: Card;
@@ -17,6 +16,8 @@ interface FlippingSlabRevealProps {
   immersive?: boolean;
   /** Drives legendary/epic/rare glow during flip. */
   revealRarity?: string;
+  /** 5-tier store rarity — scales flip spring and slab glow intensity. */
+  storeRarity?: StoreRarity;
 }
 
 export function FlippingSlabReveal({
@@ -24,7 +25,7 @@ export function FlippingSlabReveal({
   playFlip = true,
   onFlipComplete,
   immersive = true,
-  revealRarity,
+  storeRarity,
 }: FlippingSlabRevealProps) {
   const [sheenDone, setSheenDone] = useState(false);
 
@@ -35,8 +36,21 @@ export function FlippingSlabReveal({
   }, [card.image]);
 
   const { imgSrc, onError } = useFallbackImageSrc(resolvedSrc, IMAGE_PLACEHOLDER);
-  const rarity = revealRarity ?? card.rarity;
-  const glowStyle = useMemo(() => ({ background: rarityGlowGradient(rarity) }), [rarity]);
+  const intensity = useMemo(() => getStoreRevealIntensity(storeRarity), [storeRarity]);
+  const flipSpring = useMemo(
+    () => ({
+      type: "spring" as const,
+      stiffness: intensity.flipStiffness,
+      damping: intensity.flipDamping,
+    }),
+    [intensity.flipDamping, intensity.flipStiffness],
+  );
+  const glowStyle = useMemo(
+    () => ({ background: getStoreRevealGlowGradient(storeRarity) }),
+    [storeRarity],
+  );
+  const slabGlowOpacity = playFlip ? intensity.glowOpacityPeak : intensity.glowOpacityPeak * 0.35;
+  const slabGlowScale = playFlip ? intensity.glowScalePeak * 0.6 : 1;
 
   useEffect(() => {
     setSheenDone(false);
@@ -60,8 +74,8 @@ export function FlippingSlabReveal({
         style={glowStyle}
         initial={{ opacity: 0, scale: 0.85 }}
         animate={{
-          opacity: playFlip ? 1 : 0.35,
-          scale: playFlip ? 1.08 : 1,
+          opacity: slabGlowOpacity,
+          scale: slabGlowScale,
         }}
         transition={{ duration: playFlip ? 0.85 : 0.2, ease: [0.22, 1, 0.36, 1] }}
         aria-hidden
@@ -72,7 +86,7 @@ export function FlippingSlabReveal({
           style={{ transformStyle: "preserve-3d" }}
           initial={playFlip ? { rotateY: 180, scale: 0.6 } : { rotateY: 0, scale: 1 }}
           animate={{ rotateY: 0, scale: 1 }}
-          transition={playFlip ? FLIP_SPRING : { duration: 0 }}
+          transition={playFlip ? flipSpring : { duration: 0 }}
           onAnimationComplete={() => {
             if (!sheenDone) setSheenDone(true);
             if (playFlip) onFlipComplete?.();

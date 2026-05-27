@@ -11,6 +11,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
+  const apiKey = process.env.NOWPAYMENTS_API_KEY?.trim();
+  if (!apiKey) {
+    console.error(
+      "[payments/create] NOWPAYMENTS_API_KEY is undefined — set it in Vercel project settings or local .env.",
+    );
+    res.status(503).json({
+      error: "Payment provider is not configured (missing NOWPAYMENTS_API_KEY).",
+    });
+    return;
+  }
+
   const rawBody = await readVercelRawBody(req);
   await dispatchPaymentRoute(req, res, rawBody);
 }

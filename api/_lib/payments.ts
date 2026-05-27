@@ -17,9 +17,18 @@ const PAY_CURRENCIES: DepositPayCurrency[] = ["btc", "sol", "ltc"];
 function readEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
+    if (name === "NOWPAYMENTS_API_KEY") {
+      console.error(
+        "[payments/create] NOWPAYMENTS_API_KEY is undefined — set it in Vercel env vars or local .env (loaded by Vite payments plugin).",
+      );
+    }
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;
+}
+
+function requireNowPaymentsApiKey(): string {
+  return readEnv("NOWPAYMENTS_API_KEY");
 }
 
 function isPayCurrency(value: unknown): value is DepositPayCurrency {
@@ -57,7 +66,7 @@ function parseCreatePaymentBody(body: unknown): CreateDepositPaymentRequest {
 export async function createDepositPayment(
   input: CreateDepositPaymentRequest,
 ): Promise<DepositPaymentResponse> {
-  const apiKey = readEnv("NOWPAYMENTS_API_KEY");
+  const apiKey = requireNowPaymentsApiKey();
   const apiUrl = readEnv("NOWPAYMENTS_API_URL").replace(/\/$/, "");
   const orderId = buildWinripsOrderId(input.userId);
   const ipnCallbackUrl = resolveNowPaymentsIpnCallbackUrl();

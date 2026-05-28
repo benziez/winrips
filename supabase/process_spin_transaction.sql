@@ -28,6 +28,8 @@ as $$
 declare
   v_balance integer;
   v_new_balance integer;
+  v_withdrawable integer;
+  v_new_withdrawable integer;
   v_pull record;
   v_vault_item_id uuid;
   v_rarity text;
@@ -71,8 +73,8 @@ begin
   -- BLOCK 1: GEM DEDUCTION (standalone — not nested with vault)
   -- ============================================================
   begin
-    select coalesce(gems_balance, 0)
-      into v_balance
+    select coalesce(gems_balance, 0), coalesce(withdrawable_balance, 0)
+      into v_balance, v_withdrawable
     from public.profiles
     where id = p_user_id
     for update;
@@ -97,11 +99,12 @@ begin
     end if;
 
     v_new_balance := v_balance - p_spin_cost;
+    v_new_withdrawable := least(v_withdrawable, v_new_balance);
 
     update public.profiles
     set
       gems_balance = v_new_balance,
-      withdrawable_balance = least(coalesce(withdrawable_balance, 0), v_new_balance)
+      withdrawable_balance = v_new_withdrawable
     where id = p_user_id;
   exception
     when others then
@@ -114,7 +117,12 @@ begin
 
   -- 3. Gem deduction succeeded — return this to confirm balance update works.
   --    Comment out the next line once gems deduct correctly and you want vault testing.
-  return jsonb_build_object('success', true, 'step', 'gems_deducted');
+  return jsonb_build_object(
+    'success', true,
+    'step', 'gems_deducted',
+    'gems_balance', v_new_balance,
+    'withdrawable_balance', v_new_withdrawable
+  );
 
   -- ============================================================
   -- BLOCK 2: VAULT REGISTRATION (standalone — runs only after Block 1)

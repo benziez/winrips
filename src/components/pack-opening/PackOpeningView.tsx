@@ -24,8 +24,6 @@ import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { DropTableMatrix } from "./DropTableMatrix";
 import { formatGems, formatPackPriceUsd, RETAIL_COPY } from "../../constants/retail";
 import { COMMERCE_COPY, isAppStoreCommerce } from "../../constants/commerce";
-import { useAuth } from "../../context/AuthContext";
-import { purchasePackForOpening } from "../../lib/nativePackPurchase";
 import { useIsNarrowViewport } from "../../hooks/useIsNarrowViewport";
 import { WhatsInsideModal } from "../mobile/WhatsInsideModal";
 import { MobilePackOpeningView } from "../mobile/MobilePackOpeningView";
@@ -62,8 +60,8 @@ export function PackOpeningView() {
     applyVaultExchange,
     syncGemBalanceFromServer,
     markVaultItemPendingShipment,
+    openWalletModal,
   } = useApp();
-  const { session } = useAuth();
   const storeCommerce = isAppStoreCommerce();
 
   const isGuest = !userId;
@@ -195,31 +193,9 @@ export function PackOpeningView() {
 
     const totalCost = selectedPack.cost * quantity;
 
-    if (storeCommerce && !isGuest && userId) {
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        showErrorToast("Please sign in again to complete your purchase.");
-        return;
-      }
-      setIsChargingSpin(true);
-      const purchase = await purchasePackForOpening(
-        selectedPack.id,
-        selectedPack.cost,
-        quantity,
-        accessToken,
-      );
-      if (!purchase.ok) {
-        setIsChargingSpin(false);
-        if (!purchase.cancelled) {
-          showErrorToast(purchase.error);
-        }
-        return;
-      }
-      await syncGemBalanceFromServer(userId);
-    }
-
-    if (!isGuest && !storeCommerce && goldVolts < totalCost) {
-      showCashoutToast(`Insufficient ${RETAIL_COPY.currency} for this opening.`);
+    if (!isGuest && goldVolts < totalCost) {
+      showErrorToast("Add funds to open this pack.");
+      openWalletModal("overview");
       return;
     }
 
@@ -236,12 +212,16 @@ export function PackOpeningView() {
 
         for (let index = 0; index < pullEntries.length; index += 1) {
           const cardData = resolveCardByItemId(selectedPack.id, pullEntries[index]!.itemId);
-          const spinResult = await handleSpin(selectedPack.cost, {
-            itemId: cardData.id,
-            itemName: cardData.name,
-            gemValue: cardData.value,
-            imageUrl: cardData.image,
-          });
+          const spinResult = await handleSpin(
+            selectedPack.cost,
+            {
+              itemId: cardData.id,
+              itemName: cardData.name,
+              gemValue: cardData.value,
+              imageUrl: cardData.image,
+            },
+            userId,
+          );
           if (!spinResult.ok) {
             showErrorToast(spinResult.error);
             setTransactionFailureOpen(true);
@@ -307,6 +287,7 @@ export function PackOpeningView() {
         setSpinKey((k) => k + 1);
         setIsSpinning(true);
         beginCarouselSpin();
+        void syncGemBalanceFromServer(userId);
       } catch {
         setSpinInProgress(false);
         setTransactionFailureOpen(true);
@@ -370,6 +351,9 @@ export function PackOpeningView() {
     appendVaultPullFromSpin,
     setSpinInProgress,
     fairnessSession,
+    syncGemBalanceFromServer,
+    openWalletModal,
+    showErrorToast,
   ]);
 
   const finishReveal = useCallback(() => {
@@ -475,22 +459,17 @@ export function PackOpeningView() {
   }
 
   const totalCost = selectedPack.cost * quantity;
-  const canAfford = isGuest || storeCommerce || goldVolts >= totalCost;
   const openButtonLabel = isChargingSpin
-    ? storeCommerce
-      ? "Processing…"
-      : "Charging Gems..."
+    ? "Processing…"
     : isSpinning
       ? "Ripping Pack..."
       : isGuest
         ? quantity === 1
           ? "Demo Spin"
           : `Demo Spin × ${quantity}`
-        : storeCommerce
-          ? `${COMMERCE_COPY.payWithApple} · ${formatPackPriceUsd(totalCost)}`
-          : quantity === 1
-            ? RETAIL_COPY.purchaseVerb
-            : `${RETAIL_COPY.purchaseVerb} × ${quantity}`;
+        : quantity === 1
+          ? `${RETAIL_COPY.purchaseVerb} · ${formatPackPriceUsd(selectedPack.cost)}`
+          : `${RETAIL_COPY.purchaseVerb} × ${quantity} · ${formatPackPriceUsd(totalCost)}`;
   const isPreviewStrip = !isSpinning && carouselCards.length <= MOBILE_PREVIEW_LENGTH;
   const carouselWinnerIndex = isPreviewStrip ? MOBILE_PREVIEW_WINNER_INDEX : ROULETTE_WINNER_INDEX;
   const carouselCardWidth = isNarrow && isPreviewStrip ? MOBILE_CARD_WIDTH : undefined;
@@ -559,7 +538,7 @@ export function PackOpeningView() {
             <button
               type="button"
               onClick={() => void handleOpenPack()}
-              disabled={isSpinning || isChargingSpin || showModal || !canAfford}
+              disabled={isSpinning || isChargingSpin || showModal}
               className="w-full max-w-sm rounded-xl bg-[#FF007F] px-6 py-2.5 text-sm font-bold uppercase tracking-wide text-white shadow-lg transition-all hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto sm:px-8"
             >
               {openButtonLabel}
@@ -567,9 +546,9 @@ export function PackOpeningView() {
             {isGuest && !isSpinning && !showModal ? (
               <p className="text-xs text-muted">Free preview — same odds as live opens</p>
             ) : null}
-            {!isGuest && !storeCommerce && !canAfford && !isSpinning && (
-              <p className="text-xs text-fuchsia">Insufficient {RETAIL_COPY.currency}</p>
-            )}
+            {!isGuest && goldVolts < totalCost && !isSpinning && !showModal && !isChargingSpin ? (
+              <p className="text-xs text-fuchsia">Add funds to open this pack</p>
+            ) : null}
           </div>
         </div>
 

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../../context/AppContext";
-import { useAuth } from "../../context/AuthContext";
 import { recordPlayHistory } from "../../lib/playHistory";
 import { handleSpin } from "../../lib/spinLogic";
 import {
@@ -12,9 +11,8 @@ import {
   ROULETTE_WINNER_INDEX,
   type PackPullEntry,
 } from "../../utils/rng";
-import { formatPackPriceUsd, formatUsd, gemsToUsd, canShipCardValue, RETAIL_COPY } from "../../constants/retail";
-import { isAppStoreCommerce } from "../../constants/commerce";
-import { purchasePackForOpening } from "../../lib/nativePackPurchase";
+import { formatPackPriceUsd, formatUsd, gemsToUsd, canShipCardValue } from "../../constants/retail";
+import { AddFundsModal } from "./rip/AddFundsModal";
 import { PackCatalogImage } from "./PackCatalogImage";
 import { UnboxingCarousel } from "../pack-opening/UnboxingCarousel";
 import { MobileWhatsInsideDrawer } from "./MobileWhatsInsideDrawer";
@@ -118,9 +116,8 @@ export function MobilePackOpeningView() {
     appendVaultPullFromSpin,
     setSpinInProgress,
     syncGemBalanceFromServer,
+    setAddFundsModalOpen,
   } = useApp();
-  const { session } = useAuth();
-  const storeCommerce = isAppStoreCommerce();
   const isGuest = !userId;
 
   const [phase, setPhase] = useState<OpenPhase>("pre-rip");
@@ -137,6 +134,7 @@ export function MobilePackOpeningView() {
   const [spinKey, setSpinKey] = useState(0);
   const [completeInfoOpen, setCompleteInfoOpen] = useState(false);
   const [shipSheetOpen, setShipSheetOpen] = useState(false);
+  const [addFundsOpen, setAddFundsOpen] = useState(false);
 
   const spinLandTimerRef = useRef<number | null>(null);
   const spinnerHapticIntervalRef = useRef<number | null>(null);
@@ -267,40 +265,25 @@ export function MobilePackOpeningView() {
   }, [clearCarouselSpin, selectedPack?.id]);
 
   const executeRip = useCallback(async (): Promise<RipResult> => {
+    console.log("[OpenPack] start");
+
     if (!selectedPack) return { ok: false };
 
     const totalCost = selectedPack.cost * quantity;
 
-    if (storeCommerce && !isGuest && userId) {
-      const accessToken = session?.access_token;
-      if (!accessToken) {
-        showErrorToast("Please sign in again to complete your purchase.");
-        return { ok: false };
-      }
-      const purchase = await purchasePackForOpening(
-        selectedPack.id,
-        selectedPack.cost,
-        quantity,
-        accessToken,
-      );
-      if (!purchase.ok) {
-        return { ok: false, cancelled: purchase.cancelled };
-      }
-      try {
-        await syncGemBalanceFromServer(userId);
-      } catch (syncError) {
-        console.error("[OpenPack] syncGemBalanceFromServer threw", syncError);
-        throw syncError;
-      }
-    }
-
-    if (!isGuest && !storeCommerce && goldVolts < totalCost) {
-      showCashoutToast(`Insufficient ${RETAIL_COPY.currency} for this opening.`);
+    if (!isGuest && userId && goldVolts < totalCost) {
+      console.log("[OpenPack] insufficient-balance", { goldVolts, totalCost });
+      showErrorToast("Add funds to open this pack.");
+      setAddFundsOpen(true);
+      setAddFundsModalOpen(true);
       return { ok: false };
     }
 
+    console.log("[OpenPack] balance-check-passed", { goldVolts, totalCost, userId, isGuest });
+
     try {
       const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
+      console.log("[OpenPack] rolled", { count: rollResults.length });
       const pullEntries: PackPullEntry[] = rollResults.map((result) => ({
         itemId: result.card.id,
         rolledNumber: result.rolledNumber,
@@ -312,11 +295,24 @@ export function MobilePackOpeningView() {
         setSpinInProgress(true);
         for (let index = 0; index < pullEntries.length; index += 1) {
           const cardData = resolveCardByItemId(selectedPack.id, pullEntries[index]!.itemId);
-          const spinResult = await handleSpin(selectedPack.cost, {
-            itemId: cardData.id,
-            itemName: cardData.name,
-            gemValue: cardData.value,
-            imageUrl: cardData.image,
+          console.log("[OpenPack] handleSpin-start", { index, itemId: cardData.id });
+          const spinResult = await handleSpin(
+            selectedPack.cost,
+            {
+              itemId: cardData.id,
+              itemName: cardData.name,
+              gemValue: cardData.value,
+              imageUrl: cardData.image,
+            },
+            userId,
+          );
+          console.log("[OpenPack] handleSpin-done", {
+            index,
+            ok: spinResult.ok,
+            code: spinResult.ok ? undefined : spinResult.code,
+            step: spinResult.ok ? undefined : spinResult.step,
+            error: spinResult.ok ? undefined : spinResult.error,
+            rpcData: spinResult.ok ? undefined : spinResult.rpcData,
           });
           if (!spinResult.ok) {
             setSpinInProgress(false);
@@ -363,6 +359,7 @@ export function MobilePackOpeningView() {
         }
       }
 
+      console.log("[OpenPack] done", { vaultCount: vaultIds.length });
       return { ok: true, entries: pullEntries, vaultIds };
     } catch (ripError) {
       console.error("[OpenPack] executeRip failed", ripError);
@@ -373,17 +370,14 @@ export function MobilePackOpeningView() {
     selectedPack,
     isGuest,
     userId,
-    session,
-    storeCommerce,
     goldVolts,
     fairnessSession,
     quantity,
     showErrorToast,
-    showCashoutToast,
     setGoldVolts,
     appendVaultPullFromSpin,
     setSpinInProgress,
-    syncGemBalanceFromServer,
+    setAddFundsModalOpen,
   ]);
 
   const beginSpinSequence = useCallback(
@@ -418,6 +412,12 @@ export function MobilePackOpeningView() {
         return;
       }
       beginSpinSequence(result.entries, result.vaultIds);
+      if (userId) {
+        console.log("[OpenPack] sync-start");
+        void syncGemBalanceFromServer(userId).finally(() => {
+          console.log("[OpenPack] sync-done");
+        });
+      }
     } catch (openPackError) {
       console.error("[OpenPack] handleOpenPack failed", openPackError);
       setSpinInProgress(false);
@@ -431,6 +431,8 @@ export function MobilePackOpeningView() {
     executeRip,
     beginSpinSequence,
     setSpinInProgress,
+    userId,
+    syncGemBalanceFromServer,
   ]);
 
   const finishReveal = useCallback(() => {
@@ -493,15 +495,12 @@ export function MobilePackOpeningView() {
   }
 
   const totalCost = selectedPack.cost * quantity;
-  const canAfford = isGuest || storeCommerce || goldVolts >= totalCost;
 
   const openLabel = isChargingSpin
     ? "Processing…"
     : isGuest
       ? "Demo Open Pack"
-      : storeCommerce
-        ? `Open Pack · ${formatPackPriceUsd(totalCost)}`
-        : "Open Pack";
+      : `Open Pack · ${formatPackPriceUsd(totalCost)}`;
 
   const showPack = phase === "pre-rip";
   const showSpinner = phase === "spinning";
@@ -789,7 +788,7 @@ export function MobilePackOpeningView() {
                 type="button"
                 whileTap={{ scale: 0.97 }}
                 onClick={() => void handleOpenPack()}
-                disabled={isChargingSpin || !canAfford}
+                disabled={isChargingSpin}
                 className={BTN_PRIMARY}
               >
                 {openLabel}
@@ -811,6 +810,14 @@ export function MobilePackOpeningView() {
         onClose={() => setShipSheetOpen(false)}
         card={activeVaultCard}
         onSuccess={finishReveal}
+      />
+
+      <AddFundsModal
+        open={addFundsOpen}
+        onClose={() => {
+          setAddFundsOpen(false);
+          setAddFundsModalOpen(false);
+        }}
       />
 
       {transactionFailureOpen ? (

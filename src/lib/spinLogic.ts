@@ -34,7 +34,13 @@ export type HandleSpinResult =
       vaultPending?: boolean;
       vaultPendingMessage?: string;
     }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      code?: string;
+      step?: string;
+      rpcData?: SpinRpcPayload | null;
+    };
 
 interface SpinRpcPayload {
   success?: boolean;
@@ -75,17 +81,22 @@ function mapSpinChargeError(message: string, code?: string): string {
   return "Unable to charge gems for this spin. Please try again.";
 }
 
-async function resolveAuthenticatedUserId(): Promise<string> {
+async function resolveAuthenticatedUserId(prefilledUserId?: string): Promise<string> {
+  const trimmedPrefilled = prefilledUserId?.trim();
+  if (trimmedPrefilled) {
+    return trimmedPrefilled;
+  }
+
   if (!isSupabaseConfigured() || !supabase) {
     throw new Error("Spin charging requires Supabase configuration.");
   }
 
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await supabase.auth.getSession();
   if (error) {
     throw new Error("Sign in to unlock drops with your gem balance.");
   }
 
-  const userId = data.user?.id?.trim();
+  const userId = data.session?.user?.id?.trim();
   if (!userId) {
     throw new Error("Sign in to unlock drops with your gem balance.");
   }
@@ -95,11 +106,12 @@ async function resolveAuthenticatedUserId(): Promise<string> {
 
 /**
  * Two-step spin flow: charge gems via `process_spin_transaction`, then register the
- * pull via `add_to_vault`. Uses the authenticated user from `supabase.auth.getUser()`.
+ * pull via `add_to_vault`. Prefer `authUserId` from app state; falls back to local session.
  */
 export async function handleSpin(
   spinCost: number,
   item: HandleSpinItemDetails,
+  authUserId?: string,
 ): Promise<HandleSpinResult> {
   if (!isSupabaseConfigured() || !supabase) {
     return {
@@ -123,27 +135,69 @@ export async function handleSpin(
   }
 
   try {
-    const authenticatedUserId = await resolveAuthenticatedUserId();
+    const authenticatedUserId = await resolveAuthenticatedUserId(authUserId);
     const client = supabase as unknown as SpinRpcClient;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
+    console.log("[OpenPack] spin-auth-context", {
+      client: "anon+session (supabaseClient)",
+      prefilledUserId: authUserId?.trim() || null,
+      resolvedUserId: authenticatedUserId,
+      sessionUserId: sessionUserId || null,
+      hasAccessToken: Boolean(sessionData.session?.access_token),
+      userIdsMatch: sessionUserId === authenticatedUserId,
+    });
 
     const { data: spinData, error: spinError } = await client.rpc("process_spin_transaction", {
       p_user_id: authenticatedUserId,
       p_spin_cost: normalizedCost,
     });
 
+    console.log("[OpenPack] spin-rpc-response", { data: spinData, error: spinError });
+
     if (spinError) {
-      logger.warn("[process_spin_transaction] RPC failed:", spinError.message);
-      throw new Error(mapSpinChargeError(spinError.message));
+      logger.warn("[process_spin_transaction] PostgREST error:", spinError.message);
+      return {
+        ok: false,
+        error: mapSpinChargeError(spinError.message),
+        code: "postgrest_error",
+        step: "rpc_transport",
+        rpcData: null,
+      };
     }
 
     const spinPayload = parseRpcPayload(spinData);
 
     if (spinPayload?.success !== true) {
+      const rpcCode =
+        typeof spinPayload?.code === "string" && spinPayload.code.trim()
+          ? spinPayload.code.trim()
+          : undefined;
+      const rpcStep =
+        typeof spinPayload?.step === "string" && spinPayload.step.trim()
+          ? spinPayload.step.trim()
+          : undefined;
       const errorMessage =
         typeof spinPayload?.error === "string" && spinPayload.error.trim()
           ? spinPayload.error.trim()
           : "Unable to charge gems for this spin.";
-      throw new Error(mapSpinChargeError(errorMessage, spinPayload?.code));
+
+      console.log("[OpenPack] spin-rpc-rejected", {
+        step: rpcStep,
+        code: rpcCode,
+        error: errorMessage,
+        gems_balance: spinPayload?.gems_balance,
+        full: spinPayload,
+      });
+
+      return {
+        ok: false,
+        error: mapSpinChargeError(errorMessage, rpcCode),
+        code: rpcCode,
+        step: rpcStep,
+        rpcData: spinPayload,
+      };
     }
 
     const gemsBalance = Number(spinPayload.gems_balance);
@@ -220,6 +274,7 @@ export async function handleSpin(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to complete this spin.";
+    console.log("[OpenPack] spin-unexpected-error", { message });
     return { ok: false, error: message };
   }
 }

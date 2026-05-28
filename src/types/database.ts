@@ -75,6 +75,8 @@ export interface Database {
         Row: {
           id: string;
           gems_balance: number | null;
+          withdrawable_balance?: number | null;
+          stripe_connect_account_id?: string | null;
           username: string | null;
           is_admin?: boolean | null;
         };

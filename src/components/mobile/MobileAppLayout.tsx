@@ -57,6 +57,7 @@ function MobileAppLayoutInner() {
     currentView,
     cardDetailOverlayOpen,
     addFundsModalOpen,
+    withdrawModalOpen,
     shippingVaultItem,
     closeVaultShipping,
     markVaultItemPendingShipment,
@@ -80,7 +81,8 @@ function MobileAppLayoutInner() {
   const immersive =
     IMMERSIVE_VIEWS.includes(currentView) ||
     cardDetailOverlayOpen ||
-    addFundsModalOpen;
+    addFundsModalOpen ||
+    withdrawModalOpen;
   const showDock = !immersive;
 
   if (showSignIn) {

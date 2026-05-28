@@ -127,7 +127,9 @@ begin
   v_new_balance := v_balance - v_entry_cost;
 
   update public.profiles
-  set gems_balance = v_new_balance
+  set
+    gems_balance = v_new_balance,
+    withdrawable_balance = least(coalesce(withdrawable_balance, 0), v_new_balance)
   where id = v_user_id;
 
   insert into public.battles (status, box_ids, entry_cost)

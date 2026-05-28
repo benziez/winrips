@@ -13,6 +13,12 @@ import {
   handleStripeCreatePaymentIntentRoute,
   handleStripeWebhookRoute,
 } from "./stripeDeposit.js";
+import {
+  handleStripeConnectStatusRoute,
+  handleStripeCreateConnectAccountRoute,
+  handleStripeCreateOnboardingLinkRoute,
+  handleStripeWithdrawRoute,
+} from "./stripeConnect.js";
 
 /** Dispatches payment, balance, vault, and fairness API routes. */
 export async function handlePaymentHttp(
@@ -21,6 +27,10 @@ export async function handlePaymentHttp(
 ): Promise<boolean> {
   if (await handleStripeCreatePaymentIntentRoute(req, res)) return true;
   if (await handleStripeWebhookRoute(req, res)) return true;
+  if (await handleStripeConnectStatusRoute(req, res)) return true;
+  if (await handleStripeCreateConnectAccountRoute(req, res)) return true;
+  if (await handleStripeCreateOnboardingLinkRoute(req, res)) return true;
+  if (await handleStripeWithdrawRoute(req, res)) return true;
   if (await handleIapFulfillRoute(req, res)) return true;
   if (await handleFairnessSessionRoute(req, res)) return true;
   if (await handlePaymentsWebhookRoute(req, res)) return true;

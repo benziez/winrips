@@ -99,7 +99,9 @@ begin
     v_new_balance := v_balance - p_spin_cost;
 
     update public.profiles
-    set gems_balance = v_new_balance
+    set
+      gems_balance = v_new_balance,
+      withdrawable_balance = least(coalesce(withdrawable_balance, 0), v_new_balance)
     where id = p_user_id;
   exception
     when others then

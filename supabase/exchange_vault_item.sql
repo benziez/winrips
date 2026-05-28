@@ -21,6 +21,8 @@ declare
   v_credit integer;
   v_balance integer;
   v_new_balance integer;
+  v_withdrawable integer;
+  v_new_withdrawable integer;
 begin
   if p_item_id is null then
     raise exception 'invalid_item_id'
@@ -72,8 +74,8 @@ begin
             message = 'Exchange credit must be greater than zero.';
   end if;
 
-  select coalesce(gems_balance, 0)
-    into v_balance
+  select coalesce(gems_balance, 0), coalesce(withdrawable_balance, 0)
+    into v_balance, v_withdrawable
   from public.profiles
   where id = auth.uid()
   for update;
@@ -85,9 +87,12 @@ begin
   end if;
 
   v_new_balance := v_balance + v_credit;
+  v_new_withdrawable := v_withdrawable + v_credit;
 
   update public.profiles
-  set gems_balance = v_new_balance
+  set
+    gems_balance = v_new_balance,
+    withdrawable_balance = v_new_withdrawable
   where id = auth.uid();
 
   update public.vault_items

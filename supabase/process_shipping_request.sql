@@ -106,7 +106,9 @@ begin
   v_new_balance := v_balance - v_shipping_cost;
 
   update public.profiles
-  set gems_balance = v_new_balance
+  set
+    gems_balance = v_new_balance,
+    withdrawable_balance = least(coalesce(withdrawable_balance, 0), v_new_balance)
   where id = auth.uid();
 
   update public.vault_items

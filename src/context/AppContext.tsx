@@ -42,6 +42,8 @@ interface AppState {
   walletConnected: boolean;
   activeCurrency: Currency;
   goldVolts: number;
+  /** Gems from card sales/exchanges only (subset of goldVolts). */
+  withdrawableBalance: number;
   gemBalanceLoading: boolean;
   sweepsCash: number;
   selectedPack: Pack | null;
@@ -51,6 +53,8 @@ interface AppState {
   cardDetailOverlayOpen: boolean;
   /** True while mobile AddFundsModal is open (hides floating dock). */
   addFundsModalOpen: boolean;
+  /** True while mobile WithdrawModal is open (hides floating dock). */
+  withdrawModalOpen: boolean;
   purchaseModalOpen: boolean;
   /** True when Gem Refill was opened from the wallet modal (shows back to overview). */
   purchaseOpenedFromWallet: boolean;
@@ -112,6 +116,7 @@ interface AppContextValue extends AppState {
   setShippingModalOpen: (open: boolean) => void;
   setCardDetailOverlayOpen: (open: boolean) => void;
   setAddFundsModalOpen: (open: boolean) => void;
+  setWithdrawModalOpen: (open: boolean) => void;
   setPurchaseModalOpen: (open: boolean) => void;
   openGemRefillFromWallet: () => void;
   backToWalletFromGemRefill: () => void;
@@ -157,6 +162,7 @@ const INITIAL_STATE: AppState = {
   activeCurrency:
     typeof window !== "undefined" ? readPersistedActiveCurrency() : "gold-volts",
   goldVolts: 0,
+  withdrawableBalance: 0,
   gemBalanceLoading: false,
   sweepsCash: 0,
   selectedPack: null,
@@ -164,6 +170,7 @@ const INITIAL_STATE: AppState = {
   shippingModalOpen: false,
   cardDetailOverlayOpen: false,
   addFundsModalOpen: false,
+  withdrawModalOpen: false,
   purchaseModalOpen: false,
   purchaseOpenedFromWallet: false,
   depositModalOpen: false,
@@ -333,7 +340,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return s;
       }
       success = true;
-      return { ...s, goldVolts: s.goldVolts - total };
+      const newGoldVolts = s.goldVolts - total;
+      return {
+        ...s,
+        goldVolts: newGoldVolts,
+        withdrawableBalance: Math.min(s.withdrawableBalance, newGoldVolts),
+      };
     });
 
     return success;
@@ -357,6 +369,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => ({
       ...s,
       goldVolts: 0,
+      withdrawableBalance: 0,
       sweepsCash: 0,
       gemBalanceLoading: false,
       userId: "",
@@ -386,6 +399,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setState((s) => ({
         ...s,
         goldVolts: 0,
+        withdrawableBalance: 0,
         sweepsCash: 0,
         gemBalanceLoading: false,
       }));
@@ -396,12 +410,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     try {
       const balances = await fetchUserBalances(userId);
+      const goldVolts = resolveSyncedGemBalance(
+        balances.gemBalance,
+        balances.gemBalanceFromProfile,
+      );
       setState((s) => ({
         ...s,
-        goldVolts: resolveSyncedGemBalance(
-          balances.gemBalance,
-          balances.gemBalanceFromProfile,
-        ),
+        goldVolts,
+        withdrawableBalance: Math.min(balances.withdrawableBalance, goldVolts),
         sweepsCash: balances.sweepsBalance,
         gemBalanceLoading: false,
       }));
@@ -503,6 +519,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setAddFundsModalOpen = useCallback((addFundsModalOpen: boolean) => {
     setState((s) => ({ ...s, addFundsModalOpen }));
+  }, []);
+
+  const setWithdrawModalOpen = useCallback((withdrawModalOpen: boolean) => {
+    setState((s) => ({ ...s, withdrawModalOpen }));
   }, []);
 
   const setPurchaseModalOpen = useCallback((purchaseModalOpen: boolean) => {
@@ -765,9 +785,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           newBalance,
         });
 
+        const withdrawableBalance = Math.min(
+          s.withdrawableBalance + normalizedAdded,
+          newBalance,
+        );
+
         return {
           ...s,
           goldVolts: newBalance,
+          withdrawableBalance,
           vaultItems: s.vaultItems.filter((c) => c.vaultId !== vaultId),
         };
       });
@@ -844,6 +870,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setShippingModalOpen,
       setCardDetailOverlayOpen,
       setAddFundsModalOpen,
+      setWithdrawModalOpen,
       setPurchaseModalOpen,
       openGemRefillFromWallet,
       backToWalletFromGemRefill,
@@ -896,6 +923,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setShippingModalOpen,
       setCardDetailOverlayOpen,
       setAddFundsModalOpen,
+      setWithdrawModalOpen,
       setPurchaseModalOpen,
       openGemRefillFromWallet,
       backToWalletFromGemRefill,

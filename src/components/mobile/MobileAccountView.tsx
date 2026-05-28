@@ -12,7 +12,7 @@ import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { BalancePill } from "./rip/BalancePill";
 import { AddFundsModal } from "./rip/AddFundsModal";
-import { CashOutSheet } from "./rip/CashOutSheet";
+import { WithdrawModal } from "./wallet/WithdrawModal";
 import { SettingsIcon, TrophyIcon, PacksIcon, ArrowRightIcon } from "../icons/AppIcons";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 import { GlassSurface } from "./GlassSurface";
@@ -123,11 +123,12 @@ export function MobileAccountView() {
     closeWalletModal,
     setPurchaseModalOpen,
     setDepositModalOpen,
+    withdrawableBalance,
   } = useApp();
   const { user, session, signOut } = useAuth();
 
   const [addFundsOpen, setAddFundsOpen] = useState(false);
-  const [cashOutOpen, setCashOutOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [packsOpened, setPacksOpened] = useState(0);
@@ -270,13 +271,15 @@ export function MobileAccountView() {
           type="button"
           onClick={() => {
             void hapticTabSelect();
-            setCashOutOpen(true);
+            setWithdrawOpen(true);
           }}
           className="mx-4 mt-8 flex w-[calc(100%-2rem)] items-center justify-between rounded-2xl bg-[var(--rip-surface)] p-4 text-left"
         >
           <div>
-            <p className="text-[20px] font-bold text-[var(--rip-green-bright)]">Cash Out</p>
-            <p className="mt-1 text-[15px] text-[var(--rip-text-muted)]">Withdraw your balance</p>
+            <p className="text-[20px] font-bold text-[var(--rip-green-bright)]">Withdraw</p>
+            <p className="mt-1 text-[15px] text-[var(--rip-text-muted)]">
+              {formatUsd(gemsToUsd(withdrawableBalance))} withdrawable from sales
+            </p>
           </div>
           <ArrowRightIcon size={24} className="text-white" />
         </button>
@@ -317,7 +320,7 @@ export function MobileAccountView() {
       </div>
 
       <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
-      <CashOutSheet open={cashOutOpen} onClose={() => setCashOutOpen(false)} />
+      <WithdrawModal open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
       <DeleteAccountModal
         open={deleteModalOpen}
         loading={isDeletingAccount}

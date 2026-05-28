@@ -12,7 +12,7 @@ import {
   ROULETTE_WINNER_INDEX,
   type PackPullEntry,
 } from "../../utils/rng";
-import { formatPackPriceUsd, formatUsd, gemsToUsd, RETAIL_COPY } from "../../constants/retail";
+import { formatPackPriceUsd, formatUsd, gemsToUsd, canShipCardValue, RETAIL_COPY } from "../../constants/retail";
 import { isAppStoreCommerce } from "../../constants/commerce";
 import { purchasePackForOpening } from "../../lib/nativePackPurchase";
 import { PackCatalogImage } from "./PackCatalogImage";
@@ -25,11 +25,9 @@ import {
   type FairnessSession,
 } from "../../utils/provablyFair";
 import { TransactionFailureModal } from "../pack-opening/TransactionFailureModal";
-import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
-import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { formatProbability, getPackDropTable } from "../../data/packDropTables";
 import type { StoreRarity } from "../../types/store";
-import type { Card } from "../../types";
+import type { Card, VaultedCard } from "../../types";
 import { CollectibleImage } from "../ui/CollectibleImage";
 import { ChevronLeft, InfoIcon } from "../icons/AppIcons";
 import { MOBILE_COLORS, BTN_GHOST_OUTLINE, BTN_PRIMARY, PAGE_STACK_SPRING } from "./mobileTheme";
@@ -37,6 +35,7 @@ import { MobileErrorBoundary } from "./MobileErrorBoundary";
 import { DismissPill } from "./DismissPill";
 import { GlassSurface } from "./GlassSurface";
 import { RipBottomSheet } from "./rip/RipBottomSheet";
+import { ShipCardSheet } from "./vault/ShipCardSheet";
 
 type OpenPhase = "pre-rip" | "spinning" | "complete";
 
@@ -114,14 +113,11 @@ export function MobilePackOpeningView() {
     setGoldVolts,
     showCashoutToast,
     showErrorToast,
-    shippingModalOpen,
-    setShippingModalOpen,
     goldVolts,
     userId,
     appendVaultPullFromSpin,
     setSpinInProgress,
     syncGemBalanceFromServer,
-    markVaultItemPendingShipment,
   } = useApp();
   const { session } = useAuth();
   const storeCommerce = isAppStoreCommerce();
@@ -140,6 +136,7 @@ export function MobilePackOpeningView() {
   const [isCarouselSpinning, setIsCarouselSpinning] = useState(false);
   const [spinKey, setSpinKey] = useState(0);
   const [completeInfoOpen, setCompleteInfoOpen] = useState(false);
+  const [shipSheetOpen, setShipSheetOpen] = useState(false);
 
   const spinLandTimerRef = useRef<number | null>(null);
   const spinnerHapticIntervalRef = useRef<number | null>(null);
@@ -162,6 +159,22 @@ export function MobilePackOpeningView() {
     if (!activePullCard) return undefined;
     return dropTable.find((entry) => entry.card.id === activePullCard.id);
   }, [activePullCard, dropTable]);
+
+  const activeVaultCard = useMemo((): VaultedCard | null => {
+    if (!activePullCard || !activeVaultItemId) return null;
+    return {
+      vaultId: activeVaultItemId,
+      id: activePullCard.id,
+      name: activePullCard.name,
+      rarity: activePullCard.rarity,
+      value: activePullCard.value,
+      image: activePullCard.image,
+      acquiredAt: new Date().toISOString(),
+      status: "vaulted",
+    };
+  }, [activePullCard, activeVaultItemId]);
+
+  const canShipActive = activePullCard ? canShipCardValue(activePullCard.value) : false;
 
   const stackPop = useCallback(() => {
     void hapticTabSelect();
@@ -216,9 +229,9 @@ export function MobilePackOpeningView() {
     clearCarouselSpin();
     setIsCarouselSpinning(false);
     setSpinInProgress(false);
-    setShippingModalOpen(false);
+    setShipSheetOpen(false);
     stackPop();
-  }, [clearCarouselSpin, setShippingModalOpen, setSpinInProgress, stackPop]);
+  }, [clearCarouselSpin, setSpinInProgress, stackPop]);
 
   const handleSkipSpinner = useCallback(() => {
     void hapticTabSelect();
@@ -442,7 +455,7 @@ export function MobilePackOpeningView() {
     setQueueIndex(0);
     setPullVaultIds([]);
     setPhase("pre-rip");
-    setShippingModalOpen(false);
+    setShipSheetOpen(false);
     setSpinInProgress(false);
     stackPop();
   }, [
@@ -450,7 +463,6 @@ export function MobilePackOpeningView() {
     pullQueue,
     queueIndex,
     selectedPack,
-    setShippingModalOpen,
     setSpinInProgress,
     stackPop,
     dropTable,
@@ -468,8 +480,13 @@ export function MobilePackOpeningView() {
       showErrorToast("This pull is still being secured. Try again shortly.");
       return;
     }
-    setShippingModalOpen(true);
-  }, [activeVaultItemId, setShippingModalOpen, showErrorToast]);
+    if (!canShipActive) {
+      showErrorToast("Cards under $50 auto-sell only");
+      return;
+    }
+    void hapticTabSelect();
+    setShipSheetOpen(true);
+  }, [activeVaultItemId, canShipActive, showErrorToast]);
 
   if (!selectedPack) {
     return null;
@@ -716,9 +733,18 @@ export function MobilePackOpeningView() {
                           type="button"
                           onClick={handleShip}
                           disabled={!activeVaultItemId}
-                          className={`${COMPLETE_ACTION_BTN} bg-[var(--rip-surface)] text-white`}
+                          className={`${COMPLETE_ACTION_BTN} flex flex-col bg-[var(--rip-surface)] ${
+                            canShipActive && activeVaultItemId
+                              ? "text-white"
+                              : "text-[var(--rip-text-muted)]"
+                          }`}
                         >
-                          Ship
+                          <span>Ship</span>
+                          {activeVaultItemId && !canShipActive ? (
+                            <span className="text-[10px] leading-tight text-[var(--rip-text-muted)]">
+                              Min $50 to ship
+                            </span>
+                          ) : null}
                         </button>
                         <button
                           type="button"
@@ -780,21 +806,12 @@ export function MobilePackOpeningView() {
         onClose={() => setWhatsInsideOpen(false)}
       />
 
-      {shippingModalOpen && activePullCard && activeVaultItemId ? (
-        <VaultReleaseModal
-          vaultItemId={activeVaultItemId}
-          itemName={activePullCard.name}
-          itemImage={activePullCard.image}
-          itemValue={activePullCard.value}
-          onClose={() => setShippingModalOpen(false)}
-          onSuccessDismiss={finishReveal}
-          successDismissLabel="Continue"
-          onConfirm={createVaultReleaseOnConfirm({
-            vaultItemId: activeVaultItemId,
-            markVaultItemPendingShipment,
-          })}
-        />
-      ) : null}
+      <ShipCardSheet
+        open={shipSheetOpen}
+        onClose={() => setShipSheetOpen(false)}
+        card={activeVaultCard}
+        onSuccess={finishReveal}
+      />
 
       {transactionFailureOpen ? (
         <TransactionFailureModal onClose={() => setTransactionFailureOpen(false)} />

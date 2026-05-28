@@ -16,7 +16,6 @@ alter table public.vault_items
     status in (
       'vaulted',
       'pending_shipment',
-      'shipping_requested',
       'shipped',
       'delivered'
     )
@@ -112,7 +111,7 @@ begin
 
   update public.vault_items
   set
-    status = 'shipping_requested',
+    status = 'pending_shipment',
     shipping_name = v_name,
     shipping_address = v_address
   where id = param_item_id;
@@ -121,7 +120,7 @@ begin
     'success', true,
     'gems_balance', v_new_balance,
     'item_id', param_item_id,
-    'status', 'shipping_requested'
+    'status', 'pending_shipment'
   );
 end;
 $$;
@@ -130,4 +129,4 @@ revoke all on function public.process_shipping_request(uuid, text, text) from pu
 grant execute on function public.process_shipping_request(uuid, text, text) to authenticated;
 
 comment on function public.process_shipping_request(uuid, text, text) is
-  'Charges 2,500 shipping gems, marks a vaulted item shipping_requested, and stores fulfillment address.';
+  'Charges 2,500 shipping gems, marks a vaulted item pending_shipment, and stores fulfillment address.';

@@ -1,23 +1,31 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { Card } from "../../../types";
-import { formatUsd, gemsToUsd } from "../../../constants/retail";
+import type { Card, VaultedCard } from "../../../types";
+import { canShipCardValue, formatUsd, gemsToUsd } from "../../../constants/retail";
 import { useFallbackImageSrc, IMAGE_PLACEHOLDER } from "../../../hooks/useFallbackImageSrc";
 import { resolveAssetUrl, isRenderableAssetUrl } from "../../../utils/resolveAssetUrl";
 import { CARD_PLACEHOLDER_IMAGE } from "../../../constants/cardAssets";
 import { ChevronLeft, InfoIcon } from "../../icons/AppIcons";
 import { ObsidianImage } from "../ObsidianImage";
 import { RipBottomSheet } from "./RipBottomSheet";
+import { ShipCardSheet } from "../vault/ShipCardSheet";
+import { useApp } from "../../../context/AppContext";
 import { hapticTabSelect } from "../../../utils/mobileHaptics";
 
 interface CardDetailOverlayProps {
-  card: Card | null;
+  card: Card | VaultedCard | null;
   open: boolean;
   onClose: () => void;
 }
 
+function isVaultedCard(card: Card | VaultedCard): card is VaultedCard {
+  return "vaultId" in card && typeof card.vaultId === "string";
+}
+
 export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProps) {
+  const { showErrorToast, setCardDetailOverlayOpen } = useApp();
   const [infoOpen, setInfoOpen] = useState(false);
+  const [shipSheetOpen, setShipSheetOpen] = useState(false);
 
   const remoteSrc = useMemo(() => {
     if (!card) return CARD_PLACEHOLDER_IMAGE;
@@ -28,6 +36,23 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
 
   const { imgSrc, onError } = useFallbackImageSrc(remoteSrc, IMAGE_PLACEHOLDER);
   const priceLabel = card ? formatUsd(gemsToUsd(card.value)) : "";
+  const vaultedCard = card && isVaultedCard(card) ? card : null;
+  const canShip = vaultedCard ? canShipCardValue(vaultedCard.value) : false;
+
+  useEffect(() => {
+    setCardDetailOverlayOpen(open);
+    return () => setCardDetailOverlayOpen(false);
+  }, [open, setCardDetailOverlayOpen]);
+
+  function handleShipTap() {
+    if (!vaultedCard) return;
+    if (!canShip) {
+      showErrorToast("Cards under $50 auto-sell only");
+      return;
+    }
+    void hapticTabSelect();
+    setShipSheetOpen(true);
+  }
 
   return (
     <>
@@ -67,7 +92,7 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
               </button>
             </header>
 
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-12">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-4">
               <motion.div
                 animate={{ y: [0, -4, 0] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
@@ -90,6 +115,26 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
                 {priceLabel}
               </p>
               <p className="mt-2 text-center text-[20px] text-[var(--rip-text-muted)]">{card.name}</p>
+            </div>
+
+            <div
+              className="shrink-0 px-6 pt-2"
+              style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
+            >
+              {vaultedCard ? (
+                <button
+                  type="button"
+                  onClick={handleShipTap}
+                  className={`flex h-14 w-full flex-col items-center justify-center rounded-full bg-[var(--rip-surface)] ${
+                    canShip ? "text-white" : "text-[var(--rip-text-muted)]"
+                  }`}
+                >
+                  <span className="text-[16px] font-semibold">Ship</span>
+                  {!canShip ? (
+                    <span className="text-[10px] text-[var(--rip-text-muted)]">Min $50 to ship</span>
+                  ) : null}
+                </button>
+              ) : null}
             </div>
           </motion.div>
         ) : null}
@@ -116,6 +161,13 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
           </div>
         ) : null}
       </RipBottomSheet>
+
+      <ShipCardSheet
+        open={shipSheetOpen}
+        onClose={() => setShipSheetOpen(false)}
+        card={vaultedCard}
+        onSuccess={onClose}
+      />
     </>
   );
 }

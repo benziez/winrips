@@ -12,7 +12,6 @@ function normalizeRarity(value: string): Rarity {
 const KNOWN_VAULT_STATUSES: VaultItemStatus[] = [
   "vaulted",
   "pending_shipment",
-  "shipping_requested",
   "shipped",
   "delivered",
   "exchanged",

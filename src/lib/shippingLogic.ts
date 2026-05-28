@@ -109,7 +109,7 @@ export async function processShippingRequest(
         ok: true,
         success: true,
         itemId: cleanItemId,
-        status: "shipping_requested",
+        status: "pending_shipment",
       };
     }
 
@@ -127,7 +127,7 @@ export async function processShippingRequest(
     const status =
       typeof payload.status === "string" && payload.status.trim()
         ? payload.status
-        : "shipping_requested";
+        : "pending_shipment";
     const returnedItemId = typeof payload.item_id === "string" ? payload.item_id : cleanItemId;
 
     return {

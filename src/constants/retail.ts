@@ -56,21 +56,32 @@ export function formatGemBalanceDisplay(balance: number, compact = false): strin
   return safe.toLocaleString();
 }
 
-/** 65% buyback credit for exchange actions. */
+/** Buyback credit rate for exchange and auto-sell actions. */
+export const EXCHANGE_CREDIT_RATE = 0.85;
+
+/** Cards below this USD value can only auto-sell, not ship. */
+export const SHIP_MIN_VALUE_USD = 50;
+
+/** 85% buyback credit for exchange actions. */
 export function exchangeCreditGems(itemValueGems: number): number {
-  return Math.floor(itemValueGems * 0.65);
+  return Math.floor(itemValueGems * EXCHANGE_CREDIT_RATE);
 }
 
-/** e.g. EXCHANGE FOR 27 GEMS (65% CREDIT) */
+/** Whether a vaulted card meets the minimum USD value for physical shipping. */
+export function canShipCardValue(itemValueGems: number): boolean {
+  return gemsToUsd(itemValueGems) >= SHIP_MIN_VALUE_USD;
+}
+
+/** e.g. EXCHANGE FOR 27 GEMS (85% CREDIT) */
 export function exchangeButtonLabel(itemValueGems: number): string {
   const credit = exchangeCreditGems(itemValueGems);
-  return `EXCHANGE FOR ${credit.toLocaleString()} GEMS (65% CREDIT)`;
+  return `EXCHANGE FOR ${credit.toLocaleString()} GEMS (85% CREDIT)`;
 }
 
-/** e.g. EXCHANGE FOR $0.27 (65% CREDIT) — display only; settlement stays gem-denominated */
+/** e.g. EXCHANGE FOR $0.27 (85% CREDIT) — display only; settlement stays gem-denominated */
 export function exchangeButtonLabelUsd(itemValueGems: number): string {
   const credit = exchangeCreditGems(itemValueGems);
-  return `EXCHANGE FOR ${formatUsd(gemsToUsd(credit))} (65% CREDIT)`;
+  return `EXCHANGE FOR ${formatUsd(gemsToUsd(credit))} (85% CREDIT)`;
 }
 
 export const SHIP_BUTTON_LABEL = "REQUEST PHYSICAL SHIPPING";

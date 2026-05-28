@@ -39,6 +39,18 @@ export async function hapticSpinnerTick(): Promise<void> {
   }
 }
 
+/** Success notification for completed flows (shipping, exchange). */
+export async function hapticNotificationSuccess(): Promise<void> {
+  if (Capacitor.getPlatform() === "web") return;
+
+  try {
+    const { Haptics, NotificationType } = await import("@capacitor/haptics");
+    await Haptics.notification({ type: NotificationType.Success });
+  } catch {
+    /* Haptics unavailable */
+  }
+}
+
 /** Heavy impact for pack rip moments. */
 export async function hapticHeavyImpact(): Promise<void> {
   if (Capacitor.getPlatform() === "web") return;

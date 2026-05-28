@@ -5,6 +5,7 @@ import { useApp } from "../../context/AppContext";
 import type { FooterPageSlug } from "../../constants/footerContent";
 import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { AutoSellPolicySheet } from "./settings/AutoSellPolicySheet";
+import { InfoSheet } from "./settings/InfoSheet";
 import { ChevronLeft } from "../icons/AppIcons";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 
@@ -30,8 +31,9 @@ async function openExternalUrl(url: string) {
 }
 
 export function MobileSettingsView() {
-  const { navigateToView, openInfoPage, openAuthModal, isLoggedIn } = useApp();
+  const { navigateToView, openAuthModal, isLoggedIn } = useApp();
   const [autoSellSheetOpen, setAutoSellSheetOpen] = useState(false);
+  const [infoSheetKey, setInfoSheetKey] = useState<FooterPageSlug | null>(null);
 
   return (
     <RipAmbientShell>
@@ -65,7 +67,10 @@ export function MobileSettingsView() {
           </button>
           <button
             type="button"
-            onClick={() => openInfoPage("help-desk")}
+            onClick={() => {
+              void hapticTabSelect();
+              setInfoSheetKey("help-desk");
+            }}
             className="rounded-2xl bg-[var(--rip-surface)] p-5 text-left"
           >
             <p className="text-[20px] font-semibold text-white">Preferences</p>
@@ -73,7 +78,10 @@ export function MobileSettingsView() {
           </button>
           <button
             type="button"
-            onClick={() => openInfoPage("help-desk")}
+            onClick={() => {
+              void hapticTabSelect();
+              setInfoSheetKey("help-desk");
+            }}
             className="rounded-2xl bg-[var(--rip-surface)] p-5 text-left"
           >
             <p className="text-[20px] font-semibold text-white">FAQ</p>
@@ -96,7 +104,7 @@ export function MobileSettingsView() {
                     setAutoSellSheetOpen(true);
                     return;
                   }
-                  if (row.slug) openInfoPage(row.slug);
+                  if (row.slug) setInfoSheetKey(row.slug);
                 }}
                 className="flex w-full py-4 text-left text-[17px] font-medium text-white"
               >
@@ -114,6 +122,11 @@ export function MobileSettingsView() {
       <AutoSellPolicySheet
         open={autoSellSheetOpen}
         onClose={() => setAutoSellSheetOpen(false)}
+      />
+      <InfoSheet
+        open={infoSheetKey !== null}
+        onClose={() => setInfoSheetKey(null)}
+        contentKey={infoSheetKey}
       />
     </RipAmbientShell>
   );

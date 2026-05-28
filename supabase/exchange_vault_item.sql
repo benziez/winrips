@@ -1,4 +1,4 @@
--- Vault item exchange — 65% gem credit back to profiles.gems_balance.
+-- Vault item exchange — 85% gem credit back to profiles.gems_balance.
 -- Run in Supabase SQL editor after vault_items.sql and process_spin_transaction.sql.
 
 alter table public.vault_items
@@ -64,7 +64,7 @@ begin
             message = 'Vault item has no exchange value.';
   end if;
 
-  v_credit := floor(v_gem_value * 0.65);
+  v_credit := floor(v_gem_value * 0.85);
 
   if v_credit <= 0 then
     raise exception 'invalid_exchange_credit'
@@ -108,4 +108,4 @@ revoke all on function public.exchange_vault_item(uuid) from public;
 grant execute on function public.exchange_vault_item(uuid) to authenticated;
 
 comment on function public.exchange_vault_item(uuid) is
-  'Credits 65% of gem_value to profiles.gems_balance and marks the vault item as exchanged.';
+  'Credits 85% of gem_value to profiles.gems_balance and marks the vault item as exchanged.';

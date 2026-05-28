@@ -20,7 +20,7 @@ begin
     into pending_count
     from public.vault_items
   where user_id = target_user_id
-    and status in ('pending_shipment', 'shipping_requested');
+    and status in ('pending_shipment');
 
   if pending_count > 0 then
     raise exception 'pending_shipment'

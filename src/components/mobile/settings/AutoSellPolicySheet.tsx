@@ -37,7 +37,7 @@ export function AutoSellPolicySheet({ open, onClose }: AutoSellPolicySheetProps)
 
           <div className="mt-2 space-y-3">
             <PolicyOption>
-              Request shipping to receive the physical card (shipping fees apply)
+              Request shipping for cards $50+ (flat $25 fulfillment fee, insured)
             </PolicyOption>
             <PolicyOption>
               Sell the card instantly back to WinRips at{" "}
@@ -52,8 +52,10 @@ export function AutoSellPolicySheet({ open, onClose }: AutoSellPolicySheetProps)
 
           <div className="mt-2 border-t border-[var(--rip-border)] pt-5">
             <p className="text-[13px] italic leading-relaxed text-[var(--rip-text-muted)]">
-              Physical shipping is coming soon. Until shipping launches, all vaulted cards will
-              auto-convert to balance at 85% FMV after 7 days.
+              Cards valued at{" "}
+              <strong className="font-bold not-italic text-white">$50 or more</strong> can be
+              shipped physically — tap Ship on the card detail screen. Cards under $50 are
+              auto-sell only. A flat $25 fulfillment fee applies to all shipments.
             </p>
           </div>
         </div>

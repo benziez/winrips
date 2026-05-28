@@ -47,6 +47,8 @@ interface AppState {
   selectedPack: Pack | null;
   mobileMenuOpen: boolean;
   shippingModalOpen: boolean;
+  /** True while mobile CardDetailOverlay is open (hides floating dock). */
+  cardDetailOverlayOpen: boolean;
   purchaseModalOpen: boolean;
   /** True when Gem Refill was opened from the wallet modal (shows back to overview). */
   purchaseOpenedFromWallet: boolean;
@@ -106,6 +108,7 @@ interface AppContextValue extends AppState {
   logout: () => void;
   setMobileMenuOpen: (open: boolean) => void;
   setShippingModalOpen: (open: boolean) => void;
+  setCardDetailOverlayOpen: (open: boolean) => void;
   setPurchaseModalOpen: (open: boolean) => void;
   openGemRefillFromWallet: () => void;
   backToWalletFromGemRefill: () => void;
@@ -156,6 +159,7 @@ const INITIAL_STATE: AppState = {
   selectedPack: null,
   mobileMenuOpen: false,
   shippingModalOpen: false,
+  cardDetailOverlayOpen: false,
   purchaseModalOpen: false,
   purchaseOpenedFromWallet: false,
   depositModalOpen: false,
@@ -489,6 +493,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, shippingModalOpen }));
   }, []);
 
+  const setCardDetailOverlayOpen = useCallback((cardDetailOverlayOpen: boolean) => {
+    setState((s) => ({ ...s, cardDetailOverlayOpen }));
+  }, []);
+
   const setPurchaseModalOpen = useCallback((purchaseModalOpen: boolean) => {
     setState((s) => {
       if (purchaseModalOpen && !s.isLoggedIn) {
@@ -677,7 +685,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           item.vaultId === vaultId
             ? {
                 ...item,
-                status: "shipping_requested",
+                status: "pending_shipment",
                 shippingName,
                 shippingAddress,
               }
@@ -826,6 +834,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       logout,
       setMobileMenuOpen,
       setShippingModalOpen,
+      setCardDetailOverlayOpen,
       setPurchaseModalOpen,
       openGemRefillFromWallet,
       backToWalletFromGemRefill,
@@ -876,6 +885,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       logout,
       setMobileMenuOpen,
       setShippingModalOpen,
+      setCardDetailOverlayOpen,
       setPurchaseModalOpen,
       openGemRefillFromWallet,
       backToWalletFromGemRefill,

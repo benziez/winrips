@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import type { Card } from "../../types";
 import type { VaultedCard } from "../../types";
 import { useApp } from "../../context/AppContext";
 import { formatUsd, gemsToUsd } from "../../constants/retail";
@@ -15,16 +14,6 @@ import { hapticTabSelect } from "../../utils/mobileHaptics";
 
 type ViewMode = "grid" | "list";
 type SortKey = "price-desc" | "price-asc" | "name";
-
-function vaultedToCard(item: VaultedCard): Card {
-  return {
-    id: item.id,
-    name: item.name,
-    rarity: item.rarity,
-    value: item.value,
-    image: item.image,
-  };
-}
 
 function EmptyCollectionIllustration() {
   return (
@@ -44,7 +33,7 @@ export function MobileCollectionView() {
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortKey, setSortKey] = useState<SortKey>("price-desc");
   const [addFundsOpen, setAddFundsOpen] = useState(false);
-  const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const [selectedVaultItem, setSelectedVaultItem] = useState<VaultedCard | null>(null);
 
   const sortedItems = useMemo(() => {
     const items = [...vaultItems];
@@ -138,13 +127,11 @@ export function MobileCollectionView() {
             </div>
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-2 gap-3">
-              {sortedItems.map((item) => {
-                const card = vaultedToCard(item);
-                return (
+              {sortedItems.map((item) => (
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setSelectedCard(card)}
+                    onClick={() => setSelectedVaultItem(item)}
                     className="flex aspect-[3/4.2] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] p-3 text-left"
                   >
                     <div className="flex min-h-0 flex-[0.65] items-center justify-center">
@@ -161,18 +148,15 @@ export function MobileCollectionView() {
                       <p className="truncate text-[13px] font-medium text-white">{item.name}</p>
                     </div>
                   </button>
-                );
-              })}
+                ))}
             </div>
           ) : (
             <ul>
-              {sortedItems.map((item) => {
-                const card = vaultedToCard(item);
-                return (
+              {sortedItems.map((item) => (
                   <li key={item.id} className="border-b border-[var(--rip-border)]">
                     <button
                       type="button"
-                      onClick={() => setSelectedCard(card)}
+                      onClick={() => setSelectedVaultItem(item)}
                       className="flex h-24 w-full items-center gap-4 px-2 text-left"
                     >
                       <div className="h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-[var(--rip-surface)] p-1">
@@ -191,8 +175,7 @@ export function MobileCollectionView() {
                       <ChevronRight size={18} className="shrink-0 text-[var(--rip-text-muted)]" />
                     </button>
                   </li>
-                );
-              })}
+                ))}
             </ul>
           )}
         </div>
@@ -200,9 +183,9 @@ export function MobileCollectionView() {
 
       <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
       <CardDetailOverlay
-        card={selectedCard}
-        open={Boolean(selectedCard)}
-        onClose={() => setSelectedCard(null)}
+        card={selectedVaultItem}
+        open={Boolean(selectedVaultItem)}
+        onClose={() => setSelectedVaultItem(null)}
       />
     </RipAmbientShell>
   );

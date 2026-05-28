@@ -56,6 +56,7 @@ function MobileAppLayoutInner() {
     userId,
     currentView,
     cardDetailOverlayOpen,
+    addFundsModalOpen,
     shippingVaultItem,
     closeVaultShipping,
     markVaultItemPendingShipment,
@@ -77,7 +78,9 @@ function MobileAppLayoutInner() {
 
   const showSignIn = !isLoggedIn && !guestSession;
   const immersive =
-    IMMERSIVE_VIEWS.includes(currentView) || cardDetailOverlayOpen;
+    IMMERSIVE_VIEWS.includes(currentView) ||
+    cardDetailOverlayOpen ||
+    addFundsModalOpen;
   const showDock = !immersive;
 
   if (showSignIn) {

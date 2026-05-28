@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { PaymentSheetEventsEnum } from "@capacitor-community/stripe";
 import { formatUsd, gemsToUsd } from "../../../constants/retail";
@@ -24,8 +24,14 @@ interface AddFundsModalProps {
 
 export function AddFundsModal({ open, onClose }: AddFundsModalProps) {
   const { session } = useAuth();
-  const { goldVolts, userId, showErrorToast, showCashoutToast, syncGemBalanceFromServer } =
-    useApp();
+  const {
+    goldVolts,
+    userId,
+    showErrorToast,
+    showCashoutToast,
+    syncGemBalanceFromServer,
+    setAddFundsModalOpen,
+  } = useApp();
   const [amountDigits, setAmountDigits] = useState("10");
   const [touched, setTouched] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -33,6 +39,11 @@ export function AddFundsModal({ open, onClose }: AddFundsModalProps) {
   const amountUsd = Number.parseInt(amountDigits, 10) || 0;
   const displayAmount = formatUsd(amountUsd);
   const balanceLabel = formatUsd(gemsToUsd(goldVolts));
+
+  useEffect(() => {
+    setAddFundsModalOpen(open);
+    return () => setAddFundsModalOpen(false);
+  }, [open, setAddFundsModalOpen]);
 
   const appendDigit = useCallback((digit: string) => {
     if (isProcessing) return;
@@ -245,7 +256,7 @@ export function AddFundsModal({ open, onClose }: AddFundsModalProps) {
 
           <div
             className="shrink-0 px-6 pb-6"
-            style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
           >
             <button
               type="button"

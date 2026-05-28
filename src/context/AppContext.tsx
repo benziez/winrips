@@ -49,6 +49,8 @@ interface AppState {
   shippingModalOpen: boolean;
   /** True while mobile CardDetailOverlay is open (hides floating dock). */
   cardDetailOverlayOpen: boolean;
+  /** True while mobile AddFundsModal is open (hides floating dock). */
+  addFundsModalOpen: boolean;
   purchaseModalOpen: boolean;
   /** True when Gem Refill was opened from the wallet modal (shows back to overview). */
   purchaseOpenedFromWallet: boolean;
@@ -109,6 +111,7 @@ interface AppContextValue extends AppState {
   setMobileMenuOpen: (open: boolean) => void;
   setShippingModalOpen: (open: boolean) => void;
   setCardDetailOverlayOpen: (open: boolean) => void;
+  setAddFundsModalOpen: (open: boolean) => void;
   setPurchaseModalOpen: (open: boolean) => void;
   openGemRefillFromWallet: () => void;
   backToWalletFromGemRefill: () => void;
@@ -160,6 +163,7 @@ const INITIAL_STATE: AppState = {
   mobileMenuOpen: false,
   shippingModalOpen: false,
   cardDetailOverlayOpen: false,
+  addFundsModalOpen: false,
   purchaseModalOpen: false,
   purchaseOpenedFromWallet: false,
   depositModalOpen: false,
@@ -495,6 +499,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const setCardDetailOverlayOpen = useCallback((cardDetailOverlayOpen: boolean) => {
     setState((s) => ({ ...s, cardDetailOverlayOpen }));
+  }, []);
+
+  const setAddFundsModalOpen = useCallback((addFundsModalOpen: boolean) => {
+    setState((s) => ({ ...s, addFundsModalOpen }));
   }, []);
 
   const setPurchaseModalOpen = useCallback((purchaseModalOpen: boolean) => {
@@ -835,6 +843,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setMobileMenuOpen,
       setShippingModalOpen,
       setCardDetailOverlayOpen,
+      setAddFundsModalOpen,
       setPurchaseModalOpen,
       openGemRefillFromWallet,
       backToWalletFromGemRefill,
@@ -886,6 +895,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setMobileMenuOpen,
       setShippingModalOpen,
       setCardDetailOverlayOpen,
+      setAddFundsModalOpen,
       setPurchaseModalOpen,
       openGemRefillFromWallet,
       backToWalletFromGemRefill,

@@ -86,8 +86,8 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     eyebrow: "Legal",
     title: "Terms of Service",
     paragraphs: [
-      "By accessing WinRips you agree to these Terms and our Privacy Policy. You must be 18+ (or local age of majority) and legally permitted to purchase digital goods and receive shipped collectibles in your jurisdiction.",
-      "Gems are virtual storefront currency with no cash redemption except where required by law. All mystery pack purchases are final once the unlock animation completes. Stated card values are marketing estimates—not guaranteed resale prices.",
+      "By accessing WinRips you agree to these Terms and our Privacy Policy. You must be 18+ (or local age of majority) and legally permitted to purchase physical collectibles and receive shipped goods in your jurisdiction.",
+      "WinRips is a physical collectibles marketplace. Account balance represents prepaid funds added to your account for the sole purpose of purchasing collectibles or Packs. Funds added to your account are non-refundable and may not be withdrawn. Only funds received from the sale of physical collectibles in your inventory are eligible for withdrawal.",
       "We may suspend accounts for chargebacks, multi-account abuse, bot traffic, or attempts to exploit fairness systems. Disputes are governed by the laws of the State of Delaware, USA, excluding conflict provisions.",
     ],
   },
@@ -143,8 +143,8 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     eyebrow: "Retail Legal",
     title: "Purchase Agreement",
     paragraphs: [
-      "This Purchase Agreement dictates the legally binding commercial terms governing every financial transaction, token acquisition, and item trade-in executed on the Platform. By confirming a payment routing or executing a digital wallet transfer, you enter into an absolute agreement with Drops Retail Limited.",
-      "All acquisitions of our digital Gem currency constitute the immediate purchase of a closed-loop virtual good; these transactions are entirely final, non-refundable, and legally non-reversible. The Platform strictly prohibits chargeback manipulation or fraudulent payment disputes. Any user attempting to reverse a verified transaction via external banking institutions will face immediate permanent vault isolation, total forfeiture of stored items, and potential legal referral.",
+      "This Purchase Agreement governs every financial transaction, balance top-up, item purchase, and item auto-sell executed on the WinRips Platform. By confirming a payment or adding funds to your account, you enter into a binding agreement with Drops Retail Limited. All collectibles offered are physical Pokémon trading cards or related items that may be shipped to you upon request or sold back to the Platform at 85% of Fair Market Value.",
+      "All balance top-ups and pack purchases constitute the immediate, final, and non-refundable acquisition of physical collectibles or the right to acquire them via Pack purchase. Deposited funds may only be used for the purchase of collectibles or Packs and cannot be withdrawn under any circumstances. Withdrawals are limited to funds received from the sale of physical collectibles in your inventory, subject to verification requirements and applicable withdrawal limits described herein.",
     ],
   },
   "shipping-policy": {
@@ -153,7 +153,7 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     title: "Shipping Policy",
     paragraphs: [
       "All physical trading cards, slabs, and collectibles unboxed on the Platform are held securely as digital twins inside our climate-controlled physical facility. When a collector selects 'Request Delivery' inside their digital vault locker, the physical asset is pulled from storage, heavily inspected, and prepared for transit.",
-      "Handling & Security: Every item is packed utilizing heavy-duty, tamper-evident materials, including top-loaders, team bags, and bubble-wrapped structural boxes to eliminate any transit degradation. High-value grails exceeding 10,000 Gems are automatically dispatched inside custom armor-shield packaging with mandatory signature delivery.",
+      "Every collectible won through WinRips is a physical Pokémon trading card stored in our secure fulfillment vault. You may request physical shipment of any card valued at $50 or more to your verified shipping address for a flat $25 insured fulfillment fee. Cards valued below $50 are eligible for auto-sell at 85% Fair Market Value only. High-value grails exceeding $1,000 in fair market value receive priority insured shipping at no additional cost. Standard fulfillment timelines are 7–14 business days within the continental United States.",
       "Timeline & Tracking: Orders are fully processed within 48 to 72 business hours. Once handed to our primary logistics partners (FedEx, UPS, or DHL), a secure tracking signature link is updated directly to your user dashboard environment. International shipping is fully supported, though collectors remain solely liable for any localized customs clearance fees, import duties, or regional value-added taxes (VAT).",
     ],
   },
@@ -164,6 +164,7 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     paragraphs: [
       "WinRips is a gamified e-commerce storefront dedicated strictly to collection entertainment and trading card enthusiasts. Because unboxing mystery packages carries inherent financial variance, we enforce rock-solid Responsible Play Guidelines to ensure a safe, sustainable environment for all users.",
       "We provide proactive, user-controlled account management utilities directly within the settings profile layer. Collectors can instantly establish strict daily, weekly, or monthly deposit ceilings, or activate a voluntary self-exclusion lock to completely freeze account access for durations ranging from 24 hours to permanent closure. If you feel your collection habits are becoming unhealthy, we urge you to leverage these isolation tools or contact our dedicated support representatives for immediate guidance.",
+      "You must be at least 18 years of age to use the Platform, or 21 years of age if you reside in a state with elevated age requirements (currently Massachusetts, Iowa, Louisiana, and select others — refer to current eligibility table for full list). The Platform is available only to users physically located in the United States. Prior to your first withdrawal, you will be required to complete identity verification, including a liveness check, to confirm your name, age, and location. Failure to complete verification will prevent withdrawal of funds. The Platform reserves the right to limit eligible withdrawals to $250 per any rolling 7-day period.",
     ],
   },
 };

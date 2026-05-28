@@ -9,12 +9,18 @@ import {
 } from "./vaultInventory.js";
 import { handleFairnessSessionRoute } from "./fairnessSessionHttp.js";
 import { handleIapFulfillRoute } from "./iapFulfill.js";
+import {
+  handleStripeCreatePaymentIntentRoute,
+  handleStripeWebhookRoute,
+} from "./stripeDeposit.js";
 
 /** Dispatches payment, balance, vault, and fairness API routes. */
 export async function handlePaymentHttp(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
+  if (await handleStripeCreatePaymentIntentRoute(req, res)) return true;
+  if (await handleStripeWebhookRoute(req, res)) return true;
   if (await handleIapFulfillRoute(req, res)) return true;
   if (await handleFairnessSessionRoute(req, res)) return true;
   if (await handlePaymentsWebhookRoute(req, res)) return true;

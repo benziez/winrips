@@ -27,8 +27,11 @@ export function paymentsDevPlugin(env: Record<string, string>): Plugin {
           key === "VITE_PORT" ||
           key === "SUPABASE_URL" ||
           key === "SUPABASE_ANON_KEY" ||
+          key === "SUPABASE_SERVICE_ROLE_KEY" ||
           key === "VITE_SUPABASE_URL" ||
-          key === "VITE_SUPABASE_ANON_KEY"
+          key === "VITE_SUPABASE_ANON_KEY" ||
+          key === "STRIPE_SECRET_KEY" ||
+          key === "STRIPE_WEBHOOK_SECRET"
         ) {
           process.env[key] = value;
         }

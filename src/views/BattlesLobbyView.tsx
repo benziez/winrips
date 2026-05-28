@@ -220,7 +220,7 @@ export function BattlesLobbyView() {
             Box Battles
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-400">
-            Create a battle lobby, lock in your entry gems, and wait for a rival to join the
+            Create a battle lobby, lock in your entry fee, and wait for a rival to join the
             1v1 rip-off.
           </p>
         </div>

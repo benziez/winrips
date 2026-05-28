@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useApp } from "../../context/AppContext";
-import { DAILY_BONUS_GEMS, GEMS_LABEL } from "../../constants/dualCurrency";
+import { DAILY_BONUS_GEMS } from "../../constants/dualCurrency";
+import { formatUsd, gemsToUsd } from "../../constants/retail";
 import { useDailyBonusCountdown } from "../../hooks/useDailyBonusCountdown";
 
 export function DailyBonusPanel() {
@@ -14,7 +15,7 @@ export function DailyBonusPanel() {
     try {
       claimDailyBonusGems();
       persistClaim();
-      showCashoutToast(`Daily bonus claimed: +${DAILY_BONUS_GEMS} ${GEMS_LABEL}.`);
+      showCashoutToast(`Daily bonus claimed: +${formatUsd(gemsToUsd(DAILY_BONUS_GEMS))}.`);
     } finally {
       setClaiming(false);
     }
@@ -26,7 +27,7 @@ export function DailyBonusPanel() {
         Daily reward
       </p>
       <p className="mt-3 text-4xl font-black tabular-nums tracking-tight text-gold">
-        +{DAILY_BONUS_GEMS} {GEMS_LABEL}
+        +{formatUsd(gemsToUsd(DAILY_BONUS_GEMS))}
       </p>
       <p className="mt-2 text-sm text-muted">
         {ready

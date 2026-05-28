@@ -6,7 +6,7 @@ const FAQ_ITEMS = [
     id: "what-is",
     question: "What is WinRips?",
     answer:
-      "WinRips is a gamified e-commerce collectibles storefront. Purchase Gems to open sealed mystery packages containing physical slabs, autographs, and graded cards — with every drop table published in our Fairness hub.",
+      "WinRips is a gamified e-commerce collectibles storefront. Add funds to your balance to open sealed mystery packages containing physical slabs, autographs, and graded cards — with every drop table published in our Fairness hub.",
   },
   {
     id: "safe",

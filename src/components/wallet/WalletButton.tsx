@@ -1,5 +1,6 @@
 import { useApp } from "../../context/AppContext";
 import { currencyLabel } from "../../constants/dualCurrency";
+import { formatGemBalanceDisplay } from "../../constants/retail";
 import { balanceForCurrency } from "../../utils/dualCurrency";
 import { CurrencyTokenIcon } from "./CurrencyTokenIcon";
 
@@ -31,7 +32,9 @@ export function WalletButton() {
       >
         {gemBalanceLoading && activeCurrency === "gold-volts"
           ? "…"
-          : activeBalance.toLocaleString()}
+          : activeCurrency === "gold-volts"
+            ? formatGemBalanceDisplay(activeBalance)
+            : activeBalance.toLocaleString()}
       </span>
     </button>
   );

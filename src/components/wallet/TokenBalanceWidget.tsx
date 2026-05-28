@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { GemIcon } from "../icons/AppIcons";
 import { useApp } from "../../context/AppContext";
+import { formatGemBalanceDisplay } from "../../constants/retail";
 
 export function TokenBalanceWidget() {
   const {
@@ -29,7 +30,7 @@ export function TokenBalanceWidget() {
           aria-busy={gemBalanceLoading}
           aria-live="polite"
         >
-          {gemBalanceLoading ? "…" : goldVolts.toLocaleString()}
+          {gemBalanceLoading ? "…" : formatGemBalanceDisplay(goldVolts)}
         </span>
       </div>
       <button

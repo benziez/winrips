@@ -1,9 +1,10 @@
 import { useRef, useState, useEffect } from "react";
 import type { Currency } from "../../types";
 import { useApp } from "../../context/AppContext";
+import { formatGemBalanceDisplay } from "../../constants/retail";
 
 const CURRENCIES: { id: Currency; label: string; accent: string }[] = [
-  { id: "gold-volts", label: "Gems", accent: "text-[#00e701]" },
+  { id: "gold-volts", label: "Balance", accent: "text-[#00e701]" },
   { id: "sweeps-cash", label: "Sweeps Cash", accent: "text-white" },
 ];
 
@@ -15,6 +16,10 @@ export function WalletWidget() {
 
   const active = CURRENCIES.find((c) => c.id === activeCurrency) ?? CURRENCIES[0];
   const balance = activeCurrency === "gold-volts" ? goldVolts : sweepsCash;
+
+  function formatCurrencyAmount(currency: Currency, amount: number): string {
+    return currency === "gold-volts" ? formatGemBalanceDisplay(amount) : amount.toLocaleString();
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -43,7 +48,7 @@ export function WalletWidget() {
             <p
               className={`text-lg font-bold tabular-nums leading-tight sm:text-2xl ${active.accent}`}
             >
-              {balance.toLocaleString()}
+              {formatCurrencyAmount(activeCurrency, balance)}
             </p>
           </div>
           <svg
@@ -89,7 +94,7 @@ export function WalletWidget() {
               >
                 <span className="font-medium">{c.label}</span>
                 <span className="ml-2 tabular-nums text-white">
-                  {(c.id === "gold-volts" ? goldVolts : sweepsCash).toLocaleString()}
+                  {formatCurrencyAmount(c.id, c.id === "gold-volts" ? goldVolts : sweepsCash)}
                 </span>
               </button>
             </li>

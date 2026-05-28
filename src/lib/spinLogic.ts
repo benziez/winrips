@@ -69,7 +69,7 @@ function mapSpinChargeError(message: string, code?: string): string {
     return `Insufficient ${RETAIL_COPY.currency} for this opening.`;
   }
   if (normalized.includes("not_authenticated")) {
-    return "Sign in to unlock drops with your gem balance.";
+    return "Sign in to unlock drops with your account balance.";
   }
   if (normalized.includes("invalid_spin_cost")) {
     return "Invalid spin cost.";
@@ -78,7 +78,7 @@ function mapSpinChargeError(message: string, code?: string): string {
     return "Account profile not found. Try signing out and back in.";
   }
 
-  return "Unable to charge gems for this spin. Please try again.";
+  return "Unable to charge your balance for this spin. Please try again.";
 }
 
 async function resolveAuthenticatedUserId(prefilledUserId?: string): Promise<string> {
@@ -93,12 +93,12 @@ async function resolveAuthenticatedUserId(prefilledUserId?: string): Promise<str
 
   const { data, error } = await supabase.auth.getSession();
   if (error) {
-    throw new Error("Sign in to unlock drops with your gem balance.");
+    throw new Error("Sign in to unlock drops with your account balance.");
   }
 
   const userId = data.session?.user?.id?.trim();
   if (!userId) {
-    throw new Error("Sign in to unlock drops with your gem balance.");
+    throw new Error("Sign in to unlock drops with your account balance.");
   }
 
   return userId;
@@ -138,23 +138,10 @@ export async function handleSpin(
     const authenticatedUserId = await resolveAuthenticatedUserId(authUserId);
     const client = supabase as unknown as SpinRpcClient;
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const sessionUserId = sessionData.session?.user?.id?.trim() ?? "";
-    console.log("[OpenPack] spin-auth-context", {
-      client: "anon+session (supabaseClient)",
-      prefilledUserId: authUserId?.trim() || null,
-      resolvedUserId: authenticatedUserId,
-      sessionUserId: sessionUserId || null,
-      hasAccessToken: Boolean(sessionData.session?.access_token),
-      userIdsMatch: sessionUserId === authenticatedUserId,
-    });
-
     const { data: spinData, error: spinError } = await client.rpc("process_spin_transaction", {
       p_user_id: authenticatedUserId,
       p_spin_cost: normalizedCost,
     });
-
-    console.log("[OpenPack] spin-rpc-response", { data: spinData, error: spinError });
 
     if (spinError) {
       logger.warn("[process_spin_transaction] PostgREST error:", spinError.message);
@@ -181,15 +168,7 @@ export async function handleSpin(
       const errorMessage =
         typeof spinPayload?.error === "string" && spinPayload.error.trim()
           ? spinPayload.error.trim()
-          : "Unable to charge gems for this spin.";
-
-      console.log("[OpenPack] spin-rpc-rejected", {
-        step: rpcStep,
-        code: rpcCode,
-        error: errorMessage,
-        gems_balance: spinPayload?.gems_balance,
-        full: spinPayload,
-      });
+          : "Unable to charge your balance for this spin.";
 
       return {
         ok: false,
@@ -274,7 +253,6 @@ export async function handleSpin(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to complete this spin.";
-    console.log("[OpenPack] spin-unexpected-error", { message });
     return { ok: false, error: message };
   }
 }

@@ -1,8 +1,8 @@
 import type { Currency } from "../types";
 
-export const GEMS_LABEL = "Gems";
+export const GEMS_LABEL = "Balance";
 export const RIPS_LABEL = "Rips";
-export const GEMS_FULL_NAME = "WinRips Gems";
+export const GEMS_FULL_NAME = "Account balance";
 export const RIPS_FULL_NAME = "Sweep Cash / Rips";
 
 /** @deprecated use GEMS_LABEL */

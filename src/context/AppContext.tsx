@@ -25,6 +25,7 @@ import {
 } from "../constants/dualCurrency";
 import type { AppView, AuthModalMode, Currency, Pack, VaultedCard } from "../types";
 import type { WalletModalTab } from "../types/wallet";
+import { formatUsd, gemsToUsd } from "../constants/retail";
 import { fetchUserBalances, resolveSyncedGemBalance } from "../lib/userBalances";
 import { logger } from "../lib/logger";
 import { fetchProfileUsername } from "../lib/userProfile";
@@ -685,7 +686,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const showDepositSuccessToast = useCallback((gemsAdded: number) => {
     const amount = Math.max(0, Math.round(gemsAdded));
-    const cashoutToast = `💎 Success! ${amount.toLocaleString()} Gems have been credited to your locker.`;
+    const cashoutToast = `Success! ${formatUsd(gemsToUsd(amount))} added to your balance.`;
     setState((s) => ({ ...s, cashoutToast, toastVariant: "deposit" }));
     setTimeout(() => {
       setState((s) => ({ ...s, cashoutToast: null, toastVariant: "default" }));

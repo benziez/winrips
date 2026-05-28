@@ -167,5 +167,5 @@ export async function exchangeVaultItemInUi(
 }
 
 export function formatExchangeSuccessToast(gemsAdded: number): string {
-  return `Exchange complete — +${formatGems(gemsAdded)} credited to your balance.`;
+  return `Exchange complete — +${formatGems(gemsAdded)} added to your balance.`;
 }

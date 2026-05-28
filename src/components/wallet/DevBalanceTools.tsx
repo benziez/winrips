@@ -33,7 +33,7 @@ export function DevBalanceTools() {
       </p>
       <p className="text-xs text-white">
         Header: <span className="font-bold tabular-nums text-[#FF007F]">{goldVolts.toLocaleString()}</span>{" "}
-        gems
+        units (internal)
       </p>
       <button
         type="button"
@@ -42,12 +42,12 @@ export function DevBalanceTools() {
           run(async () => {
             await setDevGemBalance(userId, 5000);
             await syncGemBalanceFromServer();
-            showCashoutToast("Set balance to 5,000 gems in KV.");
+            showCashoutToast("Set balance to $50.00 in KV.");
           })
         }
         className="rounded-md bg-amber-500/20 px-2 py-1.5 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/30 disabled:opacity-50"
       >
-        Set 5,000 gems
+        Set $50 balance
       </button>
       <button
         type="button"

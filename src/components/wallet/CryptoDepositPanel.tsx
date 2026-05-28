@@ -8,6 +8,7 @@ import {
   gemsFromUsd,
   ripsFromUsd,
 } from "../../constants/cryptoDeposit";
+import { formatUsd, gemsToUsd } from "../../constants/retail";
 import { depositQrCodeUrl, requestDepositPayment } from "../../lib/paymentsApi";
 import type { DepositPayCurrency, DepositPaymentResponse } from "../../types/payments";
 import { CheckoutAuthGate } from "./CheckoutAuthGate";
@@ -95,7 +96,7 @@ function DepositSummaryCard({
         <li className="flex items-center justify-between gap-3">
           <span className="text-muted">You Receive</span>
           <span className="font-bold tabular-nums text-gold">
-            {loading ? "…" : `${gems.toLocaleString()} Gems`}
+            {loading ? "…" : formatUsd(gemsToUsd(gems))}
           </span>
         </li>
         <li className="flex items-center justify-between gap-3 border-t border-[#213743]/80 pt-1.5">

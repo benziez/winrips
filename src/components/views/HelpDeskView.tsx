@@ -2,8 +2,8 @@ import { UtilityPageShell } from "./UtilityPageShell";
 
 const FAQ = [
   {
-    q: "How do Gems and Sweeps Cash work?",
-    a: "Gems are your storefront currency for unlocking mystery drops (~100 Gems = $1 USD). Sweeps Cash enters you into promotional sweepstakes pack events.",
+    q: "How does my balance work?",
+    a: "Your balance is in US dollars. Add funds to open packs and purchase items. Sweeps Cash (Rips) is a separate promotional currency for sweepstakes pack events.",
   },
   {
     q: "When will my physical ship arrive?",

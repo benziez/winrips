@@ -20,42 +20,42 @@ export function bundleTotalGems(bundle: PurchaseBundle): number {
 export const PURCHASE_BUNDLES: PurchaseBundle[] = [
   {
     id: "refill-2500",
-    name: "2,500 Gems",
+    name: "$24.98",
     priceUsd: 24.98,
     goldVolts: 2_500,
     bonusGems: 0,
   },
   {
     id: "refill-5000",
-    name: "5,000 Gems",
+    name: "$49.98",
     priceUsd: 49.98,
     goldVolts: 5_000,
     bonusGems: 0,
   },
   {
     id: "refill-10000",
-    name: "10,000 Gems",
+    name: "$99.98",
     priceUsd: 99.98,
     goldVolts: 10_000,
     bonusGems: 0,
   },
   {
     id: "refill-25000",
-    name: "25,000 Gems",
+    name: "$249.98",
     priceUsd: 249.98,
     goldVolts: 25_000,
     bonusGems: 0,
   },
   {
     id: "refill-50000",
-    name: "50,000 Gems",
+    name: "$499.98",
     priceUsd: 499.98,
     goldVolts: 50_000,
     bonusGems: 0,
   },
   {
     id: "refill-100000",
-    name: "100,000 Gems",
+    name: "$999.98",
     priceUsd: 999.98,
     goldVolts: 100_000,
     bonusGems: 0,
@@ -78,7 +78,7 @@ export const CUSTOM_GEM_MAX = 100_000;
 export function customAmountBundle(gems: number): PurchaseBundle {
   return {
     id: `custom-${gems}`,
-    name: "Custom Gem Amount",
+    name: "Custom amount",
     priceUsd: gems / GEMS_PER_USD,
     goldVolts: gems,
     bonusGems: 0,

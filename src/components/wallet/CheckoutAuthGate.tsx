@@ -5,7 +5,7 @@ export function CheckoutAuthGate() {
 
   return (
     <div className="flex w-full flex-col items-center gap-5 rounded-xl border border-[#213743] bg-[#0f212e]/80 px-6 py-10 text-center">
-      <p className="text-sm font-semibold text-white">Sign in to refill gems</p>
+      <p className="text-sm font-semibold text-white">Sign in to add funds</p>
       <p className="max-w-xs text-xs leading-relaxed text-muted">
         Create an account or log in to generate a secure crypto deposit address and manage your
         wallet.

@@ -32,7 +32,7 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     title: "Solo Openings",
     paragraphs: [
       "Solo Openings represent the core individual collecting pipeline on the Platform, allowing users to instantly unbox premium custom-curated mystery packs at their own pace. Each box listed on the storefront storefront dashboard contains a dedicated, cryptographically sealed pool of authentic Pokémon TCG assets, ranging from accessible entry-level modern holographic cards to hyper-rare vintage graded slabs.",
-      "Before committing any Gems to an opening, collectors can inspect the transparent box contents, real-time market value distributions, and precise hit probability metrics listed directly within the Pack View interface. Once an opening is initiated, our randomized cryptographic execution matrix instantly determines the pulled card item, immediately updating your secure digital vault locker inventory.",
+      "Before using your balance to open a pack, collectors can inspect the transparent box contents, real-time market value distributions, and precise hit probability metrics listed directly within the Pack View interface. Once an opening is initiated, our randomized cryptographic execution matrix instantly determines the pulled card item, immediately updating your secure digital vault locker inventory.",
     ],
   },
   "pvp-battles": {
@@ -50,7 +50,7 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     title: "Drop Tables",
     paragraphs: [
       "The Drop Tables directory serves as our central compliance data clearinghouse, offering a completely transparent, public breakdown of every individual asset pool loaded onto our wheel spinners. We maintain a strict policy of absolute visibility: we do not utilize dynamic adjustment filters or hidden pool skewing systems.",
-      "Every single collectible card inside our inventory database carries an explicit, static weight ratio. This directory allows users to audit full item indices, sorting by specific card sets (such as Scarlet & Violet 151, Paradox Rift, or Base Set), precise gem valuations, and exact mathematical drop probabilities down to four decimal places. This ensures you know the exact risk and reward profile of any box before interacting with the platform.",
+      "Every single collectible card inside our inventory database carries an explicit, static weight ratio. This directory allows users to audit full item indices, sorting by specific card sets (such as Scarlet & Violet 151, Paradox Rift, or Base Set), precise dollar valuations, and exact mathematical drop probabilities down to four decimal places. This ensures you know the exact risk and reward profile of any box before interacting with the platform.",
     ],
   },
   "live-pull-feed": {
@@ -59,7 +59,7 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     title: "Live Pull Feed",
     paragraphs: [
       "The Live Pull Feed is the real-time social ledger of the entire Platform ecosystem, continuously broadcasting successful unboxings, elite ceiling drops, and major collection updates as they happen across our global user base. This rolling ticker creates an environment of absolute transparency, proving the continuous movement of high-value inventory.",
-      "Every entry visible on the feed layout showcases the collector's username, their customized tier ranking badge, the precise pack origin, a clear asset card visual, and its real-time platform Gem value. Collectors can hover over any live feed item to audit its verifiable cryptographic transaction hash, or click a user's profile icon to view their public trophy case and trade-in history.",
+      "Every entry visible on the feed layout showcases the collector's username, their customized tier ranking badge, the precise pack origin, a clear asset card visual, and its real-time dollar value. Collectors can hover over any live feed item to audit its verifiable cryptographic transaction hash, or click a user's profile icon to view their public trophy case and trade-in history.",
     ],
   },
   "provably-fair": {
@@ -106,7 +106,7 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     title: "Affiliate Program",
     paragraphs: [
       "The WinRips Affiliate Program allows creators, community leaders, and regular collectors to monetize their network reach by driving new user volume to the platform. Upon activating your affiliate tier, you can generate a custom referral link or personalized Creator Code directly within your user dashboard.",
-      "When a new collector registers using your code, they receive an immediate platform welcome bonus (such as a free entry-level booster drop), while you unlock a permanent, scaling commission split on all their ongoing unboxing volume. Our affiliate tracking system records clicks and payouts in real-time, allowing you to instantly withdraw your earned affiliate credits directly into your active Gem balance.",
+      "When a new collector registers using your code, they receive an immediate platform welcome bonus (such as a free entry-level booster drop), while you unlock a permanent, scaling commission split on all their ongoing unboxing volume. Our affiliate tracking system records clicks and payouts in real-time, allowing you to instantly withdraw your earned affiliate credits directly into your account balance.",
     ],
   },
   "vip-vault": {

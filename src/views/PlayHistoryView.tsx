@@ -23,7 +23,7 @@ export function PlayHistoryView() {
             Play History
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#A0A5B5]">
-            Review every box you have opened — pack cost, pulled item, gem value, and the
+            Review every box you have opened — pack cost, pulled item, dollar value, and the
             provably-fair roll that determined your outcome.
           </p>
         </div>

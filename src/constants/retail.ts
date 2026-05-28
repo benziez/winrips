@@ -5,8 +5,8 @@
 export const RETAIL_COPY = {
   brand: "WinRips",
   tagline: "Premium TCG & Sports Unboxing",
-  currency: "Gems",
-  currencyAbbr: "Gems",
+  currency: "balance",
+  currencyAbbr: "balance",
   /** ~100 Gems = $1.00 USD */
   gemsPerUsd: 100,
   purchaseVerb: "Unlock Drop",
@@ -22,8 +22,9 @@ export function ceilingDropHeadline(estimatedValueGems: number): string {
   return estimatedValueGems >= 10_000 ? "CEILING DROP" : "PREMIUM PULL";
 }
 
+/** User-facing currency display (100 internal units = $1). */
 export function formatGems(amount: number): string {
-  return `${amount.toLocaleString()} Gems`;
+  return formatUsd(gemsToUsd(amount));
 }
 
 /** Convert gem cost to USD list price (100 gems = $1). */
@@ -47,13 +48,13 @@ export function formatPackPriceUsd(gemCost: number): string {
   return formatUsd(gemsToUsd(gemCost));
 }
 
-/** Gem pill display — compact uses shorthand (e.g. 1.0M) on narrow header layouts. */
+/** Balance pill display — compact uses shorthand (e.g. $1.0M) on narrow header layouts. */
 export function formatGemBalanceDisplay(balance: number, compact = false): string {
-  const safe = Number.isFinite(balance) && balance >= 0 ? balance : 0;
-  if (compact && safe >= 1_000_000) {
-    return `${(safe / 1_000_000).toFixed(1)}M`;
+  const usd = gemsToUsd(balance);
+  if (compact && usd >= 1_000_000) {
+    return `$${(usd / 1_000_000).toFixed(1)}M`;
   }
-  return safe.toLocaleString();
+  return formatUsd(usd);
 }
 
 /** Buyback credit rate for exchange and auto-sell actions. */
@@ -72,10 +73,10 @@ export function canShipCardValue(itemValueGems: number): boolean {
   return gemsToUsd(itemValueGems) >= SHIP_MIN_VALUE_USD;
 }
 
-/** e.g. EXCHANGE FOR 27 GEMS (85% CREDIT) */
+/** e.g. EXCHANGE FOR $0.27 (85% CREDIT) */
 export function exchangeButtonLabel(itemValueGems: number): string {
   const credit = exchangeCreditGems(itemValueGems);
-  return `EXCHANGE FOR ${credit.toLocaleString()} GEMS (85% CREDIT)`;
+  return `EXCHANGE FOR ${formatUsd(gemsToUsd(credit))} (85% CREDIT)`;
 }
 
 /** e.g. EXCHANGE FOR $0.27 (85% CREDIT) — display only; settlement stays gem-denominated */

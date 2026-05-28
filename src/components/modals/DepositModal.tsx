@@ -236,7 +236,7 @@ export function DepositModal() {
               </div>
 
               <p className="text-[10px] leading-relaxed text-[#A0A5B5]/80">
-                Order <span className="font-mono text-white/70">{payment.orderId}</span> — gems credit
+                Order <span className="font-mono text-white/70">{payment.orderId}</span> — balance credit
                 automatically after NOWPayments confirms your transfer (typically 1–3 confirmations).
               </p>
 

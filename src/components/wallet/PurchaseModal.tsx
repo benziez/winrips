@@ -12,6 +12,7 @@ import { useApp } from "../../context/AppContext";
 import { ChevronLeft } from "../icons/AppIcons";
 import { CheckoutAuthGate } from "./CheckoutAuthGate";
 import { CryptoDepositPanel } from "./CryptoDepositPanel";
+import { formatUsd, gemsToUsd } from "../../constants/retail";
 import { WalletOfferBanner } from "./WalletOfferBanner";
 
 const INPUT_CLASS =
@@ -51,7 +52,7 @@ function GemRefillModalHeader({
           id={titleId}
           className="truncate text-base font-bold uppercase tracking-wide text-white"
         >
-          Gem Refill
+          Add funds
         </h2>
       </div>
       <button
@@ -138,9 +139,8 @@ function RefillTierCard({
       >
         <GemCluster size={clusterSize} />
         <p className="mt-2 text-base font-black leading-none tabular-nums tracking-tight text-white sm:text-lg">
-          {gems.toLocaleString()}
+          {formatUsd(gemsToUsd(gems))}
         </p>
-        <p className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-muted">Gems</p>
         <span className="mt-2 inline-flex rounded-full border border-fuchsia/30 bg-fuchsia/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-fuchsia">
           +{ripsBonus.toLocaleString()} Rips Bonus
         </span>
@@ -223,7 +223,7 @@ export function PurchaseModal() {
         return;
       }
 
-      showCashoutToast("Card checkout is coming soon — use Crypto to refill now.");
+      showCashoutToast("Card checkout is coming soon — use Crypto to add funds now.");
     },
     [processing, isLoggedIn, openAuthModal, showCashoutToast],
   );
@@ -240,7 +240,7 @@ export function PurchaseModal() {
 
   function handleApplyAffiliate() {
     if (!affiliateCode.trim()) return;
-    showCashoutToast("Affiliate code applied — Get 5% bonus gems on your next refill.");
+    showCashoutToast("Affiliate code applied — Get 5% bonus credit on your next deposit.");
     setAffiliateCode("");
   }
 
@@ -354,7 +354,7 @@ export function PurchaseModal() {
                         inputMode="numeric"
                         value={customAmount}
                         onChange={(e) => handleCustomAmountChange(e.target.value)}
-                        placeholder="Enter gem amount"
+                        placeholder="Enter amount (USD)"
                         maxLength={6}
                         className={INPUT_CLASS}
                       />
@@ -367,8 +367,8 @@ export function PurchaseModal() {
                         {isValidAmount ? `Buy for $${calculatedPrice}` : "Select amount"}
                       </button>
                       <p className="text-[10px] text-muted/70">
-                        Min {CUSTOM_GEM_MIN.toLocaleString()} · Max{" "}
-                        {CUSTOM_GEM_MAX.toLocaleString()} gems
+                        Min {formatUsd(gemsToUsd(CUSTOM_GEM_MIN))} · Max{" "}
+                        {formatUsd(gemsToUsd(CUSTOM_GEM_MAX))}
                       </p>
                     </div>
                   </>
@@ -382,7 +382,7 @@ export function PurchaseModal() {
                   <label className="text-[10px] font-semibold uppercase tracking-wider text-muted">
                     Affiliate code
                   </label>
-                  <p className="text-[10px] text-fuchsia">Get 5% bonus gems</p>
+                  <p className="text-[10px] text-fuchsia">Get 5% bonus credit</p>
                   <input
                     type="text"
                     value={affiliateCode}

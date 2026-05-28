@@ -126,7 +126,7 @@ function ShippingSummary({ shippingCost }: { shippingCost: number }) {
         <div>
           <p className="text-sm font-semibold text-white">Physical fulfillment fee</p>
           <p className="mt-0.5 text-xs text-muted">
-            {storeCommerce ? "Shipping fee" : "Deducted from your gem balance on release"}
+            {storeCommerce ? "Shipping fee" : "Deducted from your balance on release"}
           </p>
         </div>
         <p

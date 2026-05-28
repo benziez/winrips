@@ -50,7 +50,10 @@ export function HeaderWalletControls({ compact = false }: { compact?: boolean })
     return null;
   }
 
-  const balanceLabel = formatGemBalanceDisplay(activeBalance, compact);
+  const balanceLabel =
+    activeCurrency === "gold-volts"
+      ? formatGemBalanceDisplay(activeBalance, compact)
+      : activeBalance.toLocaleString();
 
   return (
     <div className={`flex flex-nowrap items-center ${compact ? "gap-1" : "gap-2"}`}>
@@ -63,7 +66,7 @@ export function HeaderWalletControls({ compact = false }: { compact?: boolean })
           }`}
           aria-expanded={menuOpen}
           aria-haspopup="listbox"
-          aria-label={`${activeLabel} balance, ${activeBalance.toLocaleString()}`}
+          aria-label={`${activeLabel} balance, ${balanceLabel}`}
         >
           <CurrencyTokenIcon currency={activeCurrency} size={compact ? 18 : 22} />
           <span
@@ -114,7 +117,9 @@ export function HeaderWalletControls({ compact = false }: { compact?: boolean })
                         {option.label}
                       </span>
                       <span className="block text-sm font-bold tabular-nums text-white">
-                        {balance.toLocaleString()}
+                        {option.id === "gold-volts"
+                          ? formatGemBalanceDisplay(balance)
+                          : balance.toLocaleString()}
                       </span>
                     </span>
                   </button>

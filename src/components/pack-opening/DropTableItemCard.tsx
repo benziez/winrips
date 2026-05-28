@@ -3,7 +3,7 @@ import type { CardDetailCard } from "../../types/cardDetail";
 import { formatProbability } from "../../data/packDropTables";
 import type { PackCategory } from "../../types";
 import type { StoreItem } from "../../types/store";
-import { GemIcon } from "../icons/AppIcons";
+import { formatUsd, gemsToUsd } from "../../constants/retail";
 import { CollectibleImage } from "../ui/CollectibleImage";
 import {
   DROP_TABLE_RARITY_LABEL,
@@ -101,9 +101,7 @@ export function DropTableItemCard({
               {name}
             </p>
             <p className="mt-0.5 flex items-center gap-0.5 text-[8px] font-bold tabular-nums text-gold sm:mt-1 sm:gap-1 sm:text-[10px] md:text-[11px]">
-              <GemIcon size={9} className="text-gold/90 sm:hidden" />
-              <GemIcon size={11} className="hidden text-gold/90 sm:block" />
-              <span>{gemValue.toLocaleString()}</span>
+              <span>{formatUsd(gemsToUsd(gemValue))}</span>
             </p>
           </div>
           <p className="odds-mono shrink-0 text-right text-[8px] font-bold leading-none text-white/90 sm:text-[10px] md:text-[11px]">

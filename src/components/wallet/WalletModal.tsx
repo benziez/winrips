@@ -8,6 +8,7 @@ import {
   RIPS_LABEL,
   STARTER_GEMS_GRANT,
 } from "../../constants/dualCurrency";
+import { formatUsd, gemsToUsd } from "../../constants/retail";
 import { DailyBonusPanel } from "./DailyBonusPanel";
 import { CurrencyTokenIcon } from "./CurrencyTokenIcon";
 import { WalletOfferBanner } from "./WalletOfferBanner";
@@ -50,7 +51,7 @@ export function WalletModal() {
   function handleStarterClaim() {
     const granted = claimStarterGems();
     if (granted) {
-      showCashoutToast(`Starter pack claimed: +${STARTER_GEMS_GRANT.toLocaleString()} ${GEMS_LABEL}.`);
+      showCashoutToast(`Starter pack claimed: +${formatUsd(gemsToUsd(STARTER_GEMS_GRANT))}.`);
     }
   }
 
@@ -116,7 +117,7 @@ export function WalletModal() {
                     className="text-xl font-black tabular-nums text-white"
                     aria-busy={gemBalanceLoading}
                   >
-                    {gemBalanceLoading ? "…" : goldVolts.toLocaleString()}
+                    {gemBalanceLoading ? "…" : formatUsd(gemsToUsd(goldVolts))}
                   </p>
                 </div>
 
@@ -135,7 +136,7 @@ export function WalletModal() {
               </div>
 
               <p className="text-center text-[11px] text-muted">
-                Spend Gems to unbox grails · Earn Rips to redeem premium rewards
+                Use your balance to open packs · Earn Rips to redeem premium rewards
               </p>
 
               <div className="grid grid-cols-2 gap-3">
@@ -151,7 +152,7 @@ export function WalletModal() {
                   onClick={handleBuyGems}
                   className="rounded-xl bg-[#ff007a] px-3 py-3.5 text-xs font-bold uppercase tracking-wider text-white transition-all hover:brightness-110"
                 >
-                  Buy Gems
+                  Add funds
                 </button>
               </div>
             </div>
@@ -167,11 +168,11 @@ export function WalletModal() {
                     Starter rescue
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-muted">
-                    Your gem balance is below {LOW_GEMS_THRESHOLD}. Claim a one-time free starter
+                    Your balance is below {formatUsd(gemsToUsd(LOW_GEMS_THRESHOLD))}. Claim a one-time free starter
                     pack to keep ripping.
                   </p>
                   <p className="mt-4 text-2xl font-black tabular-nums text-gold">
-                    +{STARTER_GEMS_GRANT.toLocaleString()} {GEMS_LABEL}
+                    +{formatUsd(gemsToUsd(STARTER_GEMS_GRANT))}
                   </p>
                   <button
                     type="button"
@@ -186,14 +187,14 @@ export function WalletModal() {
                   <p className="text-sm font-semibold text-white">You&apos;re funded</p>
                   <p className="mt-2 text-sm text-muted">
                     Starter tokens are only available when your balance drops below{" "}
-                    {LOW_GEMS_THRESHOLD} {GEMS_LABEL}.
+                    {formatUsd(gemsToUsd(LOW_GEMS_THRESHOLD))}.
                   </p>
                   <button
                     type="button"
                     onClick={handleBuyGems}
                     className="mt-6 w-full rounded-xl border border-border bg-slate-elevated px-4 py-3 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:border-fuchsia/40"
                   >
-                    Buy More Gems
+                    Add more funds
                   </button>
                 </div>
               )}

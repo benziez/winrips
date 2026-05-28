@@ -265,25 +265,19 @@ export function MobilePackOpeningView() {
   }, [clearCarouselSpin, selectedPack?.id]);
 
   const executeRip = useCallback(async (): Promise<RipResult> => {
-    console.log("[OpenPack] start");
-
     if (!selectedPack) return { ok: false };
 
     const totalCost = selectedPack.cost * quantity;
 
     if (!isGuest && userId && goldVolts < totalCost) {
-      console.log("[OpenPack] insufficient-balance", { goldVolts, totalCost });
       showErrorToast("Add funds to open this pack.");
       setAddFundsOpen(true);
       setAddFundsModalOpen(true);
       return { ok: false };
     }
 
-    console.log("[OpenPack] balance-check-passed", { goldVolts, totalCost, userId, isGuest });
-
     try {
       const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
-      console.log("[OpenPack] rolled", { count: rollResults.length });
       const pullEntries: PackPullEntry[] = rollResults.map((result) => ({
         itemId: result.card.id,
         rolledNumber: result.rolledNumber,
@@ -295,7 +289,6 @@ export function MobilePackOpeningView() {
         setSpinInProgress(true);
         for (let index = 0; index < pullEntries.length; index += 1) {
           const cardData = resolveCardByItemId(selectedPack.id, pullEntries[index]!.itemId);
-          console.log("[OpenPack] handleSpin-start", { index, itemId: cardData.id });
           const spinResult = await handleSpin(
             selectedPack.cost,
             {
@@ -306,14 +299,6 @@ export function MobilePackOpeningView() {
             },
             userId,
           );
-          console.log("[OpenPack] handleSpin-done", {
-            index,
-            ok: spinResult.ok,
-            code: spinResult.ok ? undefined : spinResult.code,
-            step: spinResult.ok ? undefined : spinResult.step,
-            error: spinResult.ok ? undefined : spinResult.error,
-            rpcData: spinResult.ok ? undefined : spinResult.rpcData,
-          });
           if (!spinResult.ok) {
             setSpinInProgress(false);
             showErrorToast(spinResult.error);
@@ -359,7 +344,6 @@ export function MobilePackOpeningView() {
         }
       }
 
-      console.log("[OpenPack] done", { vaultCount: vaultIds.length });
       return { ok: true, entries: pullEntries, vaultIds };
     } catch (ripError) {
       console.error("[OpenPack] executeRip failed", ripError);
@@ -413,10 +397,7 @@ export function MobilePackOpeningView() {
       }
       beginSpinSequence(result.entries, result.vaultIds);
       if (userId) {
-        console.log("[OpenPack] sync-start");
-        void syncGemBalanceFromServer(userId).finally(() => {
-          console.log("[OpenPack] sync-done");
-        });
+        void syncGemBalanceFromServer(userId);
       }
     } catch (openPackError) {
       console.error("[OpenPack] handleOpenPack failed", openPackError);

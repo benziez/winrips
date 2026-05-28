@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { GemIcon } from "../icons/AppIcons";
+import { formatUsd, gemsToUsd } from "../../constants/retail";
 import {
   createSimulatedWin,
   seedSimulatedWins,
@@ -40,8 +40,7 @@ function TickerPullCard({
           <span className="font-medium text-fuchsia">{win.item}</span>
         </p>
         <p className="mt-0.5 flex items-center gap-1 text-[10px] font-bold tabular-nums text-gold">
-          <GemIcon size={11} className="text-gold/90" />
-          <span>{win.gems.toLocaleString()}</span>
+          <span>{formatUsd(gemsToUsd(win.gems))}</span>
         </p>
       </div>
     </article>

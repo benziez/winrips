@@ -34,6 +34,12 @@ const EV_TRANSFER_STEP = 0.25;
 
 export interface HouseEdgeOptions {
   spinCost: number;
+  /** Per-pack floor mass target override (defaults to FLOOR_FILLER_TARGET_SHARE). */
+  floorShare?: number;
+  /** Per-pack grail probability cap override (defaults to grailAbsoluteMaxForPack). */
+  grailMaxProbability?: number;
+  /** Per-pack grail probability floor override (defaults to GRAIL_MIN_PROBABILITY). */
+  grailMinProbability?: number;
 }
 
 export interface ProbabilityWeighted {
@@ -90,7 +96,11 @@ export function grailAbsoluteMaxForPack(spinCost: number): number {
   return GRAIL_MAX_PROBABILITY;
 }
 
-export function grailMaxProbabilityForItem(item: StoreItem, spinCost: number): number {
+export function grailMaxProbabilityForItem(
+  item: StoreItem,
+  spinCost: number,
+  grailMax?: number,
+): number {
   if (!isGrailStoreItem(item, spinCost)) return PROBABILITY_TOTAL;
 
   const targetEv = targetPackExpectedValue(spinCost);
@@ -99,7 +109,7 @@ export function grailMaxProbabilityForItem(item: StoreItem, spinCost: number): n
 
   return Math.min(
     Math.max(soloCap, GRAIL_MIN_PROBABILITY),
-    grailAbsoluteMaxForPack(spinCost),
+    grailMax ?? grailAbsoluteMaxForPack(spinCost),
   );
 }
 
@@ -164,12 +174,15 @@ function capGrailProbabilities(
   items: readonly StoreItem[],
   weights: number[],
   spinCost: number,
+  grailMax?: number,
+  grailMin?: number,
 ): number[] {
+  const minProb = grailMin ?? GRAIL_MIN_PROBABILITY;
   return weights.map((weight, index) => {
     const item = items[index]!;
     if (!isGrailStoreItem(item, spinCost)) return weight;
-    const cap = grailMaxProbabilityForItem(item, spinCost);
-    return Math.min(Math.max(weight, GRAIL_MIN_PROBABILITY), cap);
+    const cap = grailMaxProbabilityForItem(item, spinCost, grailMax);
+    return Math.min(Math.max(weight, minProb), cap);
   });
 }
 
@@ -188,20 +201,27 @@ function stagePackWeights<T extends StoreItem>(
   items: readonly T[],
   weights: number[],
   spinCost: number,
+  grailMax?: number,
+  grailMin?: number,
 ): T[] {
-  let capped = capGrailProbabilities(items, weights, spinCost);
+  let capped = capGrailProbabilities(items, weights, spinCost, grailMax, grailMin);
   let staged = assignProbabilities(items, capped);
   capped = capGrailProbabilities(
     items,
     staged.map((item) => item.probability),
     spinCost,
+    grailMax,
+    grailMin,
   );
   return assignProbabilities(items, capped);
 }
 
-function buildBaseWeights<T extends StoreItem>(items: readonly T[]): number[] {
+function buildBaseWeights<T extends StoreItem>(
+  items: readonly T[],
+  floorShare: number = FLOOR_FILLER_TARGET_SHARE,
+): number[] {
   const raw = items.map((item) => rawWeightFromGemValue(item.value));
-  const boosted = boostFloorFillerWeights(items, raw);
+  const boosted = boostFloorFillerWeights(items, raw, floorShare);
   return normalizePackWeights(boosted.map((probability) => ({ probability })));
 }
 
@@ -274,13 +294,17 @@ function transferMass(
 function calibrateHouseEdge<T extends StoreItem>(
   items: readonly T[],
   spinCost: number,
+  floorShare: number = FLOOR_FILLER_TARGET_SHARE,
+  grailMax?: number,
+  grailMin?: number,
 ): T[] {
   if (spinCost <= 0 || items.length === 0) return [...items];
 
   const { min, max } = expectedValueBounds(spinCost);
+  const grailDonorMin = grailMin ?? GRAIL_MIN_PROBABILITY;
 
-  let weights = buildBaseWeights(items);
-  let staged = stagePackWeights(items, weights, spinCost);
+  let weights = buildBaseWeights(items, floorShare);
+  let staged = stagePackWeights(items, weights, spinCost, grailMax, grailMin);
 
   for (let iteration = 0; iteration < 1200; iteration++) {
     const ev = computePackExpectedValue(staged);
@@ -306,15 +330,15 @@ function calibrateHouseEdge<T extends StoreItem>(
         premiumDonors.length > 0
           ? premiumDonors
           : mids.filter((index) => weights[index]! > 0.5);
-      if (!transferMass(weights, donors, floors, EV_TRANSFER_STEP, GRAIL_MIN_PROBABILITY)) {
+      if (!transferMass(weights, donors, floors, EV_TRANSFER_STEP, grailDonorMin)) {
         break;
       }
     }
 
-    staged = stagePackWeights(items, weights, spinCost);
+    staged = stagePackWeights(items, weights, spinCost, grailMax, grailMin);
   }
 
-  return tunePremiumTailScale(items, weights, spinCost);
+  return tunePremiumTailScale(items, weights, spinCost, grailMax, grailMin);
 }
 
 function upscalePremiumTail<T extends StoreItem>(
@@ -322,17 +346,21 @@ function upscalePremiumTail<T extends StoreItem>(
   weights: number[],
   spinCost: number,
   factor: number,
+  grailMax?: number,
+  grailMin?: number,
 ): T[] {
   const scaled = weights.map((weight, index) =>
     isFloorFillerStoreItem(items[index]!) ? weight : weight * factor,
   );
-  return stagePackWeights(items, scaled, spinCost);
+  return stagePackWeights(items, scaled, spinCost, grailMax, grailMin);
 }
 
 function tunePremiumTailScale<T extends StoreItem>(
   items: readonly T[],
   weights: number[],
   spinCost: number,
+  grailMax?: number,
+  grailMin?: number,
 ): T[] {
   const { min, max } = expectedValueBounds(spinCost);
   const targetEv = targetPackExpectedValue(spinCost);
@@ -347,12 +375,12 @@ function tunePremiumTailScale<T extends StoreItem>(
           : spinCost >= 1_000
             ? 48
             : 16;
-  let best = stagePackWeights(items, weights, spinCost);
+  let best = stagePackWeights(items, weights, spinCost, grailMax, grailMin);
   let bestDistance = Math.abs(computePackExpectedValue(best) - targetEv);
 
   for (let i = 0; i < 48; i++) {
     const factor = (lo + hi) / 2;
-    const candidate = upscalePremiumTail(items, weights, spinCost, factor);
+    const candidate = upscalePremiumTail(items, weights, spinCost, factor, grailMax, grailMin);
     const ev = computePackExpectedValue(candidate);
     const distance = Math.abs(ev - targetEv);
 
@@ -386,13 +414,18 @@ export function applyValueScaledProbabilities<T extends StoreItem>(
   if (items.length === 0) return [];
 
   const spinCost = options?.spinCost ?? 0;
+  const floorShare = options?.floorShare ?? FLOOR_FILLER_TARGET_SHARE;
+  const grailMax = options?.grailMaxProbability;
+  const grailMin = options?.grailMinProbability;
   if (spinCost <= 0) {
     return stagePackWeights(
       items,
-      buildBaseWeights(items),
+      buildBaseWeights(items, floorShare),
       0,
+      grailMax,
+      grailMin,
     );
   }
 
-  return calibrateHouseEdge(items, spinCost);
+  return calibrateHouseEdge(items, spinCost, floorShare, grailMax, grailMin);
 }

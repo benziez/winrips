@@ -5,7 +5,6 @@ import { HeaderProfileMenu } from "../layout/HeaderProfileMenu";
 import { formatGems } from "../../constants/retail";
 import { BRAND_FUCHSIA } from "../../constants/theme";
 import { WINRIPS_LOGO_SRC } from "../../constants/brandAssets";
-import { isAppStoreCommerce } from "../../constants/commerce";
 import { resolveAssetUrl } from "../../utils/resolveAssetUrl";
 
 export const MOBILE_HEADER_HEIGHT = "3rem";
@@ -44,11 +43,10 @@ function MobileWalletBalance() {
 
 function MobileHeaderActions() {
   const { isLoggedIn } = useApp();
-  const storeCommerce = isAppStoreCommerce();
 
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      {!storeCommerce ? <MobileWalletBalance /> : null}
+      <MobileWalletBalance />
       {isLoggedIn ? <HeaderProfileMenu compact /> : null}
     </div>
   );

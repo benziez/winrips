@@ -36,6 +36,8 @@ interface CollectibleImageProps {
   aspectRatio?: string;
   /** Skip load-gated opacity and shimmer — show the image immediately. */
   forceShow?: boolean;
+  /** Optional rarity rgb (e.g. "96, 165, 250") to tint the card-back placeholder. */
+  placeholderTintRgb?: string;
 }
 
 function LuxurySlabFrame({
@@ -74,6 +76,57 @@ function LuxurySlabFrame({
   );
 }
 
+/** Card-like loading/fallback panel — rarity-tinted gradient + emblem, never raw gray. */
+export function CardBackPlaceholder({
+  tintRgb,
+  className = "",
+}: {
+  tintRgb?: string;
+  className?: string;
+}) {
+  const rgb = tintRgb?.trim() || "120, 132, 148";
+  return (
+    <div
+      aria-hidden
+      className={`pointer-events-none relative flex items-center justify-center overflow-hidden rounded-lg ${className}`}
+      style={{
+        background: `radial-gradient(ellipse 82% 70% at 50% 42%, rgba(${rgb}, 0.45) 0%, rgba(${rgb}, 0.2) 46%, rgba(6, 8, 12, 0.96) 78%), linear-gradient(155deg, rgba(${rgb}, 0.3), rgba(0, 0, 0, 0.6))`,
+        boxShadow: `inset 0 0 0 1px rgba(${rgb}, 0.35), inset 0 0 26px rgba(${rgb}, 0.18)`,
+      }}
+    >
+      {/* Inner card-back frame */}
+      <div
+        className="absolute inset-[7%] rounded-md"
+        style={{
+          border: `1px solid rgba(${rgb}, 0.4)`,
+          boxShadow: `inset 0 0 14px rgba(${rgb}, 0.22)`,
+        }}
+      />
+      {/* Diagonal sheen for a printed card-back feel */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `repeating-linear-gradient(135deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 9px)`,
+          opacity: 0.5,
+        }}
+      />
+      <svg
+        viewBox="0 0 48 64"
+        className="relative h-[42%] w-auto"
+        fill="none"
+        stroke={`rgba(${rgb}, 1)`}
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        style={{ opacity: 0.62, filter: `drop-shadow(0 0 6px rgba(${rgb}, 0.55))` }}
+      >
+        <path d="M24 6 L40 16 L40 40 L24 58 L8 40 L8 16 Z" />
+        <path d="M16 22 L24 30 L32 22 M24 30 L24 44" opacity="0.75" />
+      </svg>
+    </div>
+  );
+}
+
 type DisplayMode = "primary" | "placeholder" | "slab";
 
 function resolveInitialMode(src?: string | null): DisplayMode {
@@ -103,6 +156,7 @@ export function CollectibleImage({
   optimize = true,
   aspectRatio,
   forceShow = false,
+  placeholderTintRgb,
 }: CollectibleImageProps) {
   const [displayMode, setDisplayMode] = useState<DisplayMode>(() => resolveInitialMode(src));
   const [loaded, setLoaded] = useState(false);
@@ -164,11 +218,7 @@ export function CollectibleImage({
     }
 
     setLoaded(false);
-    setDisplayMode((current) => {
-      if (current === "primary") return "placeholder";
-      if (current === "placeholder") return "slab";
-      return current;
-    });
+    setDisplayMode((current) => (current === "primary" ? "placeholder" : current));
   }
 
   const imgAspectRatio = aspectRatio ?? "1 / 1";
@@ -181,47 +231,53 @@ export function CollectibleImage({
   if (forceShow && !showSlab) {
     return (
       <div
-        className={`collectible-image-frame relative flex h-full w-full items-center justify-center overflow-hidden bg-slate-800/80 data-[shell=mobile]:bg-transparent data-[shell=mobile]:obsidian-glass ${frameClassName}`}
+        className={`collectible-image-frame relative flex h-full w-full items-center justify-center overflow-hidden bg-transparent ${frameClassName}`}
       >
-        <img
-          src={imageSrc}
-          alt={alt}
-          className={`${className} opacity-100`}
-          style={imgSizeStyle}
-          loading={resolvedLoading}
-          fetchPriority={resolvedFetchPriority}
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onError={handleImageError}
-        />
+        <CardBackPlaceholder tintRgb={placeholderTintRgb} className="absolute inset-0" />
+        {displayMode === "primary" ? (
+          <img
+            src={imageSrc}
+            alt={alt}
+            className={`${className} relative z-[1] opacity-100`}
+            style={imgSizeStyle}
+            loading={resolvedLoading}
+            fetchPriority={resolvedFetchPriority}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={handleImageError}
+          />
+        ) : null}
       </div>
     );
   }
 
   return (
     <div
-      className={`collectible-image-frame relative flex h-full w-full items-center justify-center overflow-hidden bg-slate-800/80 data-[shell=mobile]:bg-transparent data-[shell=mobile]:obsidian-glass ${
-        !loaded && !showSlab ? "collectible-image-shimmer" : ""
-      } ${frameClassName}`}
+      className={`collectible-image-frame relative flex h-full w-full items-center justify-center overflow-hidden bg-transparent ${frameClassName}`}
       style={aspectRatio ? { aspectRatio } : undefined}
     >
       {showSlab ? (
         <LuxurySlabFrame alt={alt} className={className} />
       ) : (
-        <img
-          src={imageSrc}
-          alt={alt}
-          className={`${className} transition-opacity duration-300 ${
-            loaded ? "opacity-100" : "opacity-0"
-          }`}
-          style={aspectRatio ? { aspectRatio: imgAspectRatio, width: "100%", height: "100%" } : imgSizeStyle}
-          loading={resolvedLoading}
-          fetchPriority={resolvedFetchPriority}
-          decoding="async"
-          referrerPolicy="no-referrer"
-          onLoad={() => setLoaded(true)}
-          onError={handleImageError}
-        />
+        <>
+          <CardBackPlaceholder tintRgb={placeholderTintRgb} className="absolute inset-0" />
+          {displayMode === "primary" ? (
+            <img
+              src={imageSrc}
+              alt={alt}
+              className={`${className} relative z-[1] transition-opacity duration-200 ${
+                loaded ? "opacity-100" : "opacity-0"
+              }`}
+              style={aspectRatio ? { aspectRatio: imgAspectRatio, width: "100%", height: "100%" } : imgSizeStyle}
+              loading={resolvedLoading}
+              fetchPriority={resolvedFetchPriority}
+              decoding="async"
+              referrerPolicy="no-referrer"
+              onLoad={() => setLoaded(true)}
+              onError={handleImageError}
+            />
+          ) : null}
+        </>
       )}
     </div>
   );

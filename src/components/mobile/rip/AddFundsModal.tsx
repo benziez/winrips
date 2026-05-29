@@ -17,12 +17,25 @@ import {
 const PRESETS = [5, 25, 50, 1000] as const;
 const APPLE_PAY_MERCHANT_ID = "merchant.com.winrips.app";
 
+/** Smallest preset tier (min $5) that covers a USD shortfall. */
+export function defaultDepositUsdForShortfall(shortfallUsd: number): number {
+  const need = Math.max(5, shortfallUsd);
+  return PRESETS.find((preset) => preset >= need) ?? 1000;
+}
+
 interface AddFundsModalProps {
   open: boolean;
   onClose: () => void;
+  onSuccess?: (amountUsd: number) => void;
+  defaultAmountUsd?: number;
 }
 
-export function AddFundsModal({ open, onClose }: AddFundsModalProps) {
+export function AddFundsModal({
+  open,
+  onClose,
+  onSuccess,
+  defaultAmountUsd,
+}: AddFundsModalProps) {
   const { session } = useAuth();
   const {
     goldVolts,
@@ -44,6 +57,14 @@ export function AddFundsModal({ open, onClose }: AddFundsModalProps) {
     setAddFundsModalOpen(open);
     return () => setAddFundsModalOpen(false);
   }, [open, setAddFundsModalOpen]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (defaultAmountUsd != null && defaultAmountUsd > 0) {
+      setAmountDigits(String(Math.round(defaultAmountUsd)));
+      setTouched(true);
+    }
+  }, [open, defaultAmountUsd]);
 
   const appendDigit = useCallback((digit: string) => {
     if (isProcessing) return;
@@ -115,10 +136,8 @@ export function AddFundsModal({ open, onClose }: AddFundsModalProps) {
         void hapticNotificationSuccess();
         showCashoutToast(`$${amountUsd.toFixed(2)} added to your account`);
 
-        window.setTimeout(() => {
-          void syncGemBalanceFromServer(userId);
-        }, 2000);
-
+        await syncGemBalanceFromServer(userId);
+        onSuccess?.(amountUsd);
         onClose();
         return;
       }
@@ -139,6 +158,7 @@ export function AddFundsModal({ open, onClose }: AddFundsModalProps) {
     amountUsd,
     isProcessing,
     onClose,
+    onSuccess,
     session?.access_token,
     showCashoutToast,
     showErrorToast,

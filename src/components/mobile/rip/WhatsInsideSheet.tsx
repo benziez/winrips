@@ -63,9 +63,9 @@ export function WhatsInsideSheet({ pack, open, onClose }: WhatsInsideSheetProps)
         </div>
 
         <section className="mt-8">
-          <h3 className="text-[17px] font-bold text-white">100% Buyback Guarantee</h3>
+          <h3 className="text-[17px] font-bold text-white">Buyback Guarantee</h3>
           <p className="mt-3 text-[15px] leading-relaxed text-[var(--rip-text-muted)]">
-            All collectibles are backed by our buyback guarantee at 100% of Fair Market Value. The
+            All collectibles are backed by our buyback guarantee — sell any card back at 85% of Fair Market Value. The
             following is a non-exhaustive list of featured cards that may be included in the pack, the
             full inventory may be accessed through the ToS.
           </p>

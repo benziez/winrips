@@ -30,6 +30,9 @@ declare
   v_withdrawable integer;
   v_withdrawal_id uuid;
   v_recent_total integer;
+  v_ytd integer;
+  v_ytd_year integer;
+  v_current_year integer := extract(year from now())::integer;
 begin
   if p_user_id is null then
     return jsonb_build_object('success', false, 'error', 'invalid_user_id');
@@ -39,14 +42,18 @@ begin
     return jsonb_build_object('success', false, 'error', 'invalid_amount');
   end if;
 
-  select withdrawable_balance
-    into v_withdrawable
+  select withdrawable_balance, total_withdrawn_ytd, withdrawn_ytd_year
+    into v_withdrawable, v_ytd, v_ytd_year
   from public.profiles
   where id = p_user_id
   for update;
 
   if v_withdrawable is null or v_withdrawable < p_amount_cents then
     return jsonb_build_object('success', false, 'error', 'insufficient_withdrawable_balance');
+  end if;
+
+  if v_ytd_year is null or v_ytd_year <> v_current_year then
+    v_ytd := 0;
   end if;
 
   select coalesce(sum(amount_cents), 0)
@@ -63,7 +70,9 @@ begin
   update public.profiles
   set
     gems_balance = gems_balance - p_amount_cents,
-    withdrawable_balance = withdrawable_balance - p_amount_cents
+    withdrawable_balance = withdrawable_balance - p_amount_cents,
+    total_withdrawn_ytd = v_ytd + p_amount_cents,
+    withdrawn_ytd_year = v_current_year
   where id = p_user_id;
 
   insert into public.withdrawals (user_id, amount_cents, status)

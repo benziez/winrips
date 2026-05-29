@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Card } from "../../types";
 import { useApp } from "../../context/AppContext";
 import { recordPlayHistory } from "../../lib/playHistory";
-import { handleSpin } from "../../lib/spinLogic";
+import { openPack } from "../../lib/spinLogic";
 import {
   exchangeVaultItemInUi,
   formatExchangeSuccessToast,
@@ -11,6 +11,7 @@ import {
   rollMultipleWithRoll,
   buildCarouselStrip,
   buildPreviewCarouselStrip,
+  cardFromPullEntry,
   resolveCardByItemId,
   type PackPullEntry,
   ROULETTE_WINNER_INDEX,
@@ -23,10 +24,9 @@ import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { DropTableMatrix } from "./DropTableMatrix";
 import { formatGems, formatPackPriceUsd, RETAIL_COPY } from "../../constants/retail";
-import { COMMERCE_COPY, isAppStoreCommerce } from "../../constants/commerce";
 import { useIsNarrowViewport } from "../../hooks/useIsNarrowViewport";
-import { WhatsInsideModal } from "../mobile/WhatsInsideModal";
 import { MobilePackOpeningView } from "../mobile/MobilePackOpeningView";
+import { isNativeCapacitorApp } from "../../utils/platform";
 import { FairnessVerifiedBadge } from "./FairnessVerifiedBadge";
 import { FairnessVerifyModal } from "./FairnessVerifyModal";
 import {
@@ -42,6 +42,23 @@ const SPIN_DURATION_MS = ROULETTE_SPIN_MS;
 const MOBILE_PREVIEW_LENGTH = 3;
 const MOBILE_PREVIEW_WINNER_INDEX = 1;
 const MOBILE_CARD_WIDTH = 96;
+
+function cardFromServerWinner(packId: string, winner: {
+  itemId: string;
+  itemName: string;
+  gemValue: number;
+  imageUrl: string;
+  storeRarity: string;
+}): Card {
+  return cardFromPullEntry(packId, {
+    itemId: winner.itemId,
+    rolledNumber: 0,
+    serverItemName: winner.itemName,
+    serverImageUrl: winner.imageUrl,
+    serverGemValue: winner.gemValue,
+    serverStoreRarity: winner.storeRarity,
+  });
+}
 
 export function PackOpeningView() {
   const {
@@ -62,7 +79,6 @@ export function PackOpeningView() {
     markVaultItemPendingShipment,
     openWalletModal,
   } = useApp();
-  const storeCommerce = isAppStoreCommerce();
 
   const isGuest = !userId;
 
@@ -83,15 +99,13 @@ export function PackOpeningView() {
   const [fairnessSession, setFairnessSession] = useState<FairnessSession | null>(null);
   const [fairnessModalOpen, setFairnessModalOpen] = useState(false);
   const [transactionFailureOpen, setTransactionFailureOpen] = useState(false);
-  const [whatsInsideOpen, setWhatsInsideOpen] = useState(false);
-
   const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
 
   const activePullCard = useMemo(() => {
     if (!selectedPack) return null;
     const entry = pullQueue[queueIndex];
     if (!entry) return null;
-    return resolveCardByItemId(selectedPack.id, entry.itemId);
+    return cardFromPullEntry(selectedPack.id, entry);
   }, [selectedPack, pullQueue, queueIndex]);
 
   const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -204,65 +218,52 @@ export function PackOpeningView() {
       setSpinInProgress(true);
       const vaultIds: string[] = [];
       try {
-        const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
-        const pullEntries: PackPullEntry[] = rollResults.map((result) => ({
-          itemId: result.card.id,
-          rolledNumber: result.rolledNumber,
+        const openResult = await openPack(
+          selectedPack.id,
+          selectedPack.cost,
+          quantity,
+          userId,
+        );
+        if (!openResult.ok) {
+          showErrorToast(openResult.error);
+          setTransactionFailureOpen(true);
+          setSpinInProgress(false);
+          return;
+        }
+
+        setGoldVolts(openResult.gemsBalance);
+
+        const pullEntries: PackPullEntry[] = openResult.winners.map((winner) => ({
+          itemId: winner.itemId,
+          rolledNumber: 0,
+          serverItemName: winner.itemName,
+          serverImageUrl: winner.imageUrl,
+          serverGemValue: winner.gemValue,
+          serverStoreRarity: winner.storeRarity,
         }));
 
-        for (let index = 0; index < pullEntries.length; index += 1) {
-          const cardData = resolveCardByItemId(selectedPack.id, pullEntries[index]!.itemId);
-          const spinResult = await handleSpin(
-            selectedPack.cost,
-            {
-              itemId: cardData.id,
-              itemName: cardData.name,
-              gemValue: cardData.value,
-              imageUrl: cardData.image,
-            },
-            userId,
-          );
-          if (!spinResult.ok) {
-            showErrorToast(spinResult.error);
-            setTransactionFailureOpen(true);
-            setSpinInProgress(false);
-            return;
-          }
-          setGoldVolts(spinResult.gemsBalance);
-
-          if (spinResult.vaultItemId) {
-            appendVaultPullFromSpin({
-              vaultId: spinResult.vaultItemId,
-              id: cardData.id,
-              name: cardData.name,
-              rarity: cardData.rarity,
-              value: cardData.value,
-              image: cardData.image,
-              acquiredAt: new Date().toISOString(),
-              status: "vaulted",
-            });
-            vaultIds.push(spinResult.vaultItemId);
-          } else if (spinResult.vaultPending) {
-            showCashoutToast(
-              spinResult.vaultPendingMessage ??
-                "Spin succeeded but vaulting is pending.",
-            );
-          }
+        for (const winner of openResult.winners) {
+          const cardData = cardFromServerWinner(selectedPack.id, winner);
+          appendVaultPullFromSpin({
+            vaultId: winner.vaultItemId,
+            id: cardData.id,
+            name: cardData.name,
+            rarity: cardData.rarity,
+            value: cardData.value,
+            image: cardData.image,
+            acquiredAt: new Date().toISOString(),
+            status: "vaulted",
+          });
+          vaultIds.push(winner.vaultItemId);
         }
 
         setPullVaultIds(vaultIds);
 
-        void commitFairnessSession(
-          selectedPack.id,
-          rollResults[0]!.rolledNumber,
-          fairnessSession,
-        ).then(
-          setFairnessSession,
-        );
+        void commitFairnessSession(selectedPack.id, 0, fairnessSession).then(setFairnessSession);
 
         if (userId) {
           for (const entry of pullEntries) {
-            const cardData = resolveCardByItemId(selectedPack.id, entry.itemId);
+            const cardData = cardFromPullEntry(selectedPack.id, entry);
             void recordPlayHistory({
               userId,
               packName: selectedPack.name,
@@ -277,7 +278,7 @@ export function PackOpeningView() {
           }
         }
 
-        const firstCard = resolveCardByItemId(selectedPack.id, pullEntries[0]!.itemId);
+        const firstCard = cardFromPullEntry(selectedPack.id, pullEntries[0]!);
         const { strip } = buildCarouselStrip(firstCard, selectedPack.id);
 
         setPullQueue(pullEntries);
@@ -454,7 +455,7 @@ export function PackOpeningView() {
     );
   }
 
-  if (storeCommerce) {
+  if (isNativeCapacitorApp()) {
     return <MobilePackOpeningView />;
   }
 
@@ -478,11 +479,7 @@ export function PackOpeningView() {
 
   return (
     <CardDetailModalProvider>
-    <section
-      className={`mx-auto w-full max-w-[1600px] overflow-x-hidden px-2 py-4 sm:px-6 sm:py-6 lg:px-8 ${
-        storeCommerce ? "bg-gradient-to-b from-black via-obsidian/40 to-transparent" : ""
-      }`}
-    >
+    <section className="mx-auto w-full max-w-[1600px] overflow-x-hidden px-2 py-4 sm:px-6 sm:py-6 lg:px-8">
       <div className="mb-4 flex flex-col gap-3 sm:mb-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
         <div className="min-w-0">
           <button
@@ -501,27 +498,14 @@ export function PackOpeningView() {
             ) : null}
           </div>
           <p className="mt-1 text-sm font-light text-muted">
-            {storeCommerce
-              ? `${formatPackPriceUsd(selectedPack.cost)}${quantity > 1 ? ` × ${quantity} = ${formatPackPriceUsd(totalCost)}` : ""}`
-              : `${formatGems(selectedPack.cost)} × ${quantity} = ${formatGems(totalCost)}`}
+            {`${formatGems(selectedPack.cost)} × ${quantity} = ${formatGems(totalCost)}`}
           </p>
-          {storeCommerce ? (
-            <button
-              type="button"
-              onClick={() => setWhatsInsideOpen(true)}
-              className="mt-2 text-xs font-medium text-fuchsia hover:underline"
-            >
-              {COMMERCE_COPY.whatsInside}
-            </button>
-          ) : null}
         </div>
-        {!storeCommerce ? (
-          <QuantitySelector
-            value={quantity}
-            onChange={setQuantity}
-            disabled={isSpinning || isChargingSpin || showModal}
-          />
-        ) : null}
+        <QuantitySelector
+          value={quantity}
+          onChange={setQuantity}
+          disabled={isSpinning || isChargingSpin || showModal}
+        />
       </div>
 
       <div className="w-full max-w-full overflow-hidden">
@@ -552,18 +536,8 @@ export function PackOpeningView() {
           </div>
         </div>
 
-        {!storeCommerce ? (
-          <DropTableMatrix packId={selectedPack.id} packName={selectedPack.name} />
-        ) : null}
+        <DropTableMatrix packId={selectedPack.id} packName={selectedPack.name} />
       </div>
-
-      {whatsInsideOpen && storeCommerce ? (
-        <WhatsInsideModal
-          packId={selectedPack.id}
-          packName={selectedPack.name}
-          onClose={() => setWhatsInsideOpen(false)}
-        />
-      ) : null}
 
       {showModal && activePullCard && !shippingModalOpen && (
         <RevealModal

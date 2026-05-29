@@ -11,12 +11,8 @@ import { SessionAuthWall } from "../components/auth/SessionAuthWall";
 import { PlayHistoryTable } from "../components/profile/PlayHistoryTable";
 import {
   exchangeButtonLabel,
-  exchangeButtonLabelUsd,
   formatGems,
-  formatUsd,
-  gemsToUsd,
 } from "../constants/retail";
-import { isAppStoreCommerce } from "../constants/commerce";
 import {
   BTN_GHOST_OUTLINE,
   mobileSafeAreaTopStyle,
@@ -52,11 +48,8 @@ function VaultInventoryCard({
   isExchanging: boolean;
 }) {
   const isPendingShipment = card.status === "pending_shipment";
-  const storeCommerce = isAppStoreCommerce();
   const touchActions = isNativeCapacitorApp();
-  const exchangeLabel = storeCommerce
-    ? exchangeButtonLabelUsd(card.value)
-    : exchangeButtonLabel(card.value);
+  const exchangeLabel = exchangeButtonLabel(card.value);
 
   return (
     <article
@@ -100,11 +93,9 @@ function VaultInventoryCard({
           <h3 className="line-clamp-2 min-w-0 flex-1 text-[10px] font-bold leading-snug text-white sm:text-xs">
             {card.name}
           </h3>
-          {!storeCommerce ? (
-            <span className="shrink-0 text-[10px] font-bold tabular-nums text-gold sm:text-xs">
-              {formatGems(card.value)}
-            </span>
-          ) : null}
+          <span className="shrink-0 text-[10px] font-bold tabular-nums text-gold sm:text-xs">
+            {formatGems(card.value)}
+          </span>
         </div>
         {!isPendingShipment && touchActions ? (
           <div className="mt-2 flex gap-1.5">
@@ -179,8 +170,6 @@ export function VaultView() {
       ),
     [inventory],
   );
-
-  const storeCommerce = isAppStoreCommerce();
 
   async function handleSell(card: VaultedCard) {
     if (exchangingVaultId) return;
@@ -259,16 +248,14 @@ export function VaultView() {
               Estimated Portfolio Value
             </p>
             <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-white sm:text-4xl">
-              {authLoading
-                ? "…"
-                : storeCommerce
-                  ? formatUsd(gemsToUsd(portfolioValue))
-                  : (
-                    <>
-                      {portfolioValue.toLocaleString()}{" "}
-                      <span className="text-lg font-semibold text-muted sm:text-xl">GEMS</span>
-                    </>
-                  )}
+              {authLoading ? (
+                "…"
+              ) : (
+                <>
+                  {portfolioValue.toLocaleString()}{" "}
+                  <span className="text-lg font-semibold text-muted sm:text-xl">GEMS</span>
+                </>
+              )}
             </p>
           </div>
         </div>

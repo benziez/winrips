@@ -1,40 +1,56 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import type { Pack } from "../../types";
+import type { Pack, Rarity } from "../../types";
 import { useApp } from "../../context/AppContext";
 import { useBoxesCatalog } from "../../context/BoxesCatalogContext";
 import { LOBBY_SECTIONS, packsForLobbySection } from "../../data/lobbySections";
+import { LOBBY_PACK_CATALOG } from "../../constants/packs";
 import { formatUsd, gemsToUsd } from "../../constants/retail";
-import { formatPackMinUsd, formatPackMaxUsd } from "../../utils/packValueRange";
+import { buildGlobalCardCatalog } from "../../utils/globalCardCatalog";
+import { glowPaletteForCardRarity } from "../../utils/rarityGlowColors";
 import { PackCatalogImage } from "./PackCatalogImage";
-import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
+import { CollectibleImage } from "../ui/CollectibleImage";
 import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { BalancePill } from "./rip/BalancePill";
 import { CategorySelector } from "./rip/CategorySelector";
 import { CategorySheet } from "./rip/CategorySheet";
 import { AddFundsModal } from "./rip/AddFundsModal";
-import { WhatsInsideSheet } from "./rip/WhatsInsideSheet";
-import { AdjustOddsSheet } from "./rip/AdjustOddsSheet";
-import { InsufficientBalanceToast } from "./rip/InsufficientBalanceToast";
-import type { OddsMode } from "./rip/adjustOdds";
-import { oddsMultiplierForMode } from "./rip/adjustOdds";
-import { ChevronRight, EyeIcon } from "../icons/AppIcons";
-import { hapticMediumImpact, hapticTabSelect } from "../../utils/mobileHaptics";
+import { hapticMediumImpact } from "../../utils/mobileHaptics";
+import featuredWotcBanner from "../../assets/banners/featured-wotc-banner.png";
 
-const SLIDE_WIDTH_VW = 46;
+/**
+ * Category picker is hidden while the catalog is Pokémon-only (a single-option
+ * dropdown is pointless). Flip to `true` to re-enable once more categories exist —
+ * all the underlying logic (CategorySelector, CategorySheet, handlers, filtering)
+ * is left intact.
+ */
+const SHOW_CATEGORY_SELECTOR = false;
+
+/** Only genuine chase tiers qualify for "Biggest Pulls" — never a high-priced Common. */
+function isChaseRarity(rarity: Rarity): boolean {
+  return rarity !== "Common";
+}
+
+interface JustWonTile {
+  key: string;
+  name: string;
+  value: number;
+  image: string;
+  rarity: Rarity;
+}
+
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <h2 className="px-6 text-[18px] font-semibold tracking-tight text-white">{title}</h2>
+  );
+}
 
 export function MobileRipLobby() {
   const { packs: catalogPacks, loading } = useBoxesCatalog();
-  const { goldVolts, selectPack } = useApp();
+  const { selectPack, vaultItems } = useApp();
 
-  const [activeIndex, setActiveIndex] = useState(0);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [addFundsOpen, setAddFundsOpen] = useState(false);
-  const [whatsInsideOpen, setWhatsInsideOpen] = useState(false);
-  const [adjustOddsOpen, setAdjustOddsOpen] = useState(false);
-  const [oddsMode, setOddsMode] = useState<OddsMode>("normal");
-  const [insufficientToast, setInsufficientToast] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const catalogPacksFlat = useMemo(() => {
     const seen = new Set<string>();
@@ -49,62 +65,77 @@ export function MobileRipLobby() {
     return ordered;
   }, [catalogPacks]);
 
-  const activePack = catalogPacksFlat[activeIndex] ?? null;
+  // "Open a Pack" row: cheapest -> most expensive, left to right.
+  const openPackRow = useMemo(
+    () => [...catalogPacksFlat].sort((a, b) => a.cost - b.cost),
+    [catalogPacksFlat],
+  );
 
-  const priceUsd = useMemo(() => {
-    if (!activePack) return 0;
-    return gemsToUsd(activePack.cost) * oddsMultiplierForMode(oddsMode);
-  }, [activePack, oddsMode]);
+  const featuredPack = useMemo(() => {
+    if (catalogPacksFlat.length === 0) return null;
+    return catalogPacksFlat.reduce(
+      (best, pack) => (pack.cost > best.cost ? pack : best),
+      catalogPacksFlat[0]!,
+    );
+  }, [catalogPacksFlat]);
 
-  const balanceUsd = gemsToUsd(goldVolts);
-  const canAfford = activePack ? balanceUsd >= priceUsd : false;
+  const biggestPulls = useMemo<JustWonTile[]>(() => {
+    const seen = new Set<string>();
+    const tiles: JustWonTile[] = [];
 
-  const updateActiveFromScroll = useCallback(() => {
-    const container = scrollRef.current;
-    if (!container || catalogPacksFlat.length === 0) return;
+    // Dedup by card id (vault pull wins over the same catalog card).
+    const pushUnique = (tile: JustWonTile) => {
+      if (seen.has(tile.key)) return;
+      seen.add(tile.key);
+      tiles.push(tile);
+    };
 
-    const centerX = container.scrollLeft + container.clientWidth / 2;
-    const slides = container.querySelectorAll<HTMLElement>("[data-pack-slide]");
-    let bestIndex = 0;
-    let bestDistance = Number.POSITIVE_INFINITY;
-
-    slides.forEach((slide, index) => {
-      const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
-      const distance = Math.abs(centerX - slideCenter);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = index;
-      }
-    });
-
-    setActiveIndex(bestIndex);
-  }, [catalogPacksFlat.length]);
-
-  useEffect(() => {
-    if (!activePack) return;
-    setInsufficientToast(!canAfford);
-  }, [activePack?.id, canAfford, activePack]);
-
-  const handleBuy = useCallback(() => {
-    if (!activePack) return;
-    void hapticMediumImpact();
-    if (!canAfford) {
-      setInsufficientToast(true);
-      return;
+    // Real big pulls first — chase tiers only, never a high-priced Common.
+    for (const item of vaultItems) {
+      if (!isChaseRarity(item.rarity)) continue;
+      pushUnique({
+        key: item.id,
+        name: item.name,
+        value: item.value,
+        image: item.image,
+        rarity: item.rarity,
+      });
     }
-    selectPack(activePack);
-  }, [activePack, canAfford, selectPack]);
 
-  const oddsLabel =
-    oddsMode === "normal" ? "Normal" : oddsMode === "better" ? "Better" : "Best";
+    // Backfill from the full static catalog's highest-value chase cards.
+    for (const card of buildGlobalCardCatalog(LOBBY_PACK_CATALOG)) {
+      if (!isChaseRarity(card.rarity)) continue;
+      pushUnique({
+        key: card.id,
+        name: card.name,
+        value: card.value,
+        image: card.image,
+        rarity: card.rarity,
+      });
+    }
+
+    return tiles.sort((a, b) => b.value - a.value).slice(0, 10);
+  }, [vaultItems]);
+
+  const handleSelectPack = useCallback(
+    (pack: Pack) => {
+      void hapticMediumImpact();
+      selectPack(pack);
+    },
+    [selectPack],
+  );
 
   return (
     <RipAmbientShell scratch>
       <header
-        className="flex shrink-0 items-center justify-between px-6 pb-3"
+        className={`flex shrink-0 items-center px-6 pb-3 ${
+          SHOW_CATEGORY_SELECTOR ? "justify-between" : "justify-end"
+        }`}
         style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
       >
-        <CategorySelector onPress={() => setCategoryOpen(true)} />
+        {SHOW_CATEGORY_SELECTOR ? (
+          <CategorySelector onPress={() => setCategoryOpen(true)} />
+        ) : null}
         <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
       </header>
 
@@ -113,139 +144,96 @@ export function MobileRipLobby() {
           Loading drops…
         </p>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <div
-              ref={scrollRef}
-              onScroll={updateActiveFromScroll}
-              className="rip-hide-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-none"
-              style={{
-                scrollPaddingInline: `${(100 - SLIDE_WIDTH_VW) / 2}vw`,
-              }}
+        <div className="rip-hide-scrollbar min-h-0 flex-1 space-y-7 overflow-y-auto overflow-x-hidden pb-4 pt-1">
+          {/* Hero banner */}
+          {featuredPack ? (
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleSelectPack(featuredPack)}
+              aria-label={`Open ${featuredPack.name}`}
+              className="relative mx-6 flex h-[200px] w-[calc(100%-3rem)] items-end overflow-hidden rounded-2xl bg-[#0a0c10] text-left"
+              style={{ boxShadow: "var(--rip-shadow-pack)" }}
             >
-              {catalogPacksFlat.map((pack, index) => (
-                <div
-                  key={pack.id}
-                  data-pack-slide
-                  className="flex h-full shrink-0 snap-center items-center justify-center pr-4 first:ml-[calc((100vw-46vw)/2-8px)] last:mr-[calc((100vw-46vw)/2-8px)]"
-                  style={{ width: `${SLIDE_WIDTH_VW}vw` }}
-                >
-                  <div
-                    className="relative aspect-[2/3] w-full overflow-hidden rounded-lg"
-                    style={{ boxShadow: "var(--rip-shadow-pack)" }}
+              <img
+                src={featuredWotcBanner}
+                alt={featuredPack.name}
+                className="absolute inset-0 h-full w-full object-cover object-center"
+                draggable={false}
+              />
+            </motion.button>
+          ) : null}
+
+          {/* Open a Pack */}
+          {openPackRow.length > 0 ? (
+            <section className="space-y-3">
+              <SectionHeader title="Open a Pack" />
+              <div className="rip-hide-scrollbar flex snap-x gap-3 overflow-x-auto overflow-y-hidden px-6 pb-1">
+                {openPackRow.map((pack, index) => (
+                  <motion.button
+                    key={pack.id}
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleSelectPack(pack)}
+                    className="flex w-[44vw] shrink-0 snap-start flex-col text-left"
                   >
-                    <PackCatalogImage
-                      packId={pack.id}
-                      src={pack.image}
-                      alt={pack.name}
-                      priority={index < 2}
-                      className="h-full w-full"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {activePack ? (
-            <motion.div
-              key={activePack.id}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="shrink-0 px-6"
-              style={{ paddingBottom: `calc(${MOBILE_DOCK_CLEARANCE} + 1rem)` }}
-            >
-              <h1 className="mt-4 text-center text-lg font-semibold text-white">{activePack.name}</h1>
-
-              <button
-                type="button"
-                onClick={() => {
-                  void hapticTabSelect();
-                  setWhatsInsideOpen(true);
-                }}
-                className="mx-auto mt-4 flex items-center gap-2 rounded-full border border-[var(--rip-border)] bg-[var(--rip-surface)] px-4 py-2.5 text-[14px] font-medium text-white"
-              >
-                <EyeIcon size={16} />
-                What&apos;s inside
-              </button>
-
-              <div className="mt-5 grid grid-cols-3 items-end gap-2">
-                <div className="text-center">
-                  <p className="text-[12px] font-medium tracking-wide text-[var(--rip-text-muted)]">
-                    Min Value
-                  </p>
-                  <p className="mt-1 text-[17px] font-bold text-white">{formatPackMinUsd(activePack)}</p>
-                </div>
-
-                <div className="text-center">
-                  <div className="mb-1 flex items-center justify-center gap-2">
-                    <span className="h-px w-[18px] bg-[var(--rip-border)]" aria-hidden />
-                    <p className="-mt-2 text-[12px] font-medium tracking-wide text-[var(--rip-text-muted)]">
-                      Max Pull
+                    <div
+                      className="relative aspect-[2/3] w-full overflow-hidden rounded-xl"
+                      style={{ boxShadow: "var(--rip-shadow-pack)" }}
+                    >
+                      <PackCatalogImage
+                        packId={pack.id}
+                        src={pack.image}
+                        alt={pack.name}
+                        priority={index < 2}
+                        className="h-full w-full"
+                      />
+                    </div>
+                    <p className="mt-2 truncate text-[14px] font-semibold text-white">
+                      {pack.name}
                     </p>
-                    <span className="h-px w-[18px] bg-[var(--rip-border)]" aria-hidden />
-                  </div>
-                  <p className="text-[28px] font-bold leading-none text-white rip-glow-value">
-                    {formatPackMaxUsd(activePack)}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    void hapticTabSelect();
-                    setAdjustOddsOpen(true);
-                  }}
-                  className="text-center"
-                >
-                  <p className="text-[12px] font-medium tracking-wide text-[var(--rip-text-muted)]">
-                    Adjust Odds
-                  </p>
-                  <p className="mt-1 flex items-center justify-center gap-0.5 text-[17px] font-bold text-white">
-                    {oddsLabel}
-                    <ChevronRight size={14} />
-                  </p>
-                </button>
+                    <p className="text-[13px] font-bold tabular-nums text-[var(--rip-green-bright)]">
+                      {formatUsd(gemsToUsd(pack.cost))}
+                    </p>
+                  </motion.button>
+                ))}
               </div>
+            </section>
+          ) : null}
 
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.97 }}
-                onClick={handleBuy}
-                className="mt-4 flex h-14 w-full items-center justify-center rounded-full bg-[var(--rip-orange)] text-[16px] font-semibold text-white active:bg-[var(--rip-orange-pressed)]"
-              >
-                Spin for {formatUsd(priceUsd)}
-              </motion.button>
-            </motion.div>
+          {/* Biggest Pulls */}
+          {biggestPulls.length > 0 ? (
+            <section className="space-y-3">
+              <SectionHeader title="Biggest Pulls" />
+              <div className="rip-hide-scrollbar flex snap-x gap-3 overflow-x-auto overflow-y-hidden px-6 pb-1">
+                {biggestPulls.map((tile) => (
+                  <div key={tile.key} className="flex w-[30vw] shrink-0 snap-start flex-col">
+                    <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-[var(--rip-surface)]">
+                      <CollectibleImage
+                        src={tile.image}
+                        alt={tile.name}
+                        className="h-full w-full object-contain"
+                        optimize={false}
+                        loading="lazy"
+                        placeholderTintRgb={glowPaletteForCardRarity(tile.rarity).rgb}
+                      />
+                    </div>
+                    <p className="mt-1.5 truncate text-[12px] font-medium text-white">
+                      {tile.name}
+                    </p>
+                    <p className="text-[12px] font-bold tabular-nums text-[var(--rip-green-bright)]">
+                      {formatUsd(gemsToUsd(tile.value))}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
           ) : null}
         </div>
       )}
 
-      <InsufficientBalanceToast
-        visible={insufficientToast && !canAfford && Boolean(activePack)}
-        onDeposit={() => {
-          setInsufficientToast(false);
-          setAddFundsOpen(true);
-        }}
-        onDismiss={() => setInsufficientToast(false)}
-        bottomOffset={`calc(${MOBILE_DOCK_CLEARANCE} + 0.75rem)`}
-      />
-
       <CategorySheet open={categoryOpen} onClose={() => setCategoryOpen(false)} />
       <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
-      <WhatsInsideSheet
-        pack={activePack}
-        open={whatsInsideOpen}
-        onClose={() => setWhatsInsideOpen(false)}
-      />
-      <AdjustOddsSheet
-        pack={activePack}
-        open={adjustOddsOpen}
-        onClose={() => setAdjustOddsOpen(false)}
-        selected={oddsMode}
-        onSelect={setOddsMode}
-      />
     </RipAmbientShell>
   );
 }

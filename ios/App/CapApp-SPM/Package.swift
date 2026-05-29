@@ -15,7 +15,7 @@ let package = Package(
         .package(name: "CapacitorCommunityStripe", path: "../../../node_modules/@capacitor-community/stripe"),
         .package(name: "CapacitorBrowser", path: "../../../node_modules/@capacitor/browser"),
         .package(name: "CapacitorHaptics", path: "../../../node_modules/@capacitor/haptics"),
-        .package(name: "RevenuecatPurchasesCapacitor", path: "../../../node_modules/@revenuecat/purchases-capacitor")
+        .package(name: "CapacitorKeyboard", path: "../../../node_modules/@capacitor/keyboard")
     ],
     targets: [
         .target(
@@ -26,7 +26,7 @@ let package = Package(
                 .product(name: "CapacitorCommunityStripe", package: "CapacitorCommunityStripe"),
                 .product(name: "CapacitorBrowser", package: "CapacitorBrowser"),
                 .product(name: "CapacitorHaptics", package: "CapacitorHaptics"),
-                .product(name: "RevenuecatPurchasesCapacitor", package: "RevenuecatPurchasesCapacitor")
+                .product(name: "CapacitorKeyboard", package: "CapacitorKeyboard")
             ]
         )
     ]

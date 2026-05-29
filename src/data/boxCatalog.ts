@@ -2,8 +2,14 @@ import type { Pack } from "../types";
 import type { StoreItem } from "../types/store";
 import type { CatalogPack } from "../types/box";
 import { LOBBY_PACK_CATALOG } from "../constants/packs";
+import { normalizePackId } from "../constants/packIdAliases";
 import { getPackStoreItems } from "../constants/catalog";
-import { getFloorFillersForPackId } from "../constants/floorFillers";
+import {
+  getFloorFillersForPackId,
+  packFloorShareOverride,
+  packGrailMaxOverride,
+  packGrailMinOverride,
+} from "../constants/floorFillers";
 import {
   EVOLVING_SKIES_POOL,
   GOD_PACK_1999_POOL,
@@ -20,7 +26,6 @@ import {
 } from "../constants/packPokemonPools";
 import { applyValueScaledProbabilities } from "../utils/packProbability";
 import { logger } from "../lib/logger";
-import { normalizePackId } from "../constants/packIdAliases";
 import {
   applyLobbyPackCovers,
   initLobbyPackCoverMap,
@@ -138,6 +143,25 @@ export function findPackById(packId: string): Pack | undefined {
   return staticPack;
 }
 
+/** Canonical gem cost for open_pack — prefers static lobby catalog over remote box rows. */
+export function resolvePackGemCost(packId: string, fallbackCost = 0): number {
+  const trimmed = packId.trim();
+  const normalized = normalizePackId(trimmed);
+  const staticPack = LOBBY_PACK_CATALOG.find(
+    (pack) => pack.id === trimmed || pack.id === normalized,
+  );
+  if (staticPack && staticPack.cost > 0) {
+    return staticPack.cost;
+  }
+
+  const lobbyPack = findPackById(trimmed);
+  if (lobbyPack && lobbyPack.cost > 0) {
+    return lobbyPack.cost;
+  }
+
+  return Math.max(0, Math.round(fallbackCost));
+}
+
 function resolveDirectStaticPool(packId: string): StoreItem[] {
   const trimmed = packId.trim();
   const normalized = normalizePackId(trimmed);
@@ -147,7 +171,12 @@ function resolveDirectStaticPool(packId: string): StoreItem[] {
   if (!pool?.length) return [];
 
   const pack = findStaticPackById(trimmed) ?? findPackById(trimmed);
-  return applyValueScaledProbabilities([...pool], { spinCost: pack?.cost ?? 100 });
+  return applyValueScaledProbabilities([...pool], {
+    spinCost: pack?.cost ?? 100,
+    floorShare: packFloorShareOverride(pack?.id ?? trimmed),
+    grailMaxProbability: packGrailMaxOverride(pack?.id ?? trimmed),
+    grailMinProbability: packGrailMinOverride(pack?.id ?? trimmed),
+  });
 }
 
 function resolveStaticCatalogItems(packId: string): StoreItem[] {
@@ -202,7 +231,12 @@ export function getPackStoreItemsForPack(pack: Pack): StoreItem[] {
       ...mergedCore,
       ...floorFillers.filter((item) => !seen.has(item.id)),
     ];
-    return applyValueScaledProbabilities(merged, { spinCost: pack.cost });
+    return applyValueScaledProbabilities(merged, {
+      spinCost: pack.cost,
+      floorShare: packFloorShareOverride(pack.id),
+      grailMaxProbability: packGrailMaxOverride(pack.id),
+      grailMinProbability: packGrailMinOverride(pack.id),
+    });
   }
 
   return staticPool;

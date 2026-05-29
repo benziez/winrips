@@ -2,7 +2,13 @@ import type { Pack, PackCategory } from "../types";
 import type { StoreItem } from "../types/store";
 import { isCollectiblePokemonStoreItem } from "../lib/pokemonApi";
 import { sanitizeStoreItemImage } from "../utils/collectibleFallback";
-import { createFloorFillerItems, getFloorFillersForPackId } from "./floorFillers";
+import {
+  createFloorFillerItems,
+  getFloorFillersForPackId,
+  packFloorShareOverride,
+  packGrailMaxOverride,
+  packGrailMinOverride,
+} from "./floorFillers";
 import { applyValueScaledProbabilities } from "../utils/packProbability";
 import { MOCK_ITEMS, storeItemToCard } from "./items";
 
@@ -57,7 +63,12 @@ export function getPackStoreItems(pack: Pack): StoreItem[] {
     ...floorFillers.filter((item) => !seen.has(item.id)),
   ];
 
-  return applyValueScaledProbabilities(packItems, { spinCost: pack.cost });
+  return applyValueScaledProbabilities(packItems, {
+    spinCost: pack.cost,
+    floorShare: packFloorShareOverride(pack.id),
+    grailMaxProbability: packGrailMaxOverride(pack.id),
+    grailMinProbability: packGrailMinOverride(pack.id),
+  });
 }
 
 export function getPackStoreItemsById(packId: string, packs: Pack[]): StoreItem[] {

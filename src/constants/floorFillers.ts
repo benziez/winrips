@@ -67,7 +67,69 @@ export function floorFillerCountForPack(packId: string): number {
   return 4 + (hash % 2);
 }
 
-function floorGemValues(spinCost: number, count: number): number[] {
+/**
+ * Per-pack floor tuning overrides — keeps EV inside the 10–12% house-edge band
+ * for packs whose card pool can't reach target with the default ratios/share.
+ * `ratioMin/ratioMax` set floor-filler gem values as a fraction of spin cost;
+ * `share` overrides the floor mass target used during EV calibration.
+ * These only adjust POOL data, so displayed odds always recompute to match the engine.
+ */
+export interface PackFloorOverride {
+  ratioMin?: number;
+  ratioMax?: number;
+  share?: number;
+  /** Grail probability cap override — lets the calibrator pump high-value chase cards. */
+  grailMaxProbability?: number;
+  /** Grail probability floor override — prevents calibrator from draining below target (e.g. 0.05%). */
+  grailMinProbability?: number;
+}
+
+export const PACK_FLOOR_OVERRIDES: Record<string, PackFloorOverride> = {
+  // EV was -6.3% (loss): floor commons were too rich → lower them to land ~12%.
+  "psa-10-chaser": { ratioMin: 0.44, ratioMax: 0.52 },
+  // EV was 8.9% (just under band): trim floor slightly to land in 10–12%.
+  "obsidian-vault": { ratioMin: 0.7, ratioMax: 0.79 },
+  // EV was 45.2% margin: mids are below the floor, so lift EV via the high-value
+  // mythic chase cards (raise grail cap) rather than the floor.
+  "mega-evolution": { grailMaxProbability: 6 },
+  // EV was 41.0% margin: the whole value ladder was raised/ordered to fit the $45
+  // price; a modest grail-cap bump lets the SIR mythics carry the tail to ~12%.
+  "prismatic-sir": { grailMaxProbability: 4 },
+  // EV was 25.4% margin: raise floor value + mass to reach ~12%.
+  "waifu-vault": { ratioMin: 0.74, ratioMax: 0.86, share: 0.85 },
+  // $150 pack — cap grails at 0.05%; floor mass tuned for ~12% house edge at $150.
+  "god-pack-1999": {
+    grailMaxProbability: 0.05,
+    grailMinProbability: 0.05,
+    ratioMin: 0.97,
+    ratioMax: 1.028,
+    share: 0.874,
+  },
+  "wotc-first-edition": {
+    grailMaxProbability: 0.05,
+    grailMinProbability: 0.05,
+    ratioMin: 0.97,
+    ratioMax: 1.028,
+    share: 0.834,
+  },
+};
+
+/** Floor mass target override for a pack, if any (else engine default). */
+export function packFloorShareOverride(packId: string): number | undefined {
+  return PACK_FLOOR_OVERRIDES[packId]?.share;
+}
+
+/** Grail probability cap override for a pack, if any (else engine default). */
+export function packGrailMaxOverride(packId: string): number | undefined {
+  return PACK_FLOOR_OVERRIDES[packId]?.grailMaxProbability;
+}
+
+/** Grail probability floor override for a pack, if any (else engine default). */
+export function packGrailMinOverride(packId: string): number | undefined {
+  return PACK_FLOOR_OVERRIDES[packId]?.grailMinProbability;
+}
+
+function floorGemValues(spinCost: number, count: number, packId?: string): number[] {
   let minRatio = 0.12;
   let maxRatio = 0.18;
 
@@ -91,6 +153,10 @@ function floorGemValues(spinCost: number, count: number): number[] {
     maxRatio = 0.26;
   }
 
+  const override = packId ? PACK_FLOOR_OVERRIDES[packId] : undefined;
+  if (override?.ratioMin !== undefined) minRatio = override.ratioMin;
+  if (override?.ratioMax !== undefined) maxRatio = override.ratioMax;
+
   const minGems = Math.max(1, Math.round(spinCost * minRatio));
   const maxGems = Math.max(minGems + 1, Math.round(spinCost * maxRatio));
 
@@ -107,7 +173,7 @@ export function createFloorFillerItems(
   pack: Pick<Pack, "id" | "name" | "cost" | "category">,
 ): StoreItem[] {
   const count = floorFillerCountForPack(pack.id);
-  const values = floorGemValues(pack.cost, count);
+  const values = floorGemValues(pack.cost, count, pack.id);
   const names = FLOOR_NAME_TEMPLATES[pack.category];
   const prefix = floorIdPrefix(pack.category);
 

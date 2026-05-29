@@ -9,6 +9,9 @@ import {
 } from "../../utils/rng";
 import { CarouselCard } from "./CarouselCard";
 
+/** Mobile spin: only render real art for tiles near the landing index; rest show card-backs. */
+const ART_RENDER_WINDOW = 8;
+
 interface UnboxingCarouselProps {
   cards: Card[];
   isSpinning: boolean;
@@ -92,7 +95,7 @@ export function UnboxingCarousel({
 
   const showWinnerHighlight = !isSpinning && cards.length > 0;
   const isCompactPreview = cards.length <= 5;
-  const frameMinHeight = suppressEdgeFades ? "min-h-[260px]" : isCompactPreview ? "min-h-[220px]" : "min-h-[220px] sm:min-h-[300px]";
+  const frameMinHeight = suppressEdgeFades ? "min-h-[340px]" : isCompactPreview ? "min-h-[220px]" : "min-h-[220px] sm:min-h-[300px]";
 
   return (
     <div
@@ -137,16 +140,21 @@ export function UnboxingCarousel({
             transition: isAnimating ? spinTransition : "none",
           }}
         >
-          {cards.map((card, index) => (
-            <CarouselCard
-              key={`slot-${index}-${card.id}`}
-              card={card}
-              width={cardWidth}
-              highlighted={showWinnerHighlight && index === winnerIndex}
-              dimmed={showWinnerHighlight && index !== winnerIndex}
-              compact={compactCards}
-            />
-          ))}
+          {cards.map((card, index) => {
+            const renderArt =
+              !compactCards || Math.abs(index - winnerIndex) <= ART_RENDER_WINDOW;
+            return (
+              <CarouselCard
+                key={`slot-${index}-${card.id}`}
+                card={card}
+                width={cardWidth}
+                highlighted={showWinnerHighlight && index === winnerIndex}
+                dimmed={showWinnerHighlight && index !== winnerIndex}
+                compact={compactCards}
+                showArt={renderArt}
+              />
+            );
+          })}
         </div>
       </div>
     </div>

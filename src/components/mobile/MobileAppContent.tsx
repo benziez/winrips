@@ -20,7 +20,13 @@ export function MobileAppContent() {
     case "pack-open":
       return (
         <MobileErrorBoundary label="Pack opening unavailable">
-          <PackOpeningView />
+          <div
+            className="fixed inset-0 z-[100] bg-[#0a0c10]"
+            aria-hidden
+          />
+          <div className="fixed inset-0 z-[101]">
+            <PackOpeningView />
+          </div>
         </MobileErrorBoundary>
       );
     case "vault":

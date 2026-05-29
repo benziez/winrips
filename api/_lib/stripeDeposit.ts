@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { requireAuthenticatedUserId } from "./verifySupabaseSession.js";
 import { logger } from "./logger.js";
+import { handleStripeIdentityWebhookEvent } from "./stripeKyc.js";
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
@@ -48,6 +49,22 @@ function readSupabaseAdmin() {
   return createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+const STRIPE_IDENTITY_WEBHOOK_EVENTS = new Set([
+  "identity.verification_session.verified",
+  "identity.verification_session.requires_input",
+]);
+
+function isStripeIdentityWebhookEvent(eventType: string | undefined): boolean {
+  return eventType != null && STRIPE_IDENTITY_WEBHOOK_EVENTS.has(eventType);
+}
+
+function readStripeWebhookSecret(eventType: string | undefined): string | null {
+  if (isStripeIdentityWebhookEvent(eventType)) {
+    return process.env.STRIPE_IDENTITY_WEBHOOK_SECRET?.trim() ?? null;
+  }
+  return process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? null;
 }
 
 export async function handleStripeCreatePaymentIntentRoute(
@@ -127,12 +144,6 @@ export async function handleStripeWebhookRoute(
     return false;
   }
 
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
-  if (!webhookSecret) {
-    sendJson(res, 503, { error: "Stripe webhook is not configured" });
-    return true;
-  }
-
   const signature = req.headers["stripe-signature"];
   const sig = Array.isArray(signature) ? signature[0] : signature;
   if (!sig) {
@@ -140,15 +151,37 @@ export async function handleStripeWebhookRoute(
     return true;
   }
 
+  const rawBody = await readRawBody(req);
+
+  let eventType: string | undefined;
+  try {
+    const parsed = JSON.parse(rawBody.toString("utf8")) as { type?: string };
+    eventType = typeof parsed.type === "string" ? parsed.type : undefined;
+  } catch {
+    sendJson(res, 400, { error: "Invalid payload" });
+    return true;
+  }
+
+  const webhookSecret = readStripeWebhookSecret(eventType);
+  if (!webhookSecret) {
+    const message = isStripeIdentityWebhookEvent(eventType)
+      ? "Stripe Identity webhook is not configured"
+      : "Stripe webhook is not configured";
+    sendJson(res, 503, { error: message });
+    return true;
+  }
+
   let event: Stripe.Event;
 
   try {
-    const rawBody = await readRawBody(req);
     const stripe = new Stripe(readStripeSecret());
     event = stripe.webhooks.constructEvent(rawBody, sig, webhookSecret);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid signature";
-    logger.error("[stripe/webhook] signature verification failed:", message);
+    logger.error(
+      `[stripe/webhook] signature verification failed (${eventType ?? "unknown"}):`,
+      message,
+    );
     sendJson(res, 400, { error: "Invalid signature" });
     return true;
   }
@@ -188,6 +221,27 @@ export async function handleStripeWebhookRoute(
       sendJson(res, 500, { error: "Credit failed" });
       return true;
     }
+
+    sendJson(res, 200, { received: true });
+    return true;
+  }
+
+  if (
+    event.type === "identity.verification_session.verified" ||
+    event.type === "identity.verification_session.requires_input"
+  ) {
+    try {
+      const supabase = readSupabaseAdmin();
+      await handleStripeIdentityWebhookEvent(event, supabase);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Identity webhook failed";
+      logger.error("[stripe/webhook]", message);
+      sendJson(res, 500, { error: "Identity webhook failed" });
+      return true;
+    }
+
+    sendJson(res, 200, { received: true });
+    return true;
   }
 
   sendJson(res, 200, { received: true });

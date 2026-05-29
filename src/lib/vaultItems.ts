@@ -1,7 +1,7 @@
 import type { Card, Rarity, VaultedCard, VaultItemStatus } from "../types";
 import { logger } from "./logger";
 import { supabase, isSupabaseConfigured } from "./supabaseClient";
-import type { VaultItemInsert, VaultItemRow } from "../types/database";
+import type { VaultItemRow } from "../types/database";
 
 const VALID_RARITIES: Rarity[] = ["Common", "Rare", "Ancient Rare"];
 
@@ -58,38 +58,16 @@ export function cardToVaultedCard(card: Card): VaultedCard {
   };
 }
 
-/** Insert a pulled card into `vault_items` for the authenticated user. */
+/**
+ * Direct client inserts into vault_items are blocked — pack pulls must use the
+ * server-side `open_pack` RPC which sets gem_value authoritatively.
+ */
 export async function insertVaultItem(
-  userId: string,
-  card: VaultedCard,
+  _userId: string,
+  _card: VaultedCard,
 ): Promise<VaultedCard | null> {
-  if (!isSupabaseConfigured() || !supabase || !userId.trim()) return null;
-
-  const payload: VaultItemInsert = {
-    user_id: userId.trim(),
-    item_id: card.id,
-    item_name: card.name,
-    rarity: card.rarity,
-    gem_value: Math.max(0, Math.round(card.value)),
-    image_url: card.image.trim(),
-    created_at: card.acquiredAt,
-  };
-
-  const { data, error } = await supabase
-    .from("vault_items")
-    .insert(payload as never)
-    .select(
-      "id, user_id, item_id, item_name, rarity, gem_value, image_url, created_at, status, shipping_name, shipping_address, tracking_number",
-    )
-    .single();
-
-  if (error) {
-    logger.warn("[vault_items] insert failed:", error.message);
-    return null;
-  }
-
-  if (!data) return null;
-  return rowToVaultedCard(data as VaultItemRow);
+  logger.warn("[vault_items] direct insert blocked — use open_pack RPC for pack pulls");
+  return null;
 }
 
 /** Locker grid — only rows with status `vaulted` (excludes shipping / fulfillment). */

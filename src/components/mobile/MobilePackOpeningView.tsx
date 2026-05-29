@@ -1,22 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../../context/AppContext";
 import { recordPlayHistory } from "../../lib/playHistory";
-import { handleSpin } from "../../lib/spinLogic";
+import { openPack } from "../../lib/spinLogic";
 import {
   buildFullDropTableStrip,
+  cardFromPullEntry,
   rollMultipleWithRoll,
-  resolveCardByItemId,
   ROULETTE_WINNER_INDEX,
   type PackPullEntry,
 } from "../../utils/rng";
 import { formatPackPriceUsd, formatUsd, gemsToUsd, canShipCardValue } from "../../constants/retail";
-import { AddFundsModal } from "./rip/AddFundsModal";
+import { formatPackExpectedValueUsd } from "../../utils/packValueRange";
+import { AddFundsModal, defaultDepositUsdForShortfall } from "./rip/AddFundsModal";
+import { AdjustOddsSheet } from "./rip/AdjustOddsSheet";
+import { RipCardTile } from "./rip/RipCardTile";
 import { PackCatalogImage } from "./PackCatalogImage";
 import { UnboxingCarousel } from "../pack-opening/UnboxingCarousel";
+import { SpinStageAtmosphere } from "../pack-opening/SpinStageAtmosphere";
+import { glowPaletteForStoreRarity, type RarityGlowPalette } from "../../utils/rarityGlowColors";
 import { MobileWhatsInsideDrawer } from "./MobileWhatsInsideDrawer";
 import { hapticHeavyImpact, hapticSpinnerTick, hapticTabSelect } from "../../utils/mobileHaptics";
+import { isFastModeEnabled } from "../../lib/mobileRipPreferences";
 import {
   buildPendingFairnessSession,
   commitFairnessSession,
@@ -27,8 +33,8 @@ import { formatProbability, getPackDropTable } from "../../data/packDropTables";
 import type { StoreRarity } from "../../types/store";
 import type { Card, VaultedCard } from "../../types";
 import { CollectibleImage } from "../ui/CollectibleImage";
-import { ChevronLeft, InfoIcon } from "../icons/AppIcons";
-import { MOBILE_COLORS, BTN_GHOST_OUTLINE, BTN_PRIMARY, PAGE_STACK_SPRING } from "./mobileTheme";
+import { ChevronLeft, ChevronRight, InfoIcon } from "../icons/AppIcons";
+import { PAGE_STACK_SPRING } from "./mobileTheme";
 import { MobileErrorBoundary } from "./MobileErrorBoundary";
 import { DismissPill } from "./DismissPill";
 import { GlassSurface } from "./GlassSurface";
@@ -38,13 +44,15 @@ import { ShipCardSheet } from "./vault/ShipCardSheet";
 type OpenPhase = "pre-rip" | "spinning" | "complete";
 
 const BUTTON_SPRING = { type: "spring" as const, stiffness: 500, damping: 26 };
+const INSIDE_GRID_PREVIEW = 6;
 const SPINNER_EXIT_TRANSITION = { duration: 0.25 };
 const COMPLETE_ENTER_TRANSITION = { duration: 0.4, ease: "easeOut" as const, delay: 0.15 };
 const COMPLETE_EXIT_TRANSITION = { duration: 0.4, ease: "easeOut" as const };
 const MOBILE_SPIN_DURATION_MS = 6_500;
+const FAST_SPIN_DURATION_MS = 1_000;
 const MOBILE_SPIN_LAND_BUFFER_MS = 250;
 const SPINNER_HAPTIC_INTERVAL_MS = 120;
-const MOBILE_SPIN_CARD_WIDTH = 160;
+const MOBILE_SPIN_CARD_WIDTH = 200;
 
 const COMPLETE_ACTION_BTN =
   "flex h-12 flex-1 items-center justify-center rounded-full text-[15px] font-semibold transition-opacity active:opacity-80 disabled:opacity-30";
@@ -57,37 +65,253 @@ function resolveStoreRarityForCard(
   return dropTable.find((entry) => entry.card.id === card.id)?.storeRarity ?? "Common";
 }
 
-function TrophyCardHero({ card }: { card: Card }) {
+function resolveStoreRarityForEntry(
+  entry: PackPullEntry | null | undefined,
+  card: Card | null | undefined,
+  dropTable: ReturnType<typeof getPackDropTable>,
+): StoreRarity {
+  const fromServer = entry?.serverStoreRarity?.trim();
+  if (
+    fromServer === "Common" ||
+    fromServer === "Rare" ||
+    fromServer === "Epic" ||
+    fromServer === "Legendary" ||
+    fromServer === "Mythic"
+  ) {
+    return fromServer;
+  }
+  return resolveStoreRarityForCard(card, dropTable);
+}
+
+const WINNER_PRELOAD_RADIUS = 2;
+
+/** Warm the browser cache for the landing card + immediate neighbors before the reel stops. */
+function preloadWinnerArt(strip: Card[], winnerIndex: number): void {
+  if (typeof window === "undefined") return;
+  for (let offset = -WINNER_PRELOAD_RADIUS; offset <= WINNER_PRELOAD_RADIUS; offset += 1) {
+    const url = strip[winnerIndex + offset]?.image?.trim();
+    if (!url) continue;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+  }
+}
+
+/** Celebration intensity per rarity tier — common stays modest, grail goes huge. */
+const STORE_RARITY_RANK: Record<StoreRarity, number> = {
+  Common: 0,
+  Rare: 1,
+  Epic: 2,
+  Legendary: 3,
+  Mythic: 4,
+};
+
+interface RevealTier {
+  rank: number;
+  auraOpacity: number;
+  auraScale: number;
+  showRays: boolean;
+  showSparkles: boolean;
+  fromScale: number;
+  stiffness: number;
+  damping: number;
+}
+
+function revealTierForRarity(rarity: StoreRarity): RevealTier {
+  const rank = STORE_RARITY_RANK[rarity] ?? 0;
+  const high = rank >= 3;
+  return {
+    rank,
+    auraOpacity: 0.22 + rank * 0.12,
+    auraScale: 1 + rank * 0.06,
+    showRays: high,
+    showSparkles: high,
+    fromScale: rank >= 3 ? 0.35 : rank >= 1 ? 0.5 : 0.62,
+    stiffness: rank >= 3 ? 420 : 320,
+    damping: rank >= 3 ? 17 : 22,
+  };
+}
+
+/** Brief white flash on the card's arrival. */
+function FlashBurst() {
   return (
     <motion.div
-      animate={{ y: [0, -4, 0] }}
-      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-      className="relative w-[min(58vw,300px)]"
-    >
-      <div
-        aria-hidden
-        className="rip-trophy-halo pointer-events-none absolute left-1/2 top-1/2 z-0 h-[110%] w-[110%] -translate-x-1/2 -translate-y-1/2"
-      />
-      <div
-        className="pointer-events-none absolute -bottom-4 left-1/2 h-8 w-3/4 -translate-x-1/2 rounded-full bg-white/10 blur-2xl"
-        aria-hidden
-      />
-      <div className="relative z-[1]">
-        <CollectibleImage
-          src={card.image}
-          alt={card.name}
-          className="w-full object-contain"
-          priority
-          optimize={false}
-          forceShow
-        />
-      </div>
-    </motion.div>
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 top-1/2 z-[3] h-[80%] w-[80%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      style={{ background: "radial-gradient(circle, rgba(255,255,255,0.9), transparent 60%)" }}
+      initial={{ opacity: 0, scale: 0.2 }}
+      animate={{ opacity: [0, 0.85, 0], scale: [0.2, 1.4, 1.9] }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    />
   );
 }
 
-function displayName(name: string): string {
-  return name.replace(/ Pack$| Box$| Drop$| Edition$| Booster$/, "");
+function RevealAura({ palette, tier }: { palette: RarityGlowPalette; tier: RevealTier }) {
+  return (
+    <motion.div
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[130%] w-[130%] -translate-x-1/2 -translate-y-1/2 rounded-full"
+      style={{
+        background: `radial-gradient(circle at 50% 45%, rgba(${palette.rgb}, ${tier.auraOpacity}), transparent 70%)`,
+        filter: "blur(6px)",
+      }}
+      initial={{ opacity: 0, scale: 0.7 }}
+      animate={{ opacity: 1, scale: tier.auraScale }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
+    />
+  );
+}
+
+function LightRays({ palette }: { palette: RarityGlowPalette }) {
+  return (
+    <motion.div
+      aria-hidden
+      className="pointer-events-none absolute left-1/2 top-1/2 z-0 h-[170%] w-[170%] -translate-x-1/2 -translate-y-1/2"
+      style={{
+        background: `repeating-conic-gradient(from 0deg at 50% 50%, rgba(${palette.rgb}, 0.16) 0deg, transparent 7deg 22deg)`,
+        maskImage: "radial-gradient(circle, black 0%, transparent 62%)",
+        WebkitMaskImage: "radial-gradient(circle, black 0%, transparent 62%)",
+      }}
+      initial={{ opacity: 0, rotate: 0 }}
+      animate={{ opacity: 1, rotate: 360 }}
+      transition={{
+        opacity: { duration: 0.6, ease: "easeOut" },
+        rotate: { duration: 26, repeat: Infinity, ease: "linear" },
+      }}
+    />
+  );
+}
+
+function Sparkles({ palette }: { palette: RarityGlowPalette }) {
+  const dots = useMemo(
+    () =>
+      Array.from({ length: 14 }).map((_, i) => ({
+        id: i,
+        top: Math.random() * 100,
+        left: Math.random() * 100,
+        delay: Math.random() * 0.9,
+        size: 3 + Math.random() * 4,
+      })),
+    [],
+  );
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 z-[2]">
+      {dots.map((d) => (
+        <motion.span
+          key={d.id}
+          className="absolute rounded-full"
+          style={{
+            top: `${d.top}%`,
+            left: `${d.left}%`,
+            width: d.size,
+            height: d.size,
+            backgroundColor: palette.needle,
+            boxShadow: `0 0 8px ${palette.needle}`,
+          }}
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: [0, 1, 0], scale: [0, 1, 0] }}
+          transition={{ duration: 1.4, delay: d.delay, repeat: Infinity, repeatDelay: 0.7 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function RarityBadge({ rarity, palette }: { rarity: StoreRarity; palette: RarityGlowPalette }) {
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em]"
+      style={{
+        color: palette.needle,
+        backgroundColor: `rgba(${palette.rgb}, 0.14)`,
+        boxShadow: `0 0 18px rgba(${palette.rgb}, 0.35)`,
+      }}
+    >
+      {rarity}
+    </span>
+  );
+}
+
+/** Animated $0 -> final value count-up. Always plays in full (independent of Fast Mode). */
+function CountUpValue({
+  valueGems,
+  durationMs = 800,
+  className,
+}: {
+  valueGems: number;
+  durationMs?: number;
+  className?: string;
+}) {
+  const [displayGems, setDisplayGems] = useState(0);
+
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      setDisplayGems(valueGems * eased);
+      if (t < 1) raf = requestAnimationFrame(step);
+      else setDisplayGems(valueGems);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [valueGems, durationMs]);
+
+  return <span className={className}>{formatUsd(gemsToUsd(displayGems))}</span>;
+}
+
+/** Rarity-escalated reveal: aura + (rays/sparkles for high tiers) + flash + spring-in card. */
+function RevealStage({ card, rarity }: { card: Card; rarity: StoreRarity }) {
+  const palette = glowPaletteForStoreRarity(rarity);
+  const tier = revealTierForRarity(rarity);
+  return (
+    <div className="relative flex w-[min(72vw,340px)] items-center justify-center">
+      <RevealAura palette={palette} tier={tier} />
+      {tier.showRays ? <LightRays palette={palette} /> : null}
+      {tier.showSparkles ? <Sparkles palette={palette} /> : null}
+      <FlashBurst />
+      <motion.div
+        className="relative z-[2] w-[min(58vw,300px)]"
+        initial={{ scale: tier.fromScale, opacity: 0, y: 14 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: tier.stiffness, damping: tier.damping }}
+      >
+        <motion.div
+          animate={{ y: [0, -5, 0] }}
+          transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut", delay: 0.6 }}
+        >
+          <div
+            className="pointer-events-none absolute -bottom-4 left-1/2 h-8 w-3/4 -translate-x-1/2 rounded-full bg-white/10 blur-2xl"
+            aria-hidden
+          />
+          <CollectibleImage
+            src={card.image}
+            alt={card.name}
+            className="w-full object-contain"
+            priority
+            optimize={false}
+            forceShow
+          />
+        </motion.div>
+      </motion.div>
+    </div>
+  );
+}
+
+function cardFromServerWinner(packId: string, winner: {
+  itemId: string;
+  itemName: string;
+  gemValue: number;
+  imageUrl: string;
+}): Card {
+  return cardFromPullEntry(packId, {
+    itemId: winner.itemId,
+    rolledNumber: 0,
+    serverItemName: winner.itemName,
+    serverImageUrl: winner.imageUrl,
+    serverGemValue: winner.gemValue,
+  });
 }
 
 interface RipSuccess {
@@ -128,6 +352,7 @@ export function MobilePackOpeningView() {
   const [fairnessSession, setFairnessSession] = useState<FairnessSession | null>(null);
   const [transactionFailureOpen, setTransactionFailureOpen] = useState(false);
   const [whatsInsideOpen, setWhatsInsideOpen] = useState(false);
+  const [adjustOddsOpen, setAdjustOddsOpen] = useState(false);
   const [revealStoreRarity, setRevealStoreRarity] = useState<StoreRarity>("Common");
   const [carouselCards, setCarouselCards] = useState<Card[]>([]);
   const [isCarouselSpinning, setIsCarouselSpinning] = useState(false);
@@ -135,18 +360,41 @@ export function MobilePackOpeningView() {
   const [completeInfoOpen, setCompleteInfoOpen] = useState(false);
   const [shipSheetOpen, setShipSheetOpen] = useState(false);
   const [addFundsOpen, setAddFundsOpen] = useState(false);
+  const [reelGlowSettled, setReelGlowSettled] = useState(false);
+  const [reelGlowFast, setReelGlowFast] = useState(false);
+  const pendingSpinAfterDeposit = useRef(false);
 
   const spinLandTimerRef = useRef<number | null>(null);
   const spinnerHapticIntervalRef = useRef<number | null>(null);
 
-  const quantity = 1;
+  const [quantity, setQuantity] = useState(1);
+  // Fast Mode is set in Account; read the persisted pref on mount so each open honors it.
+  const [fastMode] = useState(() => isFastModeEnabled());
+  const fastModeRef = useRef(fastMode);
+  useEffect(() => {
+    fastModeRef.current = fastMode;
+  }, [fastMode]);
+
   const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
   const activePullCard = useMemo(() => {
     if (!selectedPack) return null;
     const entry = pullQueue[queueIndex];
     if (!entry) return null;
-    return resolveCardByItemId(selectedPack.id, entry.itemId);
+    return cardFromPullEntry(selectedPack.id, entry);
   }, [selectedPack, pullQueue, queueIndex]);
+
+  // Pullable cards for the inline "What's Inside" grid — deduped, highest value first.
+  const insideCards = useMemo(() => {
+    if (!selectedPack) return [] as Card[];
+    const sorted = [...getPackDropTable(selectedPack.id)].sort(
+      (a, b) => b.card.value - a.card.value,
+    );
+    const uniq = new Map<string, Card>();
+    for (const entry of sorted) {
+      if (!uniq.has(entry.card.id)) uniq.set(entry.card.id, entry.card);
+    }
+    return [...uniq.values()];
+  }, [selectedPack]);
 
   const dropTable = useMemo(
     () => (selectedPack ? getPackDropTable(selectedPack.id) : []),
@@ -174,6 +422,13 @@ export function MobilePackOpeningView() {
 
   const canShipActive = activePullCard ? canShipCardValue(activePullCard.value) : false;
 
+  const smartDepositUsd = useMemo(() => {
+    if (!selectedPack || isGuest) return undefined;
+    const packTotalCost = selectedPack.cost * quantity;
+    if (goldVolts >= packTotalCost) return undefined;
+    return defaultDepositUsdForShortfall(gemsToUsd(packTotalCost - goldVolts));
+  }, [selectedPack, isGuest, goldVolts, quantity]);
+
   const stackPop = useCallback(() => {
     void hapticTabSelect();
     if (window.history.length > 1) {
@@ -200,27 +455,38 @@ export function MobilePackOpeningView() {
     setSpinInProgress(false);
   }, [setSpinInProgress]);
 
+  const settleReelGlow = useCallback((fast: boolean) => {
+    setReelGlowFast(fast);
+    setReelGlowSettled(true);
+  }, []);
+
   const landCarouselSpin = useCallback(() => {
     clearCarouselSpin();
+    settleReelGlow(false);
     setIsCarouselSpinning(false);
     void hapticHeavyImpact();
     if (import.meta.env.DEV) {
       console.log("[SpinnerHaptic] land");
     }
-    completeReveal();
-  }, [clearCarouselSpin, completeReveal]);
+    window.setTimeout(() => {
+      completeReveal();
+    }, 400);
+  }, [clearCarouselSpin, completeReveal, settleReelGlow]);
 
   const startCarouselSpin = useCallback(() => {
     clearCarouselSpin();
+    setReelGlowSettled(false);
+    setReelGlowFast(false);
     setSpinKey((key) => key + 1);
     setIsCarouselSpinning(true);
     void hapticSpinnerTick();
     spinnerHapticIntervalRef.current = window.setInterval(() => {
       void hapticSpinnerTick();
     }, SPINNER_HAPTIC_INTERVAL_MS);
+    const spinDuration = fastModeRef.current ? FAST_SPIN_DURATION_MS : MOBILE_SPIN_DURATION_MS;
     spinLandTimerRef.current = window.setTimeout(() => {
       landCarouselSpin();
-    }, MOBILE_SPIN_DURATION_MS + MOBILE_SPIN_LAND_BUFFER_MS);
+    }, spinDuration + MOBILE_SPIN_LAND_BUFFER_MS);
   }, [clearCarouselSpin, landCarouselSpin]);
 
   const handleDismiss = useCallback(() => {
@@ -230,14 +496,6 @@ export function MobilePackOpeningView() {
     setShipSheetOpen(false);
     stackPop();
   }, [clearCarouselSpin, setSpinInProgress, stackPop]);
-
-  const handleSkipSpinner = useCallback(() => {
-    void hapticTabSelect();
-    clearCarouselSpin();
-    setIsCarouselSpinning(false);
-    void hapticHeavyImpact();
-    completeReveal();
-  }, [clearCarouselSpin, completeReveal]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -260,6 +518,8 @@ export function MobilePackOpeningView() {
     setRevealStoreRarity("Common");
     setCarouselCards([]);
     setIsCarouselSpinning(false);
+    setReelGlowSettled(false);
+    setReelGlowFast(false);
     setSpinKey(0);
     void buildPendingFairnessSession(selectedPack.id).then(setFairnessSession);
   }, [clearCarouselSpin, selectedPack?.id]);
@@ -271,67 +531,74 @@ export function MobilePackOpeningView() {
 
     if (!isGuest && userId && goldVolts < totalCost) {
       showErrorToast("Add funds to open this pack.");
+      pendingSpinAfterDeposit.current = true;
       setAddFundsOpen(true);
       setAddFundsModalOpen(true);
       return { ok: false };
     }
 
     try {
-      const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
-      const pullEntries: PackPullEntry[] = rollResults.map((result) => ({
-        itemId: result.card.id,
-        rolledNumber: result.rolledNumber,
-      }));
-
       const vaultIds: string[] = [];
+      let pullEntries: PackPullEntry[] = [];
 
       if (!isGuest && userId) {
         setSpinInProgress(true);
-        for (let index = 0; index < pullEntries.length; index += 1) {
-          const cardData = resolveCardByItemId(selectedPack.id, pullEntries[index]!.itemId);
-          const spinResult = await handleSpin(
-            selectedPack.cost,
-            {
-              itemId: cardData.id,
-              itemName: cardData.name,
-              gemValue: cardData.value,
-              imageUrl: cardData.image,
-            },
-            userId,
-          );
-          if (!spinResult.ok) {
-            setSpinInProgress(false);
-            showErrorToast(spinResult.error);
-            setTransactionFailureOpen(true);
-            return { ok: false };
-          }
-          setGoldVolts(spinResult.gemsBalance);
-          if (spinResult.vaultItemId) {
-            appendVaultPullFromSpin({
-              vaultId: spinResult.vaultItemId,
-              id: cardData.id,
-              name: cardData.name,
-              rarity: cardData.rarity,
-              value: cardData.value,
-              image: cardData.image,
-              acquiredAt: new Date().toISOString(),
-              status: "vaulted",
-            });
-            vaultIds.push(spinResult.vaultItemId);
-          }
+        const openResult = await openPack(
+          selectedPack.id,
+          selectedPack.cost,
+          quantity,
+          userId,
+        );
+        if (!openResult.ok) {
+          setSpinInProgress(false);
+          showErrorToast(openResult.error);
+          setTransactionFailureOpen(true);
+          return { ok: false };
         }
-      }
 
-      void commitFairnessSession(
-        selectedPack.id,
-        rollResults[0]!.rolledNumber,
-        fairnessSession,
-      ).then(setFairnessSession);
+        setGoldVolts(openResult.gemsBalance);
+        pullEntries = openResult.winners.map((winner) => ({
+          itemId: winner.itemId,
+          rolledNumber: 0,
+          serverItemName: winner.itemName,
+          serverImageUrl: winner.imageUrl,
+          serverGemValue: winner.gemValue,
+          serverStoreRarity: winner.storeRarity,
+        }));
+
+        for (const winner of openResult.winners) {
+          const cardData = cardFromServerWinner(selectedPack.id, winner);
+          appendVaultPullFromSpin({
+            vaultId: winner.vaultItemId,
+            id: cardData.id,
+            name: cardData.name,
+            rarity: cardData.rarity,
+            value: cardData.value,
+            image: cardData.image,
+            acquiredAt: new Date().toISOString(),
+            status: "vaulted",
+          });
+          vaultIds.push(winner.vaultItemId);
+        }
+
+        void commitFairnessSession(selectedPack.id, 0, fairnessSession).then(setFairnessSession);
+      } else {
+        const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
+        pullEntries = rollResults.map((result) => ({
+          itemId: result.card.id,
+          rolledNumber: result.rolledNumber,
+        }));
+        void commitFairnessSession(
+          selectedPack.id,
+          rollResults[0]!.rolledNumber,
+          fairnessSession,
+        ).then(setFairnessSession);
+      }
 
       const historyUserId = userId;
       if (historyUserId) {
         for (const entry of pullEntries) {
-          const cardData = resolveCardByItemId(selectedPack.id, entry.itemId);
+          const cardData = cardFromPullEntry(selectedPack.id, entry);
           void recordPlayHistory({
             userId: historyUserId,
             packName: selectedPack.name,
@@ -368,13 +635,15 @@ export function MobilePackOpeningView() {
     (entries: PackPullEntry[], vaultIds: string[]) => {
       if (!selectedPack || entries.length === 0) return;
 
-      const firstCard = resolveCardByItemId(selectedPack.id, entries[0]!.itemId);
+      const firstEntry = entries[0]!;
+      const firstCard = cardFromPullEntry(selectedPack.id, firstEntry);
       const { strip } = buildFullDropTableStrip(firstCard, selectedPack.id);
+      preloadWinnerArt(strip, ROULETTE_WINNER_INDEX);
 
       setPullQueue(entries);
       setQueueIndex(0);
       setPullVaultIds(vaultIds);
-      setRevealStoreRarity(resolveStoreRarityForCard(firstCard, dropTable));
+      setRevealStoreRarity(resolveStoreRarityForEntry(firstEntry, firstCard, dropTable));
       setCarouselCards(strip);
       setPhase("spinning");
       startCarouselSpin();
@@ -423,11 +692,12 @@ export function MobilePackOpeningView() {
     if (queueIndex < pullQueue.length - 1 && selectedPack) {
       const nextIndex = queueIndex + 1;
       const nextEntry = pullQueue[nextIndex]!;
-      const nextCard = resolveCardByItemId(selectedPack.id, nextEntry.itemId);
+      const nextCard = cardFromPullEntry(selectedPack.id, nextEntry);
       const { strip } = buildFullDropTableStrip(nextCard, selectedPack.id);
+      preloadWinnerArt(strip, ROULETTE_WINNER_INDEX);
 
       setQueueIndex(nextIndex);
-      setRevealStoreRarity(resolveStoreRarityForCard(nextCard, dropTable));
+      setRevealStoreRarity(resolveStoreRarityForEntry(nextEntry, nextCard, dropTable));
       setCarouselCards(strip);
       setPhase("spinning");
       startCarouselSpin();
@@ -471,6 +741,9 @@ export function MobilePackOpeningView() {
     setShipSheetOpen(true);
   }, [activeVaultItemId, canShipActive, showErrorToast]);
 
+  // Retained with ShipCardSheet — shipping is available from the Vault tab; result screen no longer exposes it.
+  void handleShip;
+
   if (!selectedPack) {
     return null;
   }
@@ -487,12 +760,20 @@ export function MobilePackOpeningView() {
   const showSpinner = phase === "spinning";
   const showComplete = phase === "complete" && activePullCard;
 
-  const bottomInset = { bottom: "max(1rem, env(safe-area-inset-bottom))" } as const;
+  const reelRarityGlow = glowPaletteForStoreRarity(revealStoreRarity);
+
+  const effectiveSpinDurationMs = fastMode ? FAST_SPIN_DURATION_MS : MOBILE_SPIN_DURATION_MS;
+
+  const expectedValueLabel = formatPackExpectedValueUsd(selectedPack.id);
+
+  // Most valuable pullable card — same deduped/value-sorted pool the EV reads.
+  const topHit = insideCards[0] ?? null;
 
   return (
     <>
+      <div className="fixed inset-0 z-[100] bg-[#0a0c10]" aria-hidden />
       <motion.div
-        className="rip-ambient-bg fixed inset-0 z-[100] flex flex-col overflow-hidden"
+        className="rip-ambient-bg fixed inset-0 z-[101] flex flex-col overflow-hidden bg-[#0a0c10]"
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
@@ -500,28 +781,34 @@ export function MobilePackOpeningView() {
       >
         {phase === "spinning" ? (
           <header
-            className="relative z-50 flex shrink-0 items-center justify-between px-6 pb-3"
+            className="relative z-50 shrink-0 px-6 pb-3"
             style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
           >
-            <p className="max-w-[55%] truncate text-[13px] font-medium uppercase tracking-wider text-[var(--rip-text-muted)]">
-              {displayName(selectedPack.name)}
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleSkipSpinner}
-                className="text-[13px] font-medium tracking-wide text-[var(--rip-text-muted)] transition-opacity active:opacity-70"
-              >
-                Skip
-              </button>
+            {!isCarouselSpinning ? (
               <button
                 type="button"
                 onClick={handleDismiss}
                 aria-label="Close"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--rip-surface)] text-lg leading-none text-white"
+                className="absolute right-6 top-[max(0.5rem,env(safe-area-inset-top))] z-10 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--rip-surface)] text-lg leading-none text-white"
               >
                 ×
               </button>
+            ) : null}
+            <div className="px-10 text-center">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--rip-text-muted)]">
+                Opening
+              </p>
+              <h2
+                className="mt-1 text-[22px] font-bold leading-tight text-white"
+                style={{
+                  textShadow: reelGlowSettled
+                    ? `0 0 28px rgba(${reelRarityGlow.rgb}, 0.7)`
+                    : "0 0 22px rgba(255, 122, 0, 0.35)",
+                  transition: "text-shadow 320ms ease",
+                }}
+              >
+                {selectedPack.name}
+              </h2>
             </div>
           </header>
         ) : phase === "complete" ? (
@@ -560,52 +847,126 @@ export function MobilePackOpeningView() {
           />
         )}
 
-        {phase === "pre-rip" ? (
-          <p
-            className="pointer-events-none absolute inset-x-0 z-20 text-center text-[11px] font-medium tracking-[0.25em] uppercase text-[#A1A1AA]"
-            style={{
-              top: "calc(max(0.75rem, env(safe-area-inset-top)) + 3rem)",
-              color: MOBILE_COLORS.textMuted,
-            }}
-          >
-            {displayName(selectedPack.name)}
-          </p>
-        ) : null}
-
         <MobileErrorBoundary label="Pack opening failed">
           <div
             className={`relative z-10 flex min-h-0 flex-1 flex-col items-center p-0 ${
-              showComplete ? "overflow-visible" : "overflow-hidden"
-            } ${showComplete ? "" : "justify-center"}`}
+              showComplete
+                ? "overflow-visible"
+                : showPack
+                  ? "overflow-y-auto overflow-x-hidden"
+                  : "overflow-hidden"
+            } ${showComplete || showPack ? "" : "justify-center"}`}
           >
             <AnimatePresence mode="wait">
               {showPack ? (
                 <motion.div
                   key="sealed-pack"
-                  className="flex w-full flex-col items-center justify-center"
+                  className="flex w-full max-w-[480px] flex-col px-6"
+                  style={{
+                    paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 3.25rem)",
+                    paddingBottom: "calc(env(safe-area-inset-bottom) + 2rem)",
+                  }}
                   exit={{
                     opacity: 0,
-                    scale: 0.5,
+                    scale: 0.96,
                     transition: { type: "spring", stiffness: 300, damping: 28 },
                   }}
                 >
-                  <GlassSurface
-                    variant="default"
-                    className="relative aspect-[3/4] w-[min(96vw,420px)] overflow-hidden rounded-2xl p-0"
-                  >
-                    <motion.div
-                      className="relative h-full w-full"
-                      animate={{ y: [0, -16, 0], rotate: [0, 0.8, 0, -0.8, 0] }}
-                      transition={{ duration: 4.2, repeat: Infinity, ease: "easeInOut" }}
+                  <h1 className="text-center text-[24px] font-bold leading-tight text-white">
+                    {selectedPack.name}
+                  </h1>
+
+                  <div className="mt-4 flex justify-center">
+                    <GlassSurface
+                      variant="default"
+                      className="relative aspect-[3/4] w-[min(58vw,240px)] overflow-hidden rounded-2xl p-0"
                     >
-                      <PackCatalogImage
-                        packId={selectedPack.id}
-                        src={selectedPack.image}
-                        alt={selectedPack.name}
-                        priority
-                      />
-                    </motion.div>
-                  </GlassSurface>
+                      <div className="relative h-full w-full">
+                        <PackCatalogImage
+                          packId={selectedPack.id}
+                          src={selectedPack.image}
+                          alt={selectedPack.name}
+                          priority
+                        />
+                      </div>
+                    </GlassSurface>
+                  </div>
+
+                  <div className="mt-6 flex gap-2">
+                    {[1, 2, 3, 4, 5].map((q) => {
+                      const active = quantity === q;
+                      return (
+                        <button
+                          key={q}
+                          type="button"
+                          onClick={() => {
+                            void hapticTabSelect();
+                            setQuantity(q);
+                          }}
+                          className={`h-11 flex-1 rounded-full text-[15px] font-bold transition-colors ${
+                            active
+                              ? "bg-[var(--rip-orange)] text-white"
+                              : "bg-[var(--rip-surface)] text-[var(--rip-text-muted)]"
+                          }`}
+                        >
+                          {q}x
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => void handleOpenPack()}
+                    disabled={isChargingSpin}
+                    className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-[var(--rip-orange)] text-[16px] font-bold text-white transition-transform active:scale-[0.98] active:bg-[var(--rip-orange-pressed)] disabled:opacity-40"
+                  >
+                    {openLabel}
+                  </motion.button>
+
+                  <p className="mt-3 text-center text-[13px] leading-relaxed text-[var(--rip-text-muted)]">
+                    Each pack contains one graded card — ship it to your door, or sell it back at
+                    85% of Fair Market Value with our buyback guarantee.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void hapticTabSelect();
+                      setAdjustOddsOpen(true);
+                    }}
+                    className="mt-5 flex w-full items-center justify-between rounded-2xl border border-[var(--rip-border)] bg-[var(--rip-surface)] px-4 py-3.5 active:bg-white/5"
+                  >
+                    <span className="text-[15px] font-semibold text-white">Top Hit</span>
+                    <span className="flex items-center gap-1.5 text-[14px] font-semibold text-[var(--rip-green-bright)]">
+                      {topHit ? formatUsd(gemsToUsd(topHit.value)) : expectedValueLabel}
+                      <ChevronRight size={18} className="text-[var(--rip-text-muted)]" />
+                    </span>
+                  </button>
+
+                  {insideCards.length > 0 ? (
+                    <section className="mt-8">
+                      <h3 className="text-[18px] font-bold text-white">What&apos;s Inside</h3>
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        {insideCards.slice(0, INSIDE_GRID_PREVIEW).map((card) => (
+                          <RipCardTile key={card.id} card={card} className="!w-full" />
+                        ))}
+                      </div>
+                      {insideCards.length > INSIDE_GRID_PREVIEW ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void hapticTabSelect();
+                            setWhatsInsideOpen(true);
+                          }}
+                          className="mt-4 flex h-12 w-full items-center justify-center rounded-full border border-[var(--rip-border)] bg-transparent text-[15px] font-semibold text-white active:bg-white/5"
+                        >
+                          Show all {insideCards.length}
+                        </button>
+                      ) : null}
+                    </section>
+                  ) : null}
                 </motion.div>
               ) : null}
 
@@ -618,7 +979,23 @@ export function MobilePackOpeningView() {
                   exit={{ opacity: 0 }}
                   transition={SPINNER_EXIT_TRANSITION}
                 >
-                  <div className="mobile-spinner-wrapper relative w-full max-w-full">
+                  <div
+                    className="mobile-spinner-wrapper relative w-full max-w-full"
+                    data-glow-settled={reelGlowSettled ? true : undefined}
+                    data-glow-fast={reelGlowFast ? true : undefined}
+                    style={
+                      {
+                        "--spin-needle-color": reelGlowSettled
+                          ? reelRarityGlow.needle
+                          : "var(--rip-orange)",
+                      } as CSSProperties
+                    }
+                  >
+                    <SpinStageAtmosphere
+                      settled={reelGlowSettled}
+                      fastTransition={reelGlowFast}
+                      rarityGlow={reelRarityGlow}
+                    />
                     <div
                       className="pointer-events-none absolute inset-y-0 left-0 z-30 w-[8%] bg-gradient-to-r from-[var(--rip-bg-primary)] to-transparent"
                       aria-hidden
@@ -627,15 +1004,17 @@ export function MobilePackOpeningView() {
                       className="pointer-events-none absolute inset-y-0 right-0 z-30 w-[8%] bg-gradient-to-l from-[var(--rip-bg-primary)] to-transparent"
                       aria-hidden
                     />
-                    <UnboxingCarousel
-                      cards={carouselCards}
-                      isSpinning={isCarouselSpinning}
-                      winnerIndex={ROULETTE_WINNER_INDEX}
-                      spinDurationMs={MOBILE_SPIN_DURATION_MS}
-                      cardWidth={MOBILE_SPIN_CARD_WIDTH}
-                      compactCards
-                      suppressEdgeFades
-                    />
+                    <div className="relative z-10 w-full">
+                      <UnboxingCarousel
+                        cards={carouselCards}
+                        isSpinning={isCarouselSpinning}
+                        winnerIndex={ROULETTE_WINNER_INDEX}
+                        spinDurationMs={effectiveSpinDurationMs}
+                        cardWidth={MOBILE_SPIN_CARD_WIDTH}
+                        compactCards
+                        suppressEdgeFades
+                      />
+                    </div>
                   </div>
                 </motion.div>
               ) : null}
@@ -663,19 +1042,21 @@ export function MobilePackOpeningView() {
                   exit="exit"
                 >
                   <div className="flex min-h-0 flex-[0.65] flex-col items-center justify-center">
-                    <TrophyCardHero card={activePullCard} />
+                    <RevealStage card={activePullCard} rarity={revealStoreRarity} />
                   </div>
 
                   <motion.div
                     className="mt-8 shrink-0 text-center"
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={BUTTON_SPRING}
+                    transition={{ ...BUTTON_SPRING, delay: 0.25 }}
                   >
-                    <p className="text-[24px] font-semibold text-white">{activePullCard.name}</p>
-                    <p className="rip-glow-price-green mt-1 text-[32px] font-bold tabular-nums text-[var(--rip-green-bright)]">
-                      {formatUsd(gemsToUsd(activePullCard.value))}
-                    </p>
+                    <RarityBadge rarity={revealStoreRarity} palette={reelRarityGlow} />
+                    <p className="mt-3 text-[24px] font-semibold text-white">{activePullCard.name}</p>
+                    <CountUpValue
+                      valueGems={activePullCard.value}
+                      className="rip-glow-price-green mt-1 block text-[32px] font-bold tabular-nums text-[var(--rip-green-bright)]"
+                    />
                     {activeDropEntry ? (
                       <p className="mt-1 text-[13px] text-[var(--rip-text-muted)]">
                         {formatProbability(activeDropEntry.probability)} chance
@@ -685,7 +1066,9 @@ export function MobilePackOpeningView() {
 
                   <motion.div
                     className="mt-auto w-full shrink-0 pt-8"
-                    style={bottomInset}
+                    style={{
+                      paddingBottom: "max(1.5rem, calc(env(safe-area-inset-bottom) + 0.5rem))",
+                    }}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={BUTTON_SPRING}
@@ -701,41 +1084,15 @@ export function MobilePackOpeningView() {
                           : "Done"}
                       </button>
                     ) : (
-                      <div className="flex w-full gap-3">
-                        <button
-                          type="button"
-                          onClick={handleSendToVault}
-                          className={`${COMPLETE_ACTION_BTN} bg-[var(--rip-surface)] text-white`}
-                        >
-                          Vault
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleShip}
-                          disabled={!activeVaultItemId}
-                          className={`${COMPLETE_ACTION_BTN} flex flex-col bg-[var(--rip-surface)] ${
-                            canShipActive && activeVaultItemId
-                              ? "text-white"
-                              : "text-[var(--rip-text-muted)]"
-                          }`}
-                        >
-                          <span>Ship</span>
-                          {activeVaultItemId && !canShipActive ? (
-                            <span className="text-[10px] leading-tight text-[var(--rip-text-muted)]">
-                              Min $50 to ship
-                            </span>
-                          ) : null}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={finishReveal}
-                          className={`${COMPLETE_ACTION_BTN} bg-[var(--rip-orange)] text-white active:bg-[var(--rip-orange-pressed)]`}
-                        >
-                          {pullQueue.length > 1 && queueIndex < pullQueue.length - 1
-                            ? "Next Pull"
-                            : "Done"}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSendToVault}
+                        className={`${COMPLETE_ACTION_BTN} w-full bg-[var(--rip-orange)] text-white active:bg-[var(--rip-orange-pressed)]`}
+                      >
+                        {pullQueue.length > 1 && queueIndex < pullQueue.length - 1
+                          ? "Next Pull"
+                          : "Send to Vault"}
+                      </button>
                     )}
                   </motion.div>
                 </motion.div>
@@ -744,39 +1101,6 @@ export function MobilePackOpeningView() {
           </div>
         </MobileErrorBoundary>
 
-        <AnimatePresence mode="wait">
-          {phase === "pre-rip" ? (
-            <motion.div
-              key="pre-rip-actions"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 16 }}
-              transition={BUTTON_SPRING}
-              className="fixed left-6 right-6 z-40 flex flex-col gap-3"
-              style={bottomInset}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  void hapticTabSelect();
-                  setWhatsInsideOpen(true);
-                }}
-                className={BTN_GHOST_OUTLINE}
-              >
-                What&apos;s Inside
-              </button>
-              <motion.button
-                type="button"
-                whileTap={{ scale: 0.97 }}
-                onClick={() => void handleOpenPack()}
-                disabled={isChargingSpin}
-                className={BTN_PRIMARY}
-              >
-                {openLabel}
-              </motion.button>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
       </motion.div>
 
       <MobileWhatsInsideDrawer
@@ -784,6 +1108,20 @@ export function MobilePackOpeningView() {
         packName={selectedPack.name}
         open={whatsInsideOpen}
         onClose={() => setWhatsInsideOpen(false)}
+      />
+
+      <AdjustOddsSheet
+        pack={selectedPack}
+        open={adjustOddsOpen}
+        onClose={() => setAdjustOddsOpen(false)}
+        showVolatility={false}
+        expectedValueUsd={expectedValueLabel}
+        zIndex={120}
+        topHit={
+          topHit
+            ? { name: topHit.name, value: topHit.value, image: topHit.image }
+            : undefined
+        }
       />
 
       <ShipCardSheet
@@ -795,7 +1133,15 @@ export function MobilePackOpeningView() {
 
       <AddFundsModal
         open={addFundsOpen}
+        defaultAmountUsd={smartDepositUsd}
+        onSuccess={() => {
+          if (pendingSpinAfterDeposit.current) {
+            pendingSpinAfterDeposit.current = false;
+            void handleOpenPack();
+          }
+        }}
         onClose={() => {
+          pendingSpinAfterDeposit.current = false;
           setAddFundsOpen(false);
           setAddFundsModalOpen(false);
         }}

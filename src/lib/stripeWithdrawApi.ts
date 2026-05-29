@@ -8,6 +8,10 @@ export interface StripeConnectStatus {
   withdrawableBalanceGems: number;
   weeklyWithdrawnCents: number;
   weeklyRemainingCents: number;
+  kycVerified: boolean;
+  kycVerificationSessionId: string | null;
+  totalWithdrawnYtdCents: number;
+  taxInfoCollected: boolean;
 }
 
 async function getWithdrawAccessToken(): Promise<string> {
@@ -54,6 +58,16 @@ function parseConnectStatus(payload: Record<string, unknown>): StripeConnectStat
     ),
     weeklyWithdrawnCents: Math.max(0, Math.round(Number(payload.weekly_withdrawn_cents) || 0)),
     weeklyRemainingCents: Math.max(0, Math.round(Number(payload.weekly_remaining_cents) || 0)),
+    kycVerified: Boolean(payload.kyc_verified),
+    kycVerificationSessionId:
+      typeof payload.kyc_verification_session_id === "string"
+        ? payload.kyc_verification_session_id
+        : null,
+    totalWithdrawnYtdCents: Math.max(
+      0,
+      Math.round(Number(payload.total_withdrawn_ytd_cents) || 0),
+    ),
+    taxInfoCollected: Boolean(payload.tax_info_collected),
   };
 }
 
@@ -113,4 +127,41 @@ export async function submitStripeWithdrawal(amountUsd: number): Promise<void> {
   if (!response.ok) {
     throw new Error(payload?.error ?? "Withdrawal failed. Please try again.");
   }
+}
+
+export interface KycSessionResult {
+  alreadyVerified: boolean;
+  url: string | null;
+  sessionId: string | null;
+}
+
+export async function createStripeKycSession(): Promise<KycSessionResult> {
+  const response = await authedFetch("/api/stripe/kyc-session", { method: "POST" });
+  const payload = (await response.json().catch(() => null)) as
+    | {
+        url?: string;
+        session_id?: string;
+        already_verified?: boolean;
+        error?: string;
+      }
+    | null;
+
+  if (!response.ok) {
+    throw new Error(payload?.error ?? "Unable to start identity verification.");
+  }
+
+  if (payload?.already_verified) {
+    return { alreadyVerified: true, url: null, sessionId: null };
+  }
+
+  const url = payload?.url?.trim();
+  if (!url) {
+    throw new Error("Verification could not be started. Please try again.");
+  }
+
+  return {
+    alreadyVerified: false,
+    url,
+    sessionId: typeof payload?.session_id === "string" ? payload.session_id : null,
+  };
 }

@@ -1,7 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { formatGems, formatUsd, gemsToUsd } from "../../constants/retail";
-import { isAppStoreCommerce } from "../../constants/commerce";
+import { formatGems } from "../../constants/retail";
 import { VAULT_SHIPPING_COST } from "../../constants/shipping";
 import { BRAND_FUCHSIA, BRAND_GOLD, BRAND_GRADIENT } from "../../constants/theme";
 import type { VaultShippingConfirmInput } from "../../lib/vaultReleaseFlow";
@@ -94,10 +93,7 @@ function VaultReleaseSuccessView({
 }
 
 function ShippingSummary({ shippingCost }: { shippingCost: number }) {
-  const storeCommerce = isAppStoreCommerce();
-  const feeLabel = storeCommerce
-    ? formatUsd(gemsToUsd(shippingCost))
-    : formatGems(shippingCost);
+  const feeLabel = formatGems(shippingCost);
 
   return (
     <section
@@ -126,7 +122,7 @@ function ShippingSummary({ shippingCost }: { shippingCost: number }) {
         <div>
           <p className="text-sm font-semibold text-white">Physical fulfillment fee</p>
           <p className="mt-0.5 text-xs text-muted">
-            {storeCommerce ? "Shipping fee" : "Deducted from your balance on release"}
+            Deducted from your balance on release
           </p>
         </div>
         <p
@@ -271,9 +267,7 @@ export function VaultReleaseModal({
                 <p className="mt-1 text-xs font-mono text-muted">
                   Stated value:{" "}
                   <span style={{ color: BRAND_GOLD }}>
-                    {isAppStoreCommerce()
-                      ? formatUsd(gemsToUsd(itemValue))
-                      : formatGems(itemValue)}
+                    {formatGems(itemValue)}
                   </span>
                 </p>
               ) : null}

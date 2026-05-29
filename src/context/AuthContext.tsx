@@ -29,6 +29,7 @@ interface AuthContextValue {
     email: string,
     password: string,
     username: string,
+    dateOfBirth?: string,
   ) => Promise<SignUpResult>;
   signOut: () => Promise<void>;
   signInWithApple: () => Promise<AuthActionResult>;
@@ -103,6 +104,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email: string,
       password: string,
       username: string,
+      dateOfBirth?: string,
     ): Promise<SignUpResult> => {
       if (!supabase) {
         return { error: "Authentication is not configured.", needsEmailConfirmation: false };
@@ -114,13 +116,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: usernameError, needsEmailConfirmation: false };
       }
 
+      const metadata: Record<string, string> = { username: normalizedUsername };
+      if (dateOfBirth?.trim()) {
+        metadata.pending_date_of_birth = dateOfBirth.trim();
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
-          data: {
-            username: normalizedUsername,
-          },
+          data: metadata,
         },
       });
 

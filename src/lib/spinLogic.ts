@@ -1,59 +1,52 @@
+import { normalizePackId, resolvePackGemCost } from "../data/boxCatalog";
 import { RETAIL_COPY } from "../constants/retail";
-import type { Database, Json } from "../types/database";
 import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
-type ProcessSpinTransactionArgs =
-  Database["public"]["Functions"]["process_spin_transaction"]["Args"];
-
-type AddToVaultArgs = Database["public"]["Functions"]["add_to_vault"]["Args"];
-
-interface SpinRpcClient {
-  rpc(
-    fn: "process_spin_transaction",
-    args: ProcessSpinTransactionArgs,
-  ): Promise<{ data: Json | null; error: { message: string } | null }>;
-  rpc(
-    fn: "add_to_vault",
-    args: AddToVaultArgs,
-  ): Promise<{ data: Json | null; error: { message: string } | null }>;
-}
-
-export interface HandleSpinItemDetails {
+export interface OpenPackWinner {
   itemId: string;
   itemName: string;
+  storeRarity: string;
   gemValue: number;
   imageUrl: string;
+  vaultItemId: string;
 }
 
-export type HandleSpinResult =
+export type OpenPackResult =
   | {
       ok: true;
       gemsBalance: number;
-      vaultItemId?: string;
-      vaultPending?: boolean;
-      vaultPendingMessage?: string;
+      winners: OpenPackWinner[];
     }
   | {
       ok: false;
       error: string;
       code?: string;
       step?: string;
-      rpcData?: SpinRpcPayload | null;
+      rpcData?: OpenPackRpcPayload | null;
     };
 
-interface SpinRpcPayload {
+interface OpenPackRpcPayload {
   success?: boolean;
   gems_balance?: number;
-  vault_item_id?: string | null;
+  results?: OpenPackRpcWinner[] | null;
   error?: string;
   code?: string;
   step?: string;
 }
 
-function parseRpcPayload(data: unknown): SpinRpcPayload | null {
+interface OpenPackRpcWinner {
+  item_id?: string;
+  item_name?: string;
+  store_rarity?: string;
+  gem_value?: number;
+  image_url?: string;
+  vault_item_id?: string;
+}
+
+function parseRpcPayload(data: unknown): OpenPackRpcPayload | null {
   if (data == null || typeof data !== "object") return null;
-  return data as SpinRpcPayload;
+  return data as OpenPackRpcPayload;
 }
 
 function normalizeVaultItemId(value: unknown): string | undefined {
@@ -62,7 +55,29 @@ function normalizeVaultItemId(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function mapSpinChargeError(message: string, code?: string): string {
+function mapOpenPackWinner(raw: OpenPackRpcWinner): OpenPackWinner | null {
+  const itemId = typeof raw.item_id === "string" ? raw.item_id.trim() : "";
+  const itemName = typeof raw.item_name === "string" ? raw.item_name.trim() : "";
+  const storeRarity = typeof raw.store_rarity === "string" ? raw.store_rarity.trim() : "Common";
+  const gemValue = Number(raw.gem_value);
+  const imageUrl = typeof raw.image_url === "string" ? raw.image_url.trim() : "";
+  const vaultItemId = normalizeVaultItemId(raw.vault_item_id);
+
+  if (!itemId || !itemName || !vaultItemId || !Number.isFinite(gemValue) || gemValue < 0) {
+    return null;
+  }
+
+  return {
+    itemId,
+    itemName,
+    storeRarity,
+    gemValue: Math.round(gemValue),
+    imageUrl,
+    vaultItemId,
+  };
+}
+
+function mapOpenPackError(message: string, code?: string): string {
   const normalized = `${code ?? ""} ${message}`.toLowerCase();
 
   if (normalized.includes("insufficient_gems") || normalized.includes("insufficient gems")) {
@@ -77,8 +92,11 @@ function mapSpinChargeError(message: string, code?: string): string {
   if (normalized.includes("profile_not_found")) {
     return "Account profile not found. Try signing out and back in.";
   }
+  if (normalized.includes("pack not found")) {
+    return "This pack is not available right now.";
+  }
 
-  return "Unable to charge your balance for this spin. Please try again.";
+  return "Unable to open this pack. Please try again.";
 }
 
 async function resolveAuthenticatedUserId(prefilledUserId?: string): Promise<string> {
@@ -88,7 +106,7 @@ async function resolveAuthenticatedUserId(prefilledUserId?: string): Promise<str
   }
 
   if (!isSupabaseConfigured() || !supabase) {
-    throw new Error("Spin charging requires Supabase configuration.");
+    throw new Error("Pack opening requires Supabase configuration.");
   }
 
   const { data, error } = await supabase.auth.getSession();
@@ -105,154 +123,115 @@ async function resolveAuthenticatedUserId(prefilledUserId?: string): Promise<str
 }
 
 /**
- * Two-step spin flow: charge gems via `process_spin_transaction`, then register the
- * pull via `add_to_vault`. Prefer `authUserId` from app state; falls back to local session.
+ * Atomic pack open: server picks the card, deducts gems, and vaults in one RPC.
+ * The client only receives the winner and animates toward it.
  */
-export async function handleSpin(
+export async function openPack(
+  packId: string,
   spinCost: number,
-  item: HandleSpinItemDetails,
+  quantity: number,
   authUserId?: string,
-): Promise<HandleSpinResult> {
+): Promise<OpenPackResult> {
   if (!isSupabaseConfigured() || !supabase) {
     return {
       ok: false,
-      error: "Spin charging requires Supabase configuration.",
+      error: "Pack opening requires Supabase configuration.",
     };
   }
 
-  const normalizedCost = Math.max(0, Math.round(spinCost));
-  const itemId = item.itemId.trim();
-  const itemName = item.itemName.trim();
-  const imageUrl = item.imageUrl.trim();
-  const gemValue = Math.max(0, Math.round(item.gemValue));
+  const normalizedPackId = normalizePackId(packId.trim());
+  const normalizedCost = resolvePackGemCost(normalizedPackId, spinCost);
+  const normalizedQuantity = Math.max(1, Math.round(quantity));
+
+  if (!normalizedPackId) {
+    return { ok: false, error: "Invalid pack." };
+  }
 
   if (normalizedCost <= 0) {
     return { ok: false, error: "Invalid spin cost." };
   }
 
-  if (!itemId || !itemName) {
-    return { ok: false, error: "Invalid pull item details." };
-  }
-
   try {
     const authenticatedUserId = await resolveAuthenticatedUserId(authUserId);
-    const client = supabase as unknown as SpinRpcClient;
 
-    const { data: spinData, error: spinError } = await client.rpc("process_spin_transaction", {
-      p_user_id: authenticatedUserId,
-      p_spin_cost: normalizedCost,
-    });
+    const { data, error } = await supabase.rpc(
+      "open_pack",
+      {
+        p_user_id: authenticatedUserId,
+        p_pack_id: normalizedPackId,
+        p_quantity: normalizedQuantity,
+        p_spin_cost: normalizedCost,
+      } as never,
+    );
 
-    if (spinError) {
-      logger.warn("[process_spin_transaction] PostgREST error:", spinError.message);
+    if (error) {
+      logger.warn("[open_pack] PostgREST error:", error.message);
       return {
         ok: false,
-        error: mapSpinChargeError(spinError.message),
+        error: mapOpenPackError(error.message),
         code: "postgrest_error",
         step: "rpc_transport",
         rpcData: null,
       };
     }
 
-    const spinPayload = parseRpcPayload(spinData);
+    const payload = parseRpcPayload(data);
 
-    if (spinPayload?.success !== true) {
+    if (payload?.success !== true) {
       const rpcCode =
-        typeof spinPayload?.code === "string" && spinPayload.code.trim()
-          ? spinPayload.code.trim()
+        typeof payload?.code === "string" && payload.code.trim()
+          ? payload.code.trim()
           : undefined;
       const rpcStep =
-        typeof spinPayload?.step === "string" && spinPayload.step.trim()
-          ? spinPayload.step.trim()
+        typeof payload?.step === "string" && payload.step.trim()
+          ? payload.step.trim()
           : undefined;
       const errorMessage =
-        typeof spinPayload?.error === "string" && spinPayload.error.trim()
-          ? spinPayload.error.trim()
-          : "Unable to charge your balance for this spin.";
+        typeof payload?.error === "string" && payload.error.trim()
+          ? payload.error.trim()
+          : "Unable to open this pack.";
 
       return {
         ok: false,
-        error: mapSpinChargeError(errorMessage, rpcCode),
+        error: mapOpenPackError(errorMessage, rpcCode),
         code: rpcCode,
         step: rpcStep,
-        rpcData: spinPayload,
+        rpcData: payload,
       };
     }
 
-    const gemsBalance = Number(spinPayload.gems_balance);
+    const gemsBalance = Number(payload.gems_balance);
     if (!Number.isFinite(gemsBalance) || gemsBalance < 0) {
-      throw new Error("Spin charge succeeded but returned an invalid balance.");
+      throw new Error("Pack open succeeded but returned an invalid balance.");
     }
 
-    try {
-      // @ts-expect-error Database RPC typings omit add_to_vault args.
-      const { data: vaultData, error: vaultError } = await supabase.rpc("add_to_vault", {
-        p_user_id: authenticatedUserId,
-        p_item_id: itemId,
-        p_item_name: itemName,
-        p_gem_value: gemValue,
-        p_image_url: imageUrl,
+    const rawResults = Array.isArray(payload.results) ? payload.results : [];
+    const winners = rawResults
+      .map((entry) => mapOpenPackWinner(entry as OpenPackRpcWinner))
+      .filter((entry): entry is OpenPackWinner => entry !== null);
+
+    if (winners.length !== normalizedQuantity) {
+      logger.warn("[open_pack] result count mismatch", {
+        expected: normalizedQuantity,
+        received: winners.length,
       });
-
-      const vaultPayload = parseRpcPayload(vaultData);
-      const vaultItemId = normalizeVaultItemId(vaultPayload?.vault_item_id);
-
-      if (vaultItemId) {
-        logger.log("[add_to_vault] vault item registered");
-        return {
-          ok: true,
-          gemsBalance: Math.round(gemsBalance),
-          vaultItemId,
-        };
-      }
-
-      if (vaultError) {
-        logger.warn("[add_to_vault] RPC failed:", vaultError.message);
-        return {
-          ok: true,
-          gemsBalance: Math.round(gemsBalance),
-          vaultPending: true,
-          vaultPendingMessage: "Spin succeeded but vaulting is pending.",
-        };
-      }
-
-      if (vaultPayload?.success === false) {
-        const vaultErrorMessage =
-          typeof vaultPayload.error === "string" && vaultPayload.error.trim()
-            ? vaultPayload.error.trim()
-            : "Vault registration did not complete.";
-        logger.warn("[add_to_vault] returned failure:", vaultErrorMessage);
-        return {
-          ok: true,
-          gemsBalance: Math.round(gemsBalance),
-          vaultPending: true,
-          vaultPendingMessage: "Spin succeeded but vaulting is pending.",
-        };
-      }
-
-      logger.warn("[add_to_vault] missing vault item id in response");
       return {
-        ok: true,
-        gemsBalance: Math.round(gemsBalance),
-        vaultPending: true,
-        vaultPendingMessage: "Spin succeeded but vaulting is pending.",
-      };
-    } catch (vaultUnexpectedError) {
-      const message =
-        vaultUnexpectedError instanceof Error
-          ? vaultUnexpectedError.message
-          : "Vault registration failed.";
-      logger.warn("[add_to_vault] unexpected error:", message);
-      return {
-        ok: true,
-        gemsBalance: Math.round(gemsBalance),
-        vaultPending: true,
-        vaultPendingMessage: "Spin succeeded but vaulting is pending.",
+        ok: false,
+        error: "Pack open returned an incomplete result. Please try again.",
+        code: "incomplete_results",
+        rpcData: payload,
       };
     }
+
+    logger.log("[open_pack] pack opened", { packId: normalizedPackId, quantity: normalizedQuantity });
+    return {
+      ok: true,
+      gemsBalance: Math.round(gemsBalance),
+      winners,
+    };
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to complete this spin.";
+      error instanceof Error ? error.message : "Unable to complete this pack opening.";
     return { ok: false, error: message };
   }
 }

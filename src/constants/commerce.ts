@@ -1,10 +1,4 @@
-import { isNativeCapacitorApp } from "../utils/platform";
-
-/** Native iOS/Android uses App Store IAP (RevenueCat), not gem refill UI. */
-export function isAppStoreCommerce(): boolean {
-  return isNativeCapacitorApp();
-}
-
+/** Shared retail copy for pack-opening surfaces. */
 export const COMMERCE_COPY = {
   unlockVerb: "Unlock Drop",
   payWithApple: "Pay with Apple Pay",

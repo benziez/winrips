@@ -1,7 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { handleApiCors } from "../_lib/cors.js";
-import { handleIapFulfillRoute } from "../_lib/iapFulfill.js";
+import { handleStripeKycSessionRoute } from "../_lib/stripeKyc.js";
+import { createNodeRequest, createNodeResponse, readVercelRawBody } from "../_lib/vercelHttp.js";
 
 export const config = {
   runtime: "nodejs",
@@ -10,9 +11,11 @@ export const config = {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (handleApiCors(req, res)) return;
 
-  const nodeReq = req as unknown as IncomingMessage;
-  const nodeRes = res as unknown as ServerResponse;
-  const handled = await handleIapFulfillRoute(nodeReq, nodeRes);
+  const rawBody = await readVercelRawBody(req);
+  const nodeReq = createNodeRequest(req, rawBody) as IncomingMessage;
+  const nodeRes = createNodeResponse(res) as ServerResponse;
+  const handled = await handleStripeKycSessionRoute(nodeReq, nodeRes);
+
   if (!handled) {
     res.status(405).json({ error: "Method not allowed" });
   }

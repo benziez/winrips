@@ -129,7 +129,7 @@ export function buildPokemonPacks(): CatalogPack[] {
     {
       id: "god-pack-1999",
       name: "The 1999 God Pack",
-      cost: 10_000,
+      cost: 15_000,
       theme: "mystic",
       description:
         "Ultra-premium, low odds. Exclusively drops massive grail assets, gold stars, and ceiling chase hits.",
@@ -141,7 +141,7 @@ export function buildPokemonPacks(): CatalogPack[] {
     {
       id: "wotc-first-edition",
       name: "WOTC 1st Edition Classic",
-      cost: 25_000,
+      cost: 45_000,
       theme: "mystic",
       description: "Elite, high-end vintage 1999-2000 first edition holos only.",
       category: "pokemon",

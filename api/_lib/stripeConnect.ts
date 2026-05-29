@@ -6,6 +6,7 @@ import { logger } from "./logger.js";
 
 const MIN_WITHDRAWAL_USD = 5;
 const WEEKLY_CAP_CENTS = 25_000;
+const TAX_THRESHOLD_CENTS = 60_000;
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
@@ -74,7 +75,9 @@ async function getProfileConnectFields(userId: string) {
   const supabase = readSupabaseAdmin();
   const { data, error } = await supabase
     .from("profiles")
-    .select("stripe_connect_account_id, withdrawable_balance, gems_balance")
+    .select(
+      "stripe_connect_account_id, withdrawable_balance, gems_balance, kyc_verified, kyc_verification_session_id, total_withdrawn_ytd, withdrawn_ytd_year, tax_info_collected",
+    )
     .eq("id", userId)
     .maybeSingle();
 
@@ -85,10 +88,23 @@ async function getProfileConnectFields(userId: string) {
     throw new Error("User not found");
   }
 
+  const currentYear = new Date().getFullYear();
+  const storedYear = Number(data.withdrawn_ytd_year) || null;
+  const ytdRaw = Math.max(0, Math.round(Number(data.total_withdrawn_ytd) || 0));
+  const totalWithdrawnYtdCents =
+    storedYear === null || storedYear !== currentYear ? 0 : ytdRaw;
+
   return {
     stripeConnectAccountId: (data.stripe_connect_account_id as string | null)?.trim() ?? "",
     withdrawableBalance: Math.max(0, Math.round(Number(data.withdrawable_balance) || 0)),
     gemsBalance: Math.max(0, Math.round(Number(data.gems_balance) || 0)),
+    kycVerified: data.kyc_verified === true,
+    kycVerificationSessionId:
+      typeof data.kyc_verification_session_id === "string"
+        ? data.kyc_verification_session_id.trim()
+        : "",
+    totalWithdrawnYtdCents,
+    taxInfoCollected: data.tax_info_collected === true,
   };
 }
 
@@ -145,6 +161,10 @@ export async function handleStripeConnectStatusRoute(
       withdrawable_balance_gems: profile.withdrawableBalance,
       weekly_withdrawn_cents: recentWithdrawnCents,
       weekly_remaining_cents: weeklyRemainingCents,
+      kyc_verified: profile.kycVerified,
+      kyc_verification_session_id: profile.kycVerificationSessionId || null,
+      total_withdrawn_ytd_cents: profile.totalWithdrawnYtdCents,
+      tax_info_collected: profile.taxInfoCollected,
     });
     return true;
   } catch (error) {
@@ -271,6 +291,25 @@ export async function handleStripeWithdrawRoute(
 
   try {
     const profile = await getProfileConnectFields(userId);
+
+    if (!profile.kycVerified) {
+      sendJson(res, 403, {
+        error: "Identity verification required before withdrawing.",
+        code: "kyc_required",
+      });
+      return true;
+    }
+
+    if (
+      profile.totalWithdrawnYtdCents >= TAX_THRESHOLD_CENTS &&
+      !profile.taxInfoCollected
+    ) {
+      sendJson(res, 403, {
+        error: "Tax information required before further withdrawals.",
+        code: "tax_info_required",
+      });
+      return true;
+    }
 
     if (!profile.stripeConnectAccountId) {
       sendJson(res, 400, { error: "Withdrawals are not set up. Complete onboarding first." });

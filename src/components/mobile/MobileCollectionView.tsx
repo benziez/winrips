@@ -29,7 +29,7 @@ function EmptyCollectionIllustration() {
 }
 
 export function MobileCollectionView() {
-  const { vaultItems, vaultItemsLoading } = useApp();
+  const { vaultItems, vaultItemsLoading, isLoggedIn, openAuthModal } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortKey, setSortKey] = useState<SortKey>("price-desc");
   const [addFundsOpen, setAddFundsOpen] = useState(false);
@@ -55,6 +55,30 @@ export function MobileCollectionView() {
         <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
       </header>
 
+      {!isLoggedIn ? (
+        <div
+          className="flex min-h-0 flex-1 flex-col items-center justify-center px-8 text-center"
+          style={{ paddingBottom: MOBILE_DOCK_CLEARANCE }}
+        >
+          <EmptyCollectionIllustration />
+          <p className="mt-8 text-[17px] font-semibold text-white">
+            Log in or create an account to start your collection
+          </p>
+          <p className="mt-2 text-[14px] leading-relaxed text-[var(--rip-text-muted)]">
+            Sign in to open packs, vault real cards, and track their value.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              void hapticTabSelect();
+              openAuthModal("login");
+            }}
+            className="mt-8 flex h-12 w-full max-w-xs items-center justify-center rounded-full bg-[var(--rip-orange)] text-[16px] font-bold text-white transition-transform active:scale-[0.98] active:bg-[var(--rip-orange-pressed)]"
+          >
+            Sign in / Get started
+          </button>
+        </div>
+      ) : (
       <div
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
         style={{ paddingBottom: MOBILE_DOCK_CLEARANCE }}
@@ -132,16 +156,16 @@ export function MobileCollectionView() {
                     key={item.id}
                     type="button"
                     onClick={() => setSelectedVaultItem(item)}
-                    className="flex aspect-[3/4.2] flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] p-3 text-left"
+                    className="flex flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] p-3 text-left"
                   >
-                    <div className="flex min-h-0 flex-[0.65] items-center justify-center">
+                    <div className="flex aspect-[3/4] w-full items-center justify-center">
                       <CollectibleImage
                         src={item.image}
                         alt={item.name}
                         className="max-h-full max-w-full object-contain"
                       />
                     </div>
-                    <div className="mt-auto pt-2">
+                    <div className="pt-2">
                       <p className="text-[16px] font-bold text-[var(--rip-green-bright)]">
                         {formatUsd(gemsToUsd(item.value))}
                       </p>
@@ -180,6 +204,7 @@ export function MobileCollectionView() {
           )}
         </div>
       </div>
+      )}
 
       <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
       <CardDetailOverlay

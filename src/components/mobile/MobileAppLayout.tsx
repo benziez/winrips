@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { BrowserRouter } from "react-router-dom";
 import { useApp } from "../../context/AppContext";
+import { useAuth } from "../../context/AuthContext";
 import { AgeGate } from "../compliance/AgeGate";
+import { DobCollectionScreen } from "../compliance/DobCollectionScreen";
+import { fetchComplianceProfile, setAgeVerification } from "../../lib/complianceProfile";
 import { AuthModal } from "../auth/AuthModal";
 import { PurchaseModal } from "../wallet/PurchaseModal";
 import { WalletModal } from "../wallet/WalletModal";
@@ -9,8 +12,6 @@ import { DepositModal } from "../modals/DepositModal";
 import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { GemBalanceDepositNotifier } from "../wallet/GemBalanceDepositNotifier";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
-import { configureRevenueCat } from "../../lib/revenueCat";
-import { isAppStoreCommerce } from "../../constants/commerce";
 import { MobileSignInScreen } from "./MobileSignInScreen";
 import { MobileAppContent } from "./MobileAppContent";
 import { MobileHistoryBridge } from "./MobileHistoryBridge";
@@ -21,6 +22,21 @@ import { shouldSuppressMobileGemToast } from "../../utils/mobileGemUi";
 import type { AppView } from "../../types";
 
 const IMMERSIVE_VIEWS: AppView[] = ["pack-open", "settings"];
+const APP_SHELL_BG = "#0a0c10";
+
+/** Opaque strip over the Dynamic Island / status bar — blocks lobby gradient bleed. */
+function NativeSafeAreaTopCover() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none fixed left-0 right-0 top-0 z-[9999]"
+      style={{
+        height: "env(safe-area-inset-top)",
+        background: APP_SHELL_BG,
+      }}
+    />
+  );
+}
 
 function MobileToast() {
   const { cashoutToast, toastVariant, clearCashoutToast } = useApp();
@@ -53,7 +69,6 @@ function MobileToast() {
 function MobileAppLayoutInner() {
   const {
     isLoggedIn,
-    userId,
     currentView,
     cardDetailOverlayOpen,
     addFundsModalOpen,
@@ -62,13 +77,9 @@ function MobileAppLayoutInner() {
     closeVaultShipping,
     markVaultItemPendingShipment,
   } = useApp();
+  const { user, isAuthenticated } = useAuth();
   const [guestSession, setGuestSession] = useState(false);
-
-  useEffect(() => {
-    if (userId) {
-      void configureRevenueCat(userId);
-    }
-  }, [userId]);
+  const [ageVerified, setAgeVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.add("capacitor-native");
@@ -76,6 +87,40 @@ function MobileAppLayoutInner() {
       document.documentElement.classList.remove("capacitor-native");
     };
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn || !isAuthenticated || !user?.id) {
+      setAgeVerified(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const profile = await fetchComplianceProfile(user.id);
+      if (cancelled) return;
+
+      if (profile?.isAgeVerified) {
+        setAgeVerified(true);
+        return;
+      }
+
+      const pendingDob = user.user_metadata?.pending_date_of_birth;
+      if (typeof pendingDob === "string" && pendingDob.trim()) {
+        const { error } = await setAgeVerification(pendingDob.trim());
+        if (!error) {
+          setAgeVerified(true);
+          return;
+        }
+      }
+
+      setAgeVerified(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isLoggedIn, user?.id, user?.user_metadata?.pending_date_of_birth]);
 
   const showSignIn = !isLoggedIn && !guestSession;
   const immersive =
@@ -87,16 +132,34 @@ function MobileAppLayoutInner() {
 
   if (showSignIn) {
     return (
-      <div className="fixed inset-0 overflow-hidden bg-black">
-        <AgeGate />
-        <MobileSignInScreen onGuestContinue={() => setGuestSession(true)} />
-        <AuthModal />
-      </div>
+      <>
+        <NativeSafeAreaTopCover />
+        <div className="fixed inset-0 overflow-hidden" style={{ background: APP_SHELL_BG }}>
+          <AgeGate />
+          <MobileSignInScreen onGuestContinue={() => setGuestSession(true)} />
+          <AuthModal />
+        </div>
+      </>
+    );
+  }
+
+  if (isLoggedIn && ageVerified === false) {
+    return (
+      <>
+        <NativeSafeAreaTopCover />
+        <DobCollectionScreen onVerified={() => setAgeVerified(true)} />
+      </>
     );
   }
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-black text-white" data-shell="mobile">
+    <>
+      <NativeSafeAreaTopCover />
+      <div
+        className="fixed inset-0 overflow-hidden text-white"
+        style={{ background: APP_SHELL_BG }}
+        data-shell="mobile"
+      >
       <AgeGate />
       <main
         className="relative h-full min-h-0 overflow-hidden"
@@ -112,11 +175,11 @@ function MobileAppLayoutInner() {
       {showDock ? <MobileFloatingDock /> : null}
       <MobileToast />
 
-      {!isAppStoreCommerce() ? <PurchaseModal /> : null}
-      {!isAppStoreCommerce() ? <WalletModal /> : null}
-      {!isAppStoreCommerce() ? <DepositModal /> : null}
+      <PurchaseModal />
+      <WalletModal />
+      <DepositModal />
       <AuthModal />
-      {!isAppStoreCommerce() ? <GemBalanceDepositNotifier /> : null}
+      <GemBalanceDepositNotifier />
 
       {shippingVaultItem ? (
         <VaultReleaseModal
@@ -132,7 +195,8 @@ function MobileAppLayoutInner() {
           })}
         />
       ) : null}
-    </div>
+      </div>
+    </>
   );
 }
 

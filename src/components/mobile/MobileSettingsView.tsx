@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { Browser } from "@capacitor/browser";
-import { Capacitor } from "@capacitor/core";
 import { useApp } from "../../context/AppContext";
 import type { FooterPageSlug } from "../../constants/footerContent";
 import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { AutoSellPolicySheet } from "./settings/AutoSellPolicySheet";
 import { InfoSheet } from "./settings/InfoSheet";
+import { SupportTicketSheet } from "./settings/SupportTicketSheet";
 import { ChevronLeft } from "../icons/AppIcons";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 
@@ -22,17 +21,10 @@ const LINK_ROWS: { label: string; slug?: FooterPageSlug; action?: "login" | "aut
 const APP_VERSION = import.meta.env.VITE_APP_VERSION ?? "1.26.0";
 const BUILD_NUMBER = import.meta.env.VITE_BUILD_NUMBER ?? "199";
 
-async function openExternalUrl(url: string) {
-  if (Capacitor.isNativePlatform()) {
-    await Browser.open({ url });
-  } else {
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
-}
-
 export function MobileSettingsView() {
   const { navigateToView, openAuthModal, isLoggedIn } = useApp();
   const [autoSellSheetOpen, setAutoSellSheetOpen] = useState(false);
+  const [supportSheetOpen, setSupportSheetOpen] = useState(false);
   const [infoSheetKey, setInfoSheetKey] = useState<FooterPageSlug | null>(null);
 
   return (
@@ -59,7 +51,10 @@ export function MobileSettingsView() {
         <div className="mt-6 flex flex-col gap-3">
           <button
             type="button"
-            onClick={() => void openExternalUrl("mailto:support@winrips.com")}
+            onClick={() => {
+              void hapticTabSelect();
+              setSupportSheetOpen(true);
+            }}
             className="rounded-2xl bg-[var(--rip-surface)] p-5 text-left"
           >
             <p className="text-[20px] font-semibold text-[var(--rip-green-bright)]">Customer Support</p>
@@ -122,6 +117,10 @@ export function MobileSettingsView() {
       <AutoSellPolicySheet
         open={autoSellSheetOpen}
         onClose={() => setAutoSellSheetOpen(false)}
+      />
+      <SupportTicketSheet
+        open={supportSheetOpen}
+        onClose={() => setSupportSheetOpen(false)}
       />
       <InfoSheet
         open={infoSheetKey !== null}

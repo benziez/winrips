@@ -56,6 +56,14 @@ export interface VaultItemInsert {
   created_at?: string;
 }
 
+export interface SupportTicketInsert {
+  user_id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+}
+
 export interface Database {
   public: {
     Tables: {
@@ -71,6 +79,31 @@ export interface Database {
         Update: Partial<PlayHistoryInsert>;
         Relationships: [];
       };
+      support_tickets: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          email: string;
+          subject: string;
+          message: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          name: string;
+          email: string;
+          subject: string;
+          message: string;
+        };
+        Update: Partial<{
+          name: string;
+          email: string;
+          subject: string;
+          message: string;
+        }>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
@@ -79,6 +112,16 @@ export interface Database {
           stripe_connect_account_id?: string | null;
           username: string | null;
           is_admin?: boolean | null;
+          date_of_birth?: string | null;
+          is_age_verified?: boolean | null;
+          kyc_verified?: boolean | null;
+          kyc_verification_session_id?: string | null;
+          total_withdrawn_ytd?: number | null;
+          withdrawn_ytd_year?: number | null;
+          tax_info_collected?: boolean | null;
+          tax_name?: string | null;
+          tax_address?: string | null;
+          tax_ssn_last4?: string | null;
         };
         Insert: Record<string, unknown>;
         Update: Record<string, unknown>;
@@ -150,6 +193,15 @@ export interface Database {
         };
         Returns: Json;
       };
+      open_pack: {
+        Args: {
+          p_user_id: string;
+          p_pack_id: string;
+          p_quantity?: number;
+          p_spin_cost?: number;
+        };
+        Returns: Json;
+      };
       process_shipping_request: {
         Args: {
           param_item_id: string;
@@ -197,6 +249,20 @@ export interface Database {
       resolve_battle: {
         Args: {
           p_battle_id: string;
+        };
+        Returns: Json;
+      };
+      set_age_verification: {
+        Args: {
+          p_date_of_birth: string;
+        };
+        Returns: Json;
+      };
+      submit_tax_info: {
+        Args: {
+          p_tax_name: string;
+          p_tax_address: string;
+          p_tax_ssn_last4: string;
         };
         Returns: Json;
       };

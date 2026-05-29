@@ -3,13 +3,16 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Browser } from "@capacitor/browser";
 import { formatUsd, gemsToUsd } from "../../../constants/retail";
 import { useApp } from "../../../context/AppContext";
+import { TAX_THRESHOLD_CENTS } from "../../../lib/complianceProfile";
 import {
   createStripeConnectAccount,
+  createStripeKycSession,
   createStripeOnboardingLink,
   fetchStripeConnectStatus,
   submitStripeWithdrawal,
   type StripeConnectStatus,
 } from "../../../lib/stripeWithdrawApi";
+import { TaxInfoForm } from "../../compliance/TaxInfoForm";
 import { BackspaceIcon, XIcon } from "../../icons/AppIcons";
 import { RIP_SHEET_SPRING } from "../rip/ripMotion";
 import {
@@ -21,6 +24,8 @@ import {
 const MIN_WITHDRAWAL_USD = 5;
 const WEEKLY_CAP_USD = 250;
 
+type WithdrawGate = "kyc" | "kyc_pending" | "tax" | "setup" | "withdraw";
+
 interface WithdrawModalProps {
   open: boolean;
   onClose: () => void;
@@ -28,6 +33,24 @@ interface WithdrawModalProps {
 
 function centsToUsd(cents: number): number {
   return cents / 100;
+}
+
+function resolveWithdrawGate(status: StripeConnectStatus | null): WithdrawGate {
+  if (!status) return "setup";
+
+  if (!status.kycVerified) {
+    return status.kycVerificationSessionId ? "kyc_pending" : "kyc";
+  }
+
+  if (status.totalWithdrawnYtdCents >= TAX_THRESHOLD_CENTS && !status.taxInfoCollected) {
+    return "tax";
+  }
+
+  if (!status.payoutsEnabled) {
+    return "setup";
+  }
+
+  return "withdraw";
 }
 
 export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
@@ -45,6 +68,7 @@ export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
   const [connectStatus, setConnectStatus] = useState<StripeConnectStatus | null>(null);
+  const [taxSubmittedMessage, setTaxSubmittedMessage] = useState<string | null>(null);
 
   const amountUsd = Number.parseInt(amountDigits, 10) || 0;
   const displayAmount = formatUsd(amountUsd);
@@ -54,7 +78,8 @@ export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
   const withdrawableUsd = gemsToUsd(withdrawableGems);
   const weeklyRemainingUsd = centsToUsd(connectStatus?.weeklyRemainingCents ?? WEEKLY_CAP_USD * 100);
   const maxWithdrawUsd = Math.min(withdrawableUsd, weeklyRemainingUsd);
-  const canWithdraw = Boolean(connectStatus?.payoutsEnabled);
+  const gate = resolveWithdrawGate(connectStatus);
+  const canWithdraw = gate === "withdraw";
   const belowMinimum = withdrawableUsd < MIN_WITHDRAWAL_USD;
 
   useEffect(() => {
@@ -80,6 +105,7 @@ export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
 
   useEffect(() => {
     if (!open) return;
+    setTaxSubmittedMessage(null);
     void refreshStatus();
   }, [open, refreshStatus]);
 
@@ -118,6 +144,30 @@ export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
       return prev.slice(0, -1);
     });
   }, [isProcessing]);
+
+  const handleStartKyc = useCallback(async () => {
+    if (isProcessing || !userId) return;
+    void hapticMediumImpact();
+    setIsProcessing(true);
+
+    try {
+      const session = await createStripeKycSession();
+      if (session.alreadyVerified) {
+        await refreshStatus();
+        return;
+      }
+      if (session.url) {
+        await Browser.open({ url: session.url });
+      }
+      await refreshStatus();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Identity verification failed to start.";
+      showErrorToast(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [isProcessing, refreshStatus, showErrorToast, userId]);
 
   const handleSetupWithdrawals = useCallback(async () => {
     if (isProcessing || !userId) return;
@@ -179,6 +229,206 @@ export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
     showErrorToast,
   ]);
 
+  function renderGateBody() {
+    if (gate === "kyc") {
+      return (
+        <div className="mt-8 flex flex-1 flex-col items-center text-center">
+          <h2 className="text-2xl font-bold text-white">Verify your identity</h2>
+          <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-[var(--rip-text-muted)]">
+            Before your first withdrawal, confirm your identity with a government ID and selfie.
+            Stripe hosts this securely — we never store your ID images.
+          </p>
+        </div>
+      );
+    }
+
+    if (gate === "kyc_pending") {
+      return (
+        <div className="mt-8 flex flex-1 flex-col items-center text-center">
+          <h2 className="text-2xl font-bold text-white">Verification in progress</h2>
+          <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-[var(--rip-text-muted)]">
+            Stripe is reviewing your documents. This usually completes within 24 hours. Withdrawals
+            unlock automatically once verified.
+          </p>
+        </div>
+      );
+    }
+
+    if (gate === "tax") {
+      return (
+        <div className="mt-4 flex flex-1 flex-col items-center overflow-y-auto text-center">
+          <h2 className="text-2xl font-bold text-white">Tax information required</h2>
+          <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-[var(--rip-text-muted)]">
+            You&apos;ve withdrawn {formatUsd(TAX_THRESHOLD_CENTS / 100)} or more this year. U.S. tax
+            reporting requires your W-9 details before additional withdrawals.
+          </p>
+          {taxSubmittedMessage ? (
+            <p className="mt-6 text-sm text-[var(--rip-green-bright)]">{taxSubmittedMessage}</p>
+          ) : (
+            <TaxInfoForm
+              onSubmitted={() => {
+                setTaxSubmittedMessage(
+                  "Thanks — we'll send you a 1099 form at year end.",
+                );
+                void refreshStatus();
+              }}
+              onError={(message) => showErrorToast(message)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    if (gate === "setup") {
+      return (
+        <div className="mt-8 flex flex-1 flex-col items-center text-center">
+          <h2 className="text-2xl font-bold text-white">Set up withdrawals</h2>
+          <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-[var(--rip-text-muted)]">
+            Connect your bank through Stripe to cash out sale proceeds. Deposited funds stay
+            in-app for packs.
+          </p>
+          {belowMinimum ? (
+            <p className="mt-4 text-[14px] text-[var(--rip-text-muted)]">
+              You need at least {formatUsd(MIN_WITHDRAWAL_USD)} in withdrawable balance.
+            </p>
+          ) : null}
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <p
+          className={`mt-4 text-center text-[64px] font-bold leading-none tabular-nums ${
+            touched ? "text-[var(--rip-text-primary)]" : "text-[var(--rip-text-subtle)]"
+          }`}
+        >
+          {displayAmount}
+        </p>
+        <p className="mt-3 text-center text-[15px] text-[var(--rip-text-muted)]">
+          {formatUsd(withdrawableUsd)} available to withdraw
+        </p>
+        <p className="mt-1 text-center text-[14px] text-[var(--rip-text-muted)]">
+          {formatUsd(weeklyRemainingUsd)} of {formatUsd(WEEKLY_CAP_USD)} weekly limit remaining
+        </p>
+
+        <div className="mt-8 grid flex-1 grid-cols-3 gap-y-2">
+          {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
+            <button
+              key={digit}
+              type="button"
+              onClick={() => {
+                void hapticTabSelect();
+                appendDigit(digit);
+              }}
+              disabled={isProcessing || belowMinimum}
+              className="py-4 text-[32px] font-semibold text-white active:opacity-60 disabled:opacity-40"
+            >
+              {digit}
+            </button>
+          ))}
+          <span aria-hidden />
+          <button
+            type="button"
+            onClick={() => {
+              void hapticTabSelect();
+              appendDigit("0");
+            }}
+            disabled={isProcessing || belowMinimum}
+            className="py-4 text-[32px] font-semibold text-white active:opacity-60 disabled:opacity-40"
+          >
+            0
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void hapticTabSelect();
+              backspace();
+            }}
+            disabled={isProcessing || belowMinimum}
+            className="flex items-center justify-center py-4 text-white active:opacity-60 disabled:opacity-40"
+            aria-label="Backspace"
+          >
+            <BackspaceIcon size={28} />
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  function renderPrimaryAction() {
+    if (gate === "kyc") {
+      return (
+        <button
+          type="button"
+          onClick={() => void handleStartKyc()}
+          disabled={isProcessing}
+          className="flex h-16 w-full items-center justify-center rounded-full bg-[var(--rip-green)] text-[17px] font-semibold text-white disabled:opacity-50"
+        >
+          {isProcessing ? "Opening…" : "Start verification"}
+        </button>
+      );
+    }
+
+    if (gate === "kyc_pending") {
+      return (
+        <button
+          type="button"
+          onClick={() => void handleStartKyc()}
+          disabled={isProcessing}
+          className="flex h-16 w-full items-center justify-center rounded-full bg-[var(--rip-surface)] text-[17px] font-semibold text-white disabled:opacity-50"
+        >
+          {isProcessing ? "Opening…" : "Retry verification"}
+        </button>
+      );
+    }
+
+    if (gate === "tax" && taxSubmittedMessage) {
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            void hapticTabSelect();
+            onClose();
+          }}
+          className="flex h-16 w-full items-center justify-center rounded-full bg-[var(--rip-green)] text-[17px] font-semibold text-white"
+        >
+          Done
+        </button>
+      );
+    }
+
+    if (gate === "tax") {
+      return null;
+    }
+
+    if (gate === "setup") {
+      return (
+        <button
+          type="button"
+          onClick={() => void handleSetupWithdrawals()}
+          disabled={isProcessing || belowMinimum}
+          className="flex h-16 w-full items-center justify-center rounded-full bg-[var(--rip-green)] text-[17px] font-semibold text-white disabled:opacity-50"
+        >
+          {isProcessing ? "Opening…" : "Set up withdrawals"}
+        </button>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => void handleWithdraw()}
+        disabled={
+          isProcessing || belowMinimum || amountUsd < MIN_WITHDRAWAL_USD || amountUsd > maxWithdrawUsd
+        }
+        className="flex h-16 w-full items-center justify-center rounded-full bg-[var(--rip-green)] text-[17px] font-semibold text-white disabled:opacity-50"
+      >
+        {isProcessing ? "Processing…" : `Withdraw ${displayAmount}`}
+      </button>
+    );
+  }
+
   return (
     <AnimatePresence>
       {open ? (
@@ -213,106 +463,13 @@ export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
             </button>
           </header>
 
-          <div className="flex flex-1 flex-col px-6">
-            {!canWithdraw ? (
-              <div className="mt-8 flex flex-1 flex-col items-center text-center">
-                <h2 className="text-2xl font-bold text-white">Set up withdrawals</h2>
-                <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-[var(--rip-text-muted)]">
-                  Connect your bank through Stripe to cash out sale proceeds. Deposited funds stay
-                  in-app for packs.
-                </p>
-                {belowMinimum ? (
-                  <p className="mt-4 text-[14px] text-[var(--rip-text-muted)]">
-                    You need at least {formatUsd(MIN_WITHDRAWAL_USD)} in withdrawable balance.
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <>
-                <p
-                  className={`mt-4 text-center text-[64px] font-bold leading-none tabular-nums ${
-                    touched ? "text-[var(--rip-text-primary)]" : "text-[var(--rip-text-subtle)]"
-                  }`}
-                >
-                  {displayAmount}
-                </p>
-                <p className="mt-3 text-center text-[15px] text-[var(--rip-text-muted)]">
-                  {formatUsd(withdrawableUsd)} available to withdraw
-                </p>
-                <p className="mt-1 text-center text-[14px] text-[var(--rip-text-muted)]">
-                  {formatUsd(weeklyRemainingUsd)} of {formatUsd(WEEKLY_CAP_USD)} weekly limit
-                  remaining
-                </p>
-
-                <div className="mt-8 grid flex-1 grid-cols-3 gap-y-2">
-                  {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
-                    <button
-                      key={digit}
-                      type="button"
-                      onClick={() => {
-                        void hapticTabSelect();
-                        appendDigit(digit);
-                      }}
-                      disabled={isProcessing || belowMinimum}
-                      className="py-4 text-[32px] font-semibold text-white active:opacity-60 disabled:opacity-40"
-                    >
-                      {digit}
-                    </button>
-                  ))}
-                  <span aria-hidden />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void hapticTabSelect();
-                      appendDigit("0");
-                    }}
-                    disabled={isProcessing || belowMinimum}
-                    className="py-4 text-[32px] font-semibold text-white active:opacity-60 disabled:opacity-40"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void hapticTabSelect();
-                      backspace();
-                    }}
-                    disabled={isProcessing || belowMinimum}
-                    className="flex items-center justify-center py-4 text-white active:opacity-60 disabled:opacity-40"
-                    aria-label="Backspace"
-                  >
-                    <BackspaceIcon size={28} />
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <div className="flex flex-1 flex-col px-6">{renderGateBody()}</div>
 
           <div
             className="shrink-0 px-6 pb-6"
             style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
           >
-            {!canWithdraw ? (
-              <button
-                type="button"
-                onClick={() => void handleSetupWithdrawals()}
-                disabled={isProcessing || belowMinimum}
-                className="flex h-16 w-full items-center justify-center rounded-full bg-[var(--rip-green)] text-[17px] font-semibold text-white disabled:opacity-50"
-              >
-                {isProcessing ? "Opening…" : "Set up withdrawals"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleWithdraw()}
-                disabled={
-                  isProcessing || belowMinimum || amountUsd < MIN_WITHDRAWAL_USD || amountUsd > maxWithdrawUsd
-                }
-                className="flex h-16 w-full items-center justify-center rounded-full bg-[var(--rip-green)] text-[17px] font-semibold text-white disabled:opacity-50"
-              >
-                {isProcessing ? "Processing…" : `Withdraw ${displayAmount}`}
-              </button>
-            )}
+            {renderPrimaryAction()}
           </div>
         </motion.div>
       ) : null}

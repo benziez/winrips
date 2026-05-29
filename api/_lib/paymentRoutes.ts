@@ -8,11 +8,11 @@ import {
   handleVaultInventoryMutateRoute,
 } from "./vaultInventory.js";
 import { handleFairnessSessionRoute } from "./fairnessSessionHttp.js";
-import { handleIapFulfillRoute } from "./iapFulfill.js";
 import {
   handleStripeCreatePaymentIntentRoute,
   handleStripeWebhookRoute,
 } from "./stripeDeposit.js";
+import { handleStripeKycSessionRoute } from "./stripeKyc.js";
 import {
   handleStripeConnectStatusRoute,
   handleStripeCreateConnectAccountRoute,
@@ -28,10 +28,10 @@ export async function handlePaymentHttp(
   if (await handleStripeCreatePaymentIntentRoute(req, res)) return true;
   if (await handleStripeWebhookRoute(req, res)) return true;
   if (await handleStripeConnectStatusRoute(req, res)) return true;
+  if (await handleStripeKycSessionRoute(req, res)) return true;
   if (await handleStripeCreateConnectAccountRoute(req, res)) return true;
   if (await handleStripeCreateOnboardingLinkRoute(req, res)) return true;
   if (await handleStripeWithdrawRoute(req, res)) return true;
-  if (await handleIapFulfillRoute(req, res)) return true;
   if (await handleFairnessSessionRoute(req, res)) return true;
   if (await handlePaymentsWebhookRoute(req, res)) return true;
   if (await handleDevSetBalanceRoute(req, res)) return true;

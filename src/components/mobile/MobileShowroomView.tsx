@@ -14,6 +14,10 @@ import { CardDetailOverlay } from "./rip/CardDetailOverlay";
 import { CollectibleImage } from "../ui/CollectibleImage";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 
+// Single-category app for now — keep the selector code but hide it (re-enable when
+// more categories ship). Mirrors the flag used on MobileRipLobby.
+const SHOW_CATEGORY_SELECTOR = false;
+
 function ShowroomPullTile({ card, onSelect }: { card: Card; onSelect: () => void }) {
   return (
     <button
@@ -62,10 +66,14 @@ export function MobileShowroomView() {
   return (
     <RipAmbientShell>
       <header
-        className="flex shrink-0 items-center justify-between px-6 pb-3"
+        className={`flex shrink-0 items-center px-6 pb-3 ${
+          SHOW_CATEGORY_SELECTOR ? "justify-between" : "justify-end"
+        }`}
         style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
       >
-        <CategorySelector onPress={() => setCategoryOpen(true)} />
+        {SHOW_CATEGORY_SELECTOR ? (
+          <CategorySelector onPress={() => setCategoryOpen(true)} />
+        ) : null}
         <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
       </header>
 

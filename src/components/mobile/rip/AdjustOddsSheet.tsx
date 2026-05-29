@@ -4,6 +4,8 @@ import type { OddsMode } from "./adjustOdds";
 import { ODDS_MODE_OPTIONS } from "./adjustOdds";
 import { RipBottomSheet } from "./RipBottomSheet";
 import { PackSlabMark } from "./PackSlabMark";
+import { CollectibleImage } from "../../ui/CollectibleImage";
+import { formatUsd, gemsToUsd } from "../../../constants/retail";
 import { formatPackMinUsd, formatPackMaxUsd } from "../../../utils/packValueRange";
 import {
   formatTierProbability,
@@ -16,16 +18,28 @@ interface AdjustOddsSheetProps {
   pack: Pack | null;
   open: boolean;
   onClose: () => void;
-  selected: OddsMode;
-  onSelect: (mode: OddsMode) => void;
+  selected?: OddsMode;
+  onSelect?: (mode: OddsMode) => void;
+  /** Hide the volatility selector + Apply when this is a display-only odds sheet. */
+  showVolatility?: boolean;
+  /** Probability-weighted expected pull value, preformatted as USD. */
+  expectedValueUsd?: string;
+  /** Stacking context — must exceed the host view's z-index to render above it. */
+  zIndex?: number;
+  /** Most valuable pullable card — shown as the hero of the sheet. value is gems. */
+  topHit?: { name: string; value: number; image: string };
 }
 
 export function AdjustOddsSheet({
   pack,
   open,
   onClose,
-  selected,
+  selected = "normal",
   onSelect,
+  showVolatility = true,
+  expectedValueUsd,
+  zIndex,
+  topHit,
 }: AdjustOddsSheetProps) {
   const [draftMode, setDraftMode] = useState<OddsMode>(selected);
 
@@ -45,6 +59,7 @@ export function AdjustOddsSheet({
     <RipBottomSheet
       open={open}
       onClose={onClose}
+      zIndex={zIndex}
       heightClass="h-[min(92dvh,820px)]"
       showClose={false}
       className="rip-ambient-bg !bg-transparent"
@@ -74,33 +89,66 @@ export function AdjustOddsSheet({
           </button>
         </div>
 
-        <div className="mt-6">
-          <p className="mb-3 text-center text-[13px] text-[var(--rip-text-muted)]">
-            Choose your volatility level
-          </p>
-          <div className="flex justify-center gap-2">
-            {ODDS_MODE_OPTIONS.map((option) => {
-              const isSelected = draftMode === option.id;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => {
-                    void hapticTabSelect();
-                    setDraftMode(option.id);
-                  }}
-                  className={`rounded-full border px-5 py-2 text-[15px] font-semibold transition-colors ${
-                    isSelected
-                      ? "border-[var(--rip-border-strong)] bg-[var(--rip-surface-strong)] text-white"
-                      : "border-[var(--rip-border)] bg-transparent text-[var(--rip-text-muted)]"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
+        {topHit ? (
+          <div className="mt-6 flex flex-col items-center rounded-2xl border border-[var(--rip-border)] bg-[var(--rip-surface)] px-4 py-6">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--rip-text-muted)]">
+              Top Hit
+            </p>
+            <div className="mt-3 h-44 w-full">
+              <CollectibleImage
+                src={topHit.image}
+                alt={topHit.name}
+                className="mx-auto h-full w-auto object-contain"
+                priority
+              />
+            </div>
+            <p className="mt-3 text-center text-[17px] font-semibold text-white">{topHit.name}</p>
+            <p className="rip-glow-price-green mt-1 text-[28px] font-bold tabular-nums text-[var(--rip-green-bright)]">
+              {formatUsd(gemsToUsd(topHit.value))}
+            </p>
           </div>
-        </div>
+        ) : null}
+
+        {expectedValueUsd ? (
+          <div className="mt-6 flex items-center justify-between rounded-2xl border border-[var(--rip-border)] bg-[var(--rip-surface)] px-4 py-3.5">
+            <span className="text-[15px] font-medium text-[var(--rip-text-muted)]">
+              Expected value
+            </span>
+            <span className="text-[22px] font-bold text-[var(--rip-green-bright)]">
+              {expectedValueUsd}
+            </span>
+          </div>
+        ) : null}
+
+        {showVolatility ? (
+          <div className="mt-6">
+            <p className="mb-3 text-center text-[13px] text-[var(--rip-text-muted)]">
+              Choose your volatility level
+            </p>
+            <div className="flex justify-center gap-2">
+              {ODDS_MODE_OPTIONS.map((option) => {
+                const isSelected = draftMode === option.id;
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      void hapticTabSelect();
+                      setDraftMode(option.id);
+                    }}
+                    className={`rounded-full border px-5 py-2 text-[15px] font-semibold transition-colors ${
+                      isSelected
+                        ? "border-[var(--rip-border-strong)] bg-[var(--rip-surface-strong)] text-white"
+                        : "border-[var(--rip-border)] bg-transparent text-[var(--rip-text-muted)]"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         <div className="relative mt-8 border-l border-[var(--rip-border)] pl-4">
           {tierRows.map((row) => {
@@ -155,8 +203,8 @@ export function AdjustOddsSheet({
         </div>
 
         <p className="mt-6 text-[13px] leading-relaxed text-[var(--rip-text-muted)]">
-          All collectibles are backed by our buyback guarantee at{" "}
-          <strong className="font-bold text-white">100%</strong> of Fair Market Value (FMV). Odds
+          All collectibles are backed by our buyback guarantee — sell any card back at{" "}
+          <strong className="font-bold text-white">85%</strong> of Fair Market Value (FMV). Odds
           are calculated in real time at the time of purchase and subject to change from the above.
         </p>
 
@@ -164,12 +212,12 @@ export function AdjustOddsSheet({
           type="button"
           onClick={() => {
             void hapticTabSelect();
-            onSelect(draftMode);
+            if (showVolatility) onSelect?.(draftMode);
             onClose();
           }}
           className="mt-6 flex h-14 w-full items-center justify-center rounded-full bg-[var(--rip-orange)] text-[17px] font-semibold text-white active:scale-[0.97] active:bg-[var(--rip-orange-pressed)]"
         >
-          Apply
+          {showVolatility ? "Apply" : "Done"}
         </button>
       </div>
     </RipBottomSheet>

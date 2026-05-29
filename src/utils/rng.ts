@@ -84,6 +84,11 @@ export function snapshotCard(card: Card): Card {
 export interface PackPullEntry {
   itemId: string;
   rolledNumber: number;
+  /** Authoritative fields from open_pack — preferred for carousel/reveal when set. */
+  serverItemName?: string;
+  serverImageUrl?: string;
+  serverGemValue?: number;
+  serverStoreRarity?: string;
 }
 
 function findStoreItemInStaticCatalog(packId: string, itemId: string): StoreItem | undefined {
@@ -104,6 +109,26 @@ function unknownCardFallback(itemId: string): Card {
     value: 0,
     image: "",
   };
+}
+
+/** Prefer server open_pack fields when present; fall back to local catalog lookup. */
+export function cardFromPullEntry(packId: string, entry: PackPullEntry): Card {
+  const catalog = resolveCardByItemId(packId, entry.itemId);
+  const serverName = entry.serverItemName?.trim();
+  const serverImage = entry.serverImageUrl?.trim();
+  const serverValue = entry.serverGemValue;
+
+  if (!serverName && !serverImage && serverValue == null) {
+    return catalog;
+  }
+
+  return snapshotCard({
+    id: entry.itemId,
+    name: serverName || catalog.name,
+    rarity: catalog.rarity,
+    value: serverValue ?? catalog.value,
+    image: serverImage || catalog.image,
+  });
 }
 
 /**
@@ -145,9 +170,17 @@ export function resolveCardByItemId(packId: string, itemId: string): Card {
 
 /**
  * Bind roll output to a single catalog row so name, image, and value cannot drift.
+ * Preserves authoritative name/image/value already on the winner card (e.g. server open_pack).
  */
 export function resolveWinnerItem(packId: string, rolled: Card): Card {
-  return resolveCardByItemId(packId, rolled.id);
+  const catalog = resolveCardByItemId(packId, rolled.id);
+  return snapshotCard({
+    id: rolled.id,
+    name: rolled.name.trim() || catalog.name,
+    rarity: catalog.rarity,
+    value: rolled.value > 0 ? rolled.value : catalog.value,
+    image: rolled.image.trim() || catalog.image,
+  });
 }
 
 export function rollCardForPackWithRoll(packId: string): PackRollResult {
@@ -260,7 +293,7 @@ export function buildCarouselStrip(
   const pack = findPackById(packId);
   const categoryFallback = cardPoolForCategory(pack?.category ?? "pokemon");
 
-  const winnerItem = resolveCardByItemId(packId, winner.id);
+  const winnerItem = resolveWinnerItem(packId, winner);
   const strip: Card[] = new Array(length);
 
   for (let i = 0; i < length; i++) {
@@ -334,7 +367,7 @@ export function buildFullDropTableStrip(
   length: number = ROULETTE_TAPE_LENGTH,
   winnerIndex: number = ROULETTE_WINNER_INDEX,
 ): CarouselStripResult {
-  const winnerItem = resolveCardByItemId(packId, winner.id);
+  const winnerItem = resolveWinnerItem(packId, winner);
   const dropTable = getPackDropTable(packId);
   const seen = new Set<string>();
   const pool: Card[] = [];

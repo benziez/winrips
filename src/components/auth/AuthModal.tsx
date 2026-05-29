@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
 import { AppleSignInButton } from "./AppleSignInButton";
-import { isAppStoreCommerce } from "../../constants/commerce";
+import { Capacitor } from "@capacitor/core";
+import { isNativeCapacitorApp } from "../../utils/platform";
+import { validateDateOfBirthInput } from "../../utils/ageVerification";
+import { setAgeVerification } from "../../lib/complianceProfile";
 
 export function AuthModal() {
   const {
@@ -18,6 +21,7 @@ export function AuthModal() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -32,6 +36,7 @@ export function AuthModal() {
       setUsername("");
       setEmail("");
       setPassword("");
+      setDateOfBirth("");
       setFormError(null);
       setSubmitting(false);
     }
@@ -62,14 +67,29 @@ export function AuthModal() {
         return;
       }
 
+      const dobError = validateDateOfBirthInput(dateOfBirth);
+      if (dobError) {
+        setFormError(dobError);
+        return;
+      }
+
       const { error, needsEmailConfirmation } = await signUpWithEmail(
         email,
         password,
         username,
+        dateOfBirth,
       );
       if (error) {
         setFormError(error);
         return;
+      }
+
+      if (!needsEmailConfirmation) {
+        const { error: ageError } = await setAgeVerification(dateOfBirth);
+        if (ageError) {
+          setFormError(ageError);
+          return;
+        }
       }
 
       if (needsEmailConfirmation) {
@@ -136,6 +156,26 @@ export function AuthModal() {
             </div>
           ) : null}
 
+          {!isLogin ? (
+            <div>
+              <label
+                htmlFor="auth-dob"
+                className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted"
+              >
+                Date of birth
+              </label>
+              <input
+                id="auth-dob"
+                type="date"
+                value={dateOfBirth}
+                onChange={(e) => setDateOfBirth(e.target.value)}
+                required
+                max={new Date().toISOString().slice(0, 10)}
+                className="w-full rounded-lg border border-border bg-obsidian px-4 py-2.5 text-sm text-white focus:border-fuchsia/50 focus:outline-none focus:ring-1 focus:ring-fuchsia/30"
+              />
+            </div>
+          ) : null}
+
           <div>
             <label
               htmlFor="auth-email"
@@ -196,7 +236,7 @@ export function AuthModal() {
         </div>
 
         <div className="space-y-2.5">
-          {isAppStoreCommerce() ? (
+          {isNativeCapacitorApp() && Capacitor.getPlatform() === "ios" ? (
             <AppleSignInButton
               className="rounded-lg py-2.5"
               onError={(message) => setFormError(message)}

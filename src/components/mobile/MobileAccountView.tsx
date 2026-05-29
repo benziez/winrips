@@ -15,6 +15,7 @@ import { AddFundsModal } from "./rip/AddFundsModal";
 import { WithdrawModal } from "./wallet/WithdrawModal";
 import { SettingsIcon, TrophyIcon, PacksIcon, ArrowRightIcon } from "../icons/AppIcons";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
+import { isFastModeEnabled, setFastModeEnabled } from "../../lib/mobileRipPreferences";
 import { GlassSurface } from "./GlassSurface";
 import { BTN_GHOST_OUTLINE, BTN_PRIMARY, MOBILE_COLORS } from "./mobileTheme";
 
@@ -132,6 +133,11 @@ export function MobileAccountView() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [packsOpened, setPacksOpened] = useState(0);
+  const [fastMode, setFastMode] = useState(false);
+
+  useEffect(() => {
+    setFastMode(isFastModeEnabled());
+  }, []);
 
   const displayUsername =
     profileUsername?.trim() ||
@@ -298,6 +304,44 @@ export function MobileAccountView() {
             </div>
             <p className="mt-3 text-xl font-bold text-white">{packsOpened}</p>
             <p className="mt-1 text-[15px] text-[var(--rip-text-muted)]">Packs Opened</p>
+          </div>
+        </div>
+
+        <div className="mx-4 mt-8">
+          <p className="px-1 pb-2 text-[13px] font-semibold uppercase tracking-wider text-[var(--rip-text-muted)]">
+            Preferences
+          </p>
+          <div className="flex items-center justify-between rounded-2xl bg-[var(--rip-surface)] p-4">
+            <div className="pr-3">
+              <p className="text-[16px] font-semibold text-white">Fast Mode</p>
+              <p className="mt-1 text-[14px] text-[var(--rip-text-muted)]">
+                Speeds up pack spins. The reveal still plays in full.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={fastMode}
+              aria-label="Fast Mode"
+              onClick={() => {
+                void hapticTabSelect();
+                setFastMode((prev) => {
+                  const next = !prev;
+                  setFastModeEnabled(next);
+                  return next;
+                });
+              }}
+              className="relative h-8 w-14 shrink-0 rounded-full border border-white/10 transition-colors"
+              style={{
+                backgroundColor: fastMode ? "var(--rip-orange)" : "rgba(255,255,255,0.08)",
+              }}
+            >
+              <span
+                className={`absolute left-1 top-1 h-6 w-6 rounded-full bg-white transition-transform ${
+                  fastMode ? "translate-x-6" : ""
+                }`}
+              />
+            </button>
           </div>
         </div>
 

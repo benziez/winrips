@@ -1,5 +1,5 @@
 import type { Rarity, VaultedCard } from "../types";
-import { deleteVaultItem, fetchVaultItems, insertVaultItem } from "./vaultItems";
+import { deleteVaultItem, fetchVaultItems } from "./vaultItems";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 import { apiUrl } from "../utils/apiBaseUrl";
 
@@ -118,14 +118,7 @@ export async function persistVaultAdd(
   authUserId: string,
   card: VaultedCard,
 ): Promise<VaultedCard[]> {
-  if (isSupabaseConfigured()) {
-    const inserted = await insertVaultItem(authUserId, card);
-    if (inserted) {
-      const items = await fetchVaultItems(authUserId);
-      return items.length > 0 ? items : [inserted];
-    }
-  }
-
+  // Pack pulls vault via open_pack RPC — no direct Supabase insert path.
   return mutateVaultInventory({
     userId: authUserId,
     action: "add",

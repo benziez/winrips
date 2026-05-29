@@ -83,14 +83,14 @@ export function MobileWhatsInsideDrawer({
           <motion.button
             type="button"
             aria-label="Dismiss"
-            className="fixed inset-0 z-[94] bg-black/70"
+            className="fixed inset-0 z-[110] bg-black/70"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
           />
           <motion.div
-            className="fixed inset-0 z-[95] flex flex-col overflow-hidden bg-black"
+            className="fixed inset-0 z-[111] flex flex-col overflow-hidden bg-black"
             role="dialog"
             aria-modal="true"
             initial={{ y: "100%" }}

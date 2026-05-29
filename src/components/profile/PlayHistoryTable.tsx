@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
-import { formatGems, formatUsd, gemsToUsd } from "../../constants/retail";
-import { isAppStoreCommerce } from "../../constants/commerce";
+import { formatGems } from "../../constants/retail";
 import { fetchPlayHistory, type PlayHistoryRow } from "../../lib/playHistory";
 import { isSupabaseConfigured } from "../../lib/supabaseClient";
 import { CollectibleImage } from "../ui/CollectibleImage";
@@ -29,9 +28,7 @@ function formatRollPercent(rolledNumber: number): string {
 }
 
 function formatHistoryAmount(gemAmount: number): string {
-  return isAppStoreCommerce()
-    ? formatUsd(gemsToUsd(gemAmount))
-    : formatGems(gemAmount);
+  return formatGems(gemAmount);
 }
 
 interface PlayHistoryTableProps {

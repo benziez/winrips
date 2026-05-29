@@ -1,10 +1,11 @@
 import type { Card } from "../../types";
 import { formatGems } from "../../constants/retail";
-import { CollectibleImage } from "../ui/CollectibleImage";
+import { CollectibleImage, CardBackPlaceholder } from "../ui/CollectibleImage";
 import { RarityBadge } from "../ui/RarityBadge";
+import { glowPaletteForCardRarity } from "../../utils/rarityGlowColors";
 
 function tierFrameClass(card: Card, highlighted?: boolean, compact?: boolean): string {
-  if (highlighted && compact) return "mobile-carousel-card--centered scale-105 z-10";
+  if (highlighted && compact) return "mobile-carousel-card--centered z-10";
   if (highlighted) return "glass-card--winner scale-105 z-10";
   if (compact) return "border border-[var(--rip-border)] bg-[var(--rip-surface)]";
   if (card.rarity === "Ancient Rare") return "glass-card tier-glow-grail hover:scale-[1.03]";
@@ -19,6 +20,8 @@ interface CarouselCardProps {
   dimmed?: boolean;
   /** Mobile spin: image + tiny name only — no price or badge. */
   compact?: boolean;
+  /** When false, render only the card-back placeholder (off-window strip tiles). */
+  showArt?: boolean;
 }
 
 export function CarouselCard({
@@ -27,12 +30,14 @@ export function CarouselCard({
   highlighted,
   dimmed,
   compact = false,
+  showArt = true,
 }: CarouselCardProps) {
+  const tintRgb = glowPaletteForCardRarity(card.rarity).rgb;
   return (
     <div
       style={{ width }}
-      className={`shrink-0 overflow-hidden rounded-lg transition-all duration-500 ease-out ${tierFrameClass(card, highlighted, compact)} ${
-        dimmed ? "scale-95 opacity-30" : "opacity-100"
+      className={`shrink-0 overflow-hidden rounded-lg transition-opacity duration-500 ease-out ${tierFrameClass(card, highlighted, compact)} ${
+        dimmed ? "opacity-35" : "opacity-100"
       }`}
     >
       <div
@@ -40,13 +45,18 @@ export function CarouselCard({
           compact ? "rounded-lg bg-[var(--rip-surface)] p-1.5" : "border-b border-border/60 bg-slate-elevated/30 p-2"
         }`}
       >
-        <CollectibleImage
-          src={card.image}
-          alt={card.name}
-          className="h-full w-full rounded-lg object-contain"
-          optimize={compact ? false : undefined}
-          priority={compact ? true : undefined}
-        />
+        {showArt ? (
+          <CollectibleImage
+            src={card.image}
+            alt={card.name}
+            className="h-full w-full rounded-lg object-contain"
+            optimize={compact ? false : undefined}
+            loading="lazy"
+            placeholderTintRgb={tintRgb}
+          />
+        ) : (
+          <CardBackPlaceholder tintRgb={tintRgb} className="h-full w-full" />
+        )}
       </div>
       {compact ? (
         <p className="truncate px-1 pt-1.5 text-[11px] text-[var(--rip-text-muted)]">{card.name}</p>

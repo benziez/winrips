@@ -1,6 +1,5 @@
 import type { VaultedCard } from "../../types";
 import { formatGems } from "../../constants/retail";
-import { isAppStoreCommerce } from "../../constants/commerce";
 import { RarityBadge } from "../ui/RarityBadge";
 import { CollectibleImage } from "../ui/CollectibleImage";
 import { Button } from "../ui/Button";
@@ -29,11 +28,9 @@ export function VaultCard({ card, onExchange }: VaultCardProps) {
           </h3>
           <RarityBadge rarity={card.rarity} />
         </div>
-        {!isAppStoreCommerce() ? (
-          <p className="text-[10px] font-semibold tabular-nums text-gold">
-            {formatGems(card.value)}
-          </p>
-        ) : null}
+        <p className="text-[10px] font-semibold tabular-nums text-gold">
+          {formatGems(card.value)}
+        </p>
         <p className="text-[10px] text-muted data-[shell=mobile]:text-[#A1A1AA]">
           Acquired {card.acquiredAt}
         </p>

@@ -20,11 +20,10 @@ import { MobileFloatingDock, MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock"
 import { GlassSurface } from "./GlassSurface";
 import { MOBILE_COLORS } from "./mobileTheme";
 import { shouldSuppressMobileGemToast } from "../../utils/mobileGemUi";
-import { MOBILE_HEADER_BG } from "./mobileShellTheme";
+import { APP_SHELL_BG, MOBILE_HEADER_BG } from "./mobileShellTheme";
 import type { AppView } from "../../types";
 
 const IMMERSIVE_VIEWS: AppView[] = ["pack-open", "settings"];
-const APP_SHELL_BG = "#0a0c10";
 
 /** Opaque strip over the Dynamic Island / status bar — blocks lobby gradient bleed. */
 function NativeSafeAreaTopCover() {

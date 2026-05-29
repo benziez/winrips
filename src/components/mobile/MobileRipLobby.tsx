@@ -207,14 +207,9 @@ export function MobileRipLobby() {
           {biggestPulls.length > 0 ? (
             <section className="space-y-3">
               <SectionHeader title="Biggest Pulls" />
-              <div className="rip-hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 pb-1">
-                {biggestPulls.map((tile, index) => (
-                  <div
-                    key={tile.key}
-                    className={`flex w-[30vw] shrink-0 snap-start flex-col${
-                      index === 0 ? " ml-4" : ""
-                    }${index === biggestPulls.length - 1 ? " mr-4" : ""}`}
-                  >
+              <div className="rip-hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden pl-4 pr-4 pb-1">
+                {biggestPulls.map((tile) => (
+                  <div key={tile.key} className="flex w-[30vw] shrink-0 snap-start flex-col">
                     <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-[var(--rip-surface)]">
                       <CollectibleImage
                         src={tile.image}

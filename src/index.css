@@ -24,7 +24,7 @@
   --ease-spin-heavy: cubic-bezier(0.08, 0.82, 0.17, 1);
 
   /* WinRips mobile design language (--rip-*) */
-  --rip-bg-primary: #000000;
+  --rip-bg-primary: #0d1117;
   --rip-bg-elevated: #14191d;
   --rip-bg-ambient-from: #0f2a2e;
   --rip-bg-ambient-to: transparent;
@@ -848,7 +848,7 @@ html.capacitor-native #root {
 html.capacitor-native,
 html.capacitor-native body,
 html.capacitor-native #root {
-  background-color: #000000;
+  background-color: #0d1117;
 }
 
 html.capacitor-native body {

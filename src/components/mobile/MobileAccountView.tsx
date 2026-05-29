@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { deleteAccount } from "../../lib/deleteAccountApi";
 import { clearLoggedIn } from "../../constants/userSession";
 import { fetchPlayHistory } from "../../lib/playHistory";
-import { AppleSignInButton } from "../auth/AppleSignInButton";
+import { MobileSignInPromptCard } from "./MobileSignInPromptCard";
 import { formatUsd, gemsToUsd } from "../../constants/retail";
 import { generatedHandleFromUserId } from "../../utils/generatedHandle";
 import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
@@ -118,7 +118,6 @@ export function MobileAccountView() {
     syncUserProfileFromServer,
     navigateToView,
     logout,
-    openAuthModal,
     showCashoutToast,
     showErrorToast,
     closeWalletModal,
@@ -206,25 +205,25 @@ export function MobileAccountView() {
   if (!isLoggedIn) {
     return (
       <RipAmbientShell>
+        <header
+          className="flex shrink-0 items-center justify-between px-6 pb-3"
+          style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
+        >
+          <h1 className="text-[28px] font-bold leading-tight text-white">Account</h1>
+          <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
+        </header>
+
         <div
-          className="flex flex-1 flex-col items-center justify-center px-6"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
           style={{ paddingBottom: MOBILE_DOCK_CLEARANCE }}
         >
-          <h1 className="text-3xl font-bold text-white">Account</h1>
-          <p className="mt-3 text-center text-[15px] text-[var(--rip-text-muted)]">
-            Sign in to save pulls, track stats, and cash out.
-          </p>
-          <div className="mt-8 w-full max-w-sm">
-            <AppleSignInButton />
-          </div>
-          <button
-            type="button"
-            onClick={() => openAuthModal("login")}
-            className="mt-4 text-[15px] font-medium text-[var(--rip-green-bright)]"
-          >
-            Sign in with email
-          </button>
+          <MobileSignInPromptCard
+            message="Sign in to save pulls, track stats, and cash out"
+            className="mt-2"
+          />
         </div>
+
+        <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
       </RipAmbientShell>
     );
   }

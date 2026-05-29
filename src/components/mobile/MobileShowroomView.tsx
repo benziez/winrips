@@ -27,18 +27,18 @@ function ShowroomPullTile({ card, onSelect }: { card: Card; onSelect: () => void
       onClick={onSelect}
       className="flex aspect-[3/4.2] w-52 shrink-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] text-left"
     >
-      <div className="relative min-h-0 flex-[0.65] p-3">
+      <div className="relative min-h-0 flex-[0.65] p-2">
         <CollectibleImage src={card.image} alt={card.name} className="h-full w-full object-contain" />
         <div
-          className="pointer-events-none absolute bottom-2 left-1/2 h-4 w-2/3 -translate-x-1/2 rounded-full bg-black/40 blur-md"
+          className="pointer-events-none absolute bottom-1 left-1/2 h-4 w-2/3 -translate-x-1/2 rounded-full bg-black/40 blur-md"
           aria-hidden
         />
       </div>
-      <div className="shrink-0 border-t border-[var(--rip-border)] px-3 py-3">
-        <p className="text-[16px] font-bold text-[var(--rip-green-bright)]">
+      <div className="shrink-0 border-t border-[var(--rip-border)] px-3 pb-2 pt-1">
+        <p className="truncate text-[13px] font-medium text-white">{card.name}</p>
+        <p className="mt-0.5 text-[16px] font-bold leading-none text-[var(--rip-green-bright)]">
           {formatUsd(gemsToUsd(card.value))}
         </p>
-        <p className="truncate text-[13px] font-medium text-white">{card.name}</p>
       </div>
     </button>
   );

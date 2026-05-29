@@ -10,6 +10,7 @@ import { CardDetailOverlay } from "./rip/CardDetailOverlay";
 import { PortfolioGraph } from "./collection/PortfolioGraph";
 import { ChevronDown, ChevronRight, GridViewIcon, ListViewIcon } from "../icons/AppIcons";
 import { CollectibleImage } from "../ui/CollectibleImage";
+import { MobileSignInPromptCard } from "./MobileSignInPromptCard";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 
 type ViewMode = "grid" | "list";
@@ -29,7 +30,7 @@ function EmptyCollectionIllustration() {
 }
 
 export function MobileCollectionView() {
-  const { vaultItems, vaultItemsLoading, isLoggedIn, openAuthModal } = useApp();
+  const { vaultItems, vaultItemsLoading, isLoggedIn } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortKey, setSortKey] = useState<SortKey>("price-desc");
   const [addFundsOpen, setAddFundsOpen] = useState(false);
@@ -57,26 +58,19 @@ export function MobileCollectionView() {
 
       {!isLoggedIn ? (
         <div
-          className="flex min-h-0 flex-1 flex-col items-center justify-center px-8 text-center"
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
           style={{ paddingBottom: MOBILE_DOCK_CLEARANCE }}
         >
-          <EmptyCollectionIllustration />
-          <p className="mt-8 text-[17px] font-semibold text-white">
-            Log in or create an account to start your collection
-          </p>
-          <p className="mt-2 text-[14px] leading-relaxed text-[var(--rip-text-muted)]">
-            Sign in to open packs, vault real cards, and track their value.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              void hapticTabSelect();
-              openAuthModal("login");
-            }}
-            className="mt-8 flex h-12 w-full max-w-xs items-center justify-center rounded-full bg-[var(--rip-orange)] text-[16px] font-bold text-white transition-transform active:scale-[0.98] active:bg-[var(--rip-orange-pressed)]"
-          >
-            Sign in / Get started
-          </button>
+          <MobileSignInPromptCard
+            message="Sign in to view your collection"
+            className="mt-4"
+          />
+          <div className="flex flex-col items-center justify-center px-8 pt-12 text-center">
+            <EmptyCollectionIllustration />
+            <p className="mt-6 text-[15px] text-[var(--rip-text-muted)]">
+              Open packs and vault real cards after you sign in.
+            </p>
+          </div>
         </div>
       ) : (
       <div

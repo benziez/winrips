@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Card, VaultedCard } from "../../../types";
-import { canShipCardValue, formatUsd, gemsToUsd } from "../../../constants/retail";
+import {
+  canShipCardValue,
+  exchangeCreditGems,
+  formatUsd,
+  gemsToUsd,
+} from "../../../constants/retail";
 import { useFallbackImageSrc, IMAGE_PLACEHOLDER } from "../../../hooks/useFallbackImageSrc";
 import { resolveAssetUrl, isRenderableAssetUrl } from "../../../utils/resolveAssetUrl";
 import { CARD_PLACEHOLDER_IMAGE } from "../../../constants/cardAssets";
@@ -11,6 +16,10 @@ import { RipBottomSheet } from "./RipBottomSheet";
 import { ShipCardSheet } from "../vault/ShipCardSheet";
 import { useApp } from "../../../context/AppContext";
 import { hapticTabSelect } from "../../../utils/mobileHaptics";
+import {
+  exchangeVaultItemInUi,
+  formatExchangeSuccessToast,
+} from "../../../lib/exchangeLogic";
 
 interface CardDetailOverlayProps {
   card: Card | VaultedCard | null;
@@ -23,9 +32,18 @@ function isVaultedCard(card: Card | VaultedCard): card is VaultedCard {
 }
 
 export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProps) {
-  const { showErrorToast, setCardDetailOverlayOpen } = useApp();
+  const {
+    showErrorToast,
+    showCashoutToast,
+    setCardDetailOverlayOpen,
+    applyVaultExchange,
+    syncGemBalanceFromServer,
+    userId,
+  } = useApp();
   const [infoOpen, setInfoOpen] = useState(false);
   const [shipSheetOpen, setShipSheetOpen] = useState(false);
+  const [sellConfirmOpen, setSellConfirmOpen] = useState(false);
+  const [isSelling, setIsSelling] = useState(false);
 
   const remoteSrc = useMemo(() => {
     if (!card) return CARD_PLACEHOLDER_IMAGE;
@@ -38,11 +56,21 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
   const priceLabel = card ? formatUsd(gemsToUsd(card.value)) : "";
   const vaultedCard = card && isVaultedCard(card) ? card : null;
   const canShip = vaultedCard ? canShipCardValue(vaultedCard.value) : false;
+  const sellCreditGems = vaultedCard ? exchangeCreditGems(vaultedCard.value) : 0;
+  const sellValueLabel = formatUsd(gemsToUsd(sellCreditGems));
+  const isPendingShipment = vaultedCard?.status === "pending_shipment";
 
   useEffect(() => {
     setCardDetailOverlayOpen(open);
     return () => setCardDetailOverlayOpen(false);
   }, [open, setCardDetailOverlayOpen]);
+
+  useEffect(() => {
+    if (!open) {
+      setSellConfirmOpen(false);
+      setIsSelling(false);
+    }
+  }, [open]);
 
   function handleShipTap() {
     if (!vaultedCard) return;
@@ -52,6 +80,48 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
     }
     void hapticTabSelect();
     setShipSheetOpen(true);
+  }
+
+  function handleSellTap() {
+    if (!vaultedCard || isSelling) return;
+
+    if (isPendingShipment) {
+      showCashoutToast("This item is pending shipment and cannot be sold.");
+      return;
+    }
+
+    void hapticTabSelect();
+    setSellConfirmOpen(true);
+  }
+
+  async function handleConfirmSell() {
+    if (!vaultedCard || isSelling) return;
+
+    setIsSelling(true);
+
+    try {
+      await exchangeVaultItemInUi(vaultedCard.vaultId, {
+        removeVaultItem: (vaultItemId, gemsAdded, serverGemsBalance) => {
+          applyVaultExchange(vaultItemId, gemsAdded, serverGemsBalance);
+        },
+        syncGemBalance: userId
+          ? async () => {
+              await syncGemBalanceFromServer(userId);
+            }
+          : undefined,
+        toastError: showErrorToast,
+        toastSuccess: (gemsAdded) => {
+          showCashoutToast(formatExchangeSuccessToast(gemsAdded));
+        },
+        closeModal: () => {
+          setSellConfirmOpen(false);
+          onClose();
+        },
+      });
+    } finally {
+      setIsSelling(false);
+      setSellConfirmOpen(false);
+    }
   }
 
   return (
@@ -127,21 +197,88 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
               style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
             >
               {vaultedCard ? (
-                <button
-                  type="button"
-                  onClick={handleShipTap}
-                  className={`flex h-14 w-full flex-col items-center justify-center rounded-full bg-[var(--rip-surface)] ${
-                    canShip ? "text-white" : "text-[var(--rip-text-muted)]"
-                  }`}
-                >
-                  <span className="text-[16px] font-semibold">Ship</span>
-                  {!canShip ? (
-                    <span className="text-[10px] text-[var(--rip-text-muted)]">Min $50 to ship</span>
-                  ) : null}
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleShipTap}
+                    disabled={isSelling}
+                    className={`flex h-14 flex-1 flex-col items-center justify-center rounded-full bg-[var(--rip-surface)] disabled:opacity-50 ${
+                      canShip ? "text-white" : "text-[var(--rip-text-muted)]"
+                    }`}
+                  >
+                    <span className="text-[16px] font-semibold">Ship</span>
+                    {!canShip ? (
+                      <span className="text-[10px] text-[var(--rip-text-muted)]">Min $50 to ship</span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSellTap}
+                    disabled={isSelling || isPendingShipment}
+                    className="flex h-14 flex-1 flex-col items-center justify-center rounded-full bg-[var(--rip-surface)] text-white disabled:opacity-50"
+                  >
+                    <span className="text-[16px] font-semibold">
+                      {isSelling ? "Selling…" : "Sell"}
+                    </span>
+                    <span className="text-[12px] font-bold tabular-nums text-[var(--rip-green-bright)]">
+                      {sellValueLabel}
+                    </span>
+                  </button>
+                </div>
               ) : null}
             </div>
           </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {sellConfirmOpen && vaultedCard ? (
+          <>
+            <motion.button
+              type="button"
+              aria-label="Dismiss"
+              className="fixed inset-0 z-[10120] bg-black/75"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={isSelling ? undefined : () => setSellConfirmOpen(false)}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="sell-confirm-title"
+              className="fixed inset-x-6 z-[10130] mx-auto max-w-sm rounded-2xl border border-white/10 bg-black p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.65)]"
+              style={{ top: "max(4rem, calc(env(safe-area-inset-top) + 2rem))" }}
+              initial={{ opacity: 0, y: 16, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.96 }}
+            >
+              <h2 id="sell-confirm-title" className="text-xl font-bold text-white">
+                Sell for {sellValueLabel}?
+              </h2>
+              <p className="mt-2 text-[14px] text-[var(--rip-text-muted)]">
+                85% buyback credit added to your balance.
+              </p>
+              <div className="mt-6 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() => void handleConfirmSell()}
+                  disabled={isSelling}
+                  className="h-12 rounded-full bg-[#FF007F] text-[15px] font-bold text-white disabled:opacity-50"
+                >
+                  {isSelling ? "Selling…" : "Confirm"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSellConfirmOpen(false)}
+                  disabled={isSelling}
+                  className="h-12 rounded-full bg-white/10 text-[15px] font-semibold text-white disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </>
         ) : null}
       </AnimatePresence>
 

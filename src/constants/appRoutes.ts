@@ -15,7 +15,6 @@ const VIEW_PATHS: Partial<Record<AppView, string>> = {
   settings: "/settings",
   refer: "/refer",
   rewards: "/rewards",
-  marketplace: "/marketplace",
   fairness: "/fairness",
   "help-desk": "/help-desk",
   "self-exclusion": "/self-exclusion",
@@ -36,7 +35,6 @@ const PATH_TO_VIEW: Record<string, AppView> = {
   "/settings": "settings",
   "/refer": "refer",
   "/rewards": "rewards",
-  "/marketplace": "marketplace",
   "/fairness": "fairness",
   "/admin": "admin",
 };

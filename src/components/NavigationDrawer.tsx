@@ -14,7 +14,6 @@ export interface NavDrawerLink {
 export const USER_HUB_LINKS: NavDrawerLink[] = [
   { id: "inventory", label: "Inventory", icon: "wallet" },
   { id: "play-history", label: "Play History", icon: "scroll" },
-  { id: "exchange", label: "Exchange", icon: "exchange" },
   { id: "withdrawals", label: "Withdrawals", icon: "withdraw" },
   { id: "affiliate", label: "Affiliate", icon: "users" },
   { id: "settings", label: "Settings", icon: "settings" },
@@ -41,7 +40,6 @@ function resolveHubLink(
   const viewMap: Record<string, AppView> = {
     inventory: "vault",
     "play-history": "play-history",
-    exchange: "marketplace",
     withdrawals: "rewards",
     settings: "help-desk",
     support: "help-desk",

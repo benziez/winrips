@@ -25,7 +25,6 @@ export type AppView =
   | "settings"
   | "refer"
   | "rewards"
-  | "marketplace"
   | "fairness"
   | "help-desk"
   | "self-exclusion"

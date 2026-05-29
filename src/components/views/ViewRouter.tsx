@@ -8,7 +8,6 @@ import { BattlesLobbyView } from "../../views/BattlesLobbyView";
 import { BattleArenaView } from "../../views/BattleArenaView";
 import { LeaderboardView } from "./LeaderboardView";
 import { RewardsView } from "./RewardsView";
-import { MarketplaceView } from "./MarketplaceView";
 import { FairnessView } from "./FairnessView";
 import { HelpDeskView } from "./HelpDeskView";
 import { SelfExclusionView } from "./SelfExclusionView";
@@ -37,8 +36,6 @@ export function ViewRouter() {
       return <LeaderboardView />;
     case "rewards":
       return <RewardsView />;
-    case "marketplace":
-      return <MarketplaceView />;
     case "fairness":
       return <FairnessView />;
     case "help-desk":

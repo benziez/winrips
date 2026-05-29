@@ -76,15 +76,6 @@ export function MobileSignInScreen({ onBrowsePacks, onSignIn }: MobileSignInScre
         style={{ paddingTop: "max(0px, env(safe-area-inset-top))" }}
       >
         <WinRipsLogo className="block h-16 w-auto object-contain" maxWidth={300} />
-
-        <h1 className="mt-9 text-center text-[27px] font-extrabold leading-[1.15] tracking-tight text-white">
-          Rip packs. Pull grails.
-          <br />
-          Real cards.
-        </h1>
-        <p className="mt-3 max-w-xs text-center text-[14px] leading-relaxed text-white/70">
-          Open premium trading card packs — then cash out or ship the real thing.
-        </p>
       </div>
 
       <div

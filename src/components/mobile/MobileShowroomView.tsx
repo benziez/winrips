@@ -11,6 +11,7 @@ import { CategorySelector } from "./rip/CategorySelector";
 import { CategorySheet } from "./rip/CategorySheet";
 import { AddFundsModal } from "./rip/AddFundsModal";
 import { CardDetailOverlay } from "./rip/CardDetailOverlay";
+import { WinRipsLogo } from "../brand/WinRipsLogo";
 import { CollectibleImage } from "../ui/CollectibleImage";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 
@@ -66,14 +67,14 @@ export function MobileShowroomView() {
   return (
     <RipAmbientShell>
       <header
-        className={`flex shrink-0 items-center px-6 pb-3 ${
-          SHOW_CATEGORY_SELECTOR ? "justify-between" : "justify-end"
-        }`}
+        className="flex shrink-0 items-center justify-between bg-[#0a0c10] px-6 pb-3"
         style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
       >
         {SHOW_CATEGORY_SELECTOR ? (
           <CategorySelector onPress={() => setCategoryOpen(true)} />
-        ) : null}
+        ) : (
+          <WinRipsLogo className="block h-7 w-auto object-contain" maxWidth={120} />
+        )}
         <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
       </header>
 

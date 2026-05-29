@@ -24,10 +24,10 @@
   --ease-spin-heavy: cubic-bezier(0.08, 0.82, 0.17, 1);
 
   /* WinRips mobile design language (--rip-*) */
-  --rip-bg-primary: #0d1117;
-  --rip-bg-elevated: #14191d;
-  --rip-bg-ambient-from: #0f2a2e;
-  --rip-bg-ambient-to: transparent;
+  --rip-bg-primary: #000000;
+  --rip-bg-elevated: #000000;
+  --rip-bg-ambient-from: #000000;
+  --rip-bg-ambient-to: #000000;
   --rip-surface: rgba(255, 255, 255, 0.06);
   --rip-surface-strong: rgba(255, 255, 255, 0.1);
   --rip-surface-glass: rgba(20, 25, 29, 0.72);
@@ -88,9 +88,7 @@
 
 @layer utilities {
   .rip-ambient-bg {
-    background:
-      radial-gradient(ellipse 90% 50% at 50% 0%, var(--rip-bg-ambient-from) 0%, var(--rip-bg-ambient-to) 70%),
-      var(--rip-bg-primary);
+    background: var(--rip-bg-primary);
   }
 
   .rip-ambient-scratch {
@@ -848,7 +846,7 @@ html.capacitor-native #root {
 html.capacitor-native,
 html.capacitor-native body,
 html.capacitor-native #root {
-  background-color: #0d1117;
+  background-color: #000000;
 }
 
 html.capacitor-native body {

@@ -4,7 +4,7 @@ import { BTN_GHOST_OUTLINE } from "./mobileTheme";
 export function MobileSignInScreen({ onBrowsePacks, onSignIn }: MobileSignInScreenProps) {
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col overflow-hidden bg-[#0a0c10]"
+      className="fixed inset-0 z-40 flex flex-col overflow-hidden bg-black"
       data-shell="mobile"
     >
       <div

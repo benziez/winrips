@@ -8,7 +8,7 @@ import { validateDateOfBirthInput, parseDateOfBirthInput } from "../../utils/age
 import { setAgeVerification } from "../../lib/complianceProfile";
 
 const MODAL_PANEL =
-  "relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0c10] p-6 sm:p-8";
+  "relative w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 sm:p-8";
 const INPUT_LABEL =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#A1A1AA]";
 const INPUT_FIELD =

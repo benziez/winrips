@@ -780,9 +780,9 @@ export function MobilePackOpeningView() {
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] bg-[#0a0c10]" aria-hidden />
+      <div className="fixed inset-0 z-[100] bg-black" aria-hidden />
       <motion.div
-        className="rip-ambient-bg fixed inset-0 z-[101] flex flex-col overflow-hidden bg-[#0a0c10]"
+        className="rip-ambient-bg fixed inset-0 z-[101] flex flex-col overflow-hidden bg-black"
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}

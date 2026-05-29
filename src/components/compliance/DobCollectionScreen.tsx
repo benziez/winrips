@@ -31,7 +31,7 @@ export function DobCollectionScreen({ onVerified }: DobCollectionScreenProps) {
   if (blocked) {
     return (
       <div
-        className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#0a0c10] px-6 text-white"
+        className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black px-6 text-white"
         data-shell="mobile"
       >
         <div className="w-full max-w-md text-center">
@@ -46,7 +46,7 @@ export function DobCollectionScreen({ onVerified }: DobCollectionScreenProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#0a0c10] px-6 text-white"
+      className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black px-6 text-white"
       data-shell="mobile"
     >
       <div className="w-full max-w-md">

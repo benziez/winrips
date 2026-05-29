@@ -37,7 +37,7 @@ export function TermsAcknowledgmentScreen({ onAccepted }: TermsAcknowledgmentScr
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex flex-col overflow-hidden bg-[#0a0c10] text-white"
+      className="fixed inset-0 z-[200] flex flex-col overflow-hidden bg-black text-white"
       data-shell="mobile"
     >
       <div

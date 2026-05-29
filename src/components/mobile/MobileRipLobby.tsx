@@ -154,7 +154,7 @@ export function MobileRipLobby() {
               whileTap={{ scale: 0.98 }}
               onClick={() => handleSelectPack(featuredPack)}
               aria-label={`Open ${featuredPack.name}`}
-              className="relative mx-6 flex h-[200px] w-[calc(100%-3rem)] items-end overflow-hidden rounded-2xl bg-[#0a0c10] text-left"
+              className="relative mx-6 flex h-[200px] w-[calc(100%-3rem)] items-end overflow-hidden rounded-2xl bg-black text-left"
               style={{ boxShadow: "var(--rip-shadow-pack)" }}
             >
               <img
@@ -170,14 +170,14 @@ export function MobileRipLobby() {
           {openPackRow.length > 0 ? (
             <section className="space-y-3">
               <SectionHeader title="Open a Pack" />
-              <div className="rip-hide-scrollbar flex snap-x gap-3 overflow-x-auto overflow-y-hidden pl-4 pr-6 pb-1">
+              <div className="rip-hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden scroll-pl-4 pr-6 pb-1">
                 {openPackRow.map((pack, index) => (
                   <motion.button
                     key={pack.id}
                     type="button"
                     whileTap={{ scale: 0.97 }}
                     onClick={() => handleSelectPack(pack)}
-                    className="flex w-[44vw] shrink-0 snap-start flex-col text-left"
+                    className={`flex w-[44vw] shrink-0 snap-start flex-col text-left${index === 0 ? " ml-4" : ""}`}
                   >
                     <div
                       className="relative aspect-[2/3] w-full overflow-hidden rounded-xl"
@@ -207,9 +207,12 @@ export function MobileRipLobby() {
           {biggestPulls.length > 0 ? (
             <section className="space-y-3">
               <SectionHeader title="Biggest Pulls" />
-              <div className="rip-hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden pl-4 pr-4 pb-1">
-                {biggestPulls.map((tile) => (
-                  <div key={tile.key} className="flex w-[30vw] shrink-0 snap-start flex-col">
+              <div className="rip-hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden scroll-pl-4 pr-4 pb-1">
+                {biggestPulls.map((tile, index) => (
+                  <div
+                    key={tile.key}
+                    className={`flex w-[30vw] shrink-0 snap-start flex-col${index === 0 ? " ml-4" : ""}`}
+                  >
                     <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-[var(--rip-surface)]">
                       <CollectibleImage
                         src={tile.image}

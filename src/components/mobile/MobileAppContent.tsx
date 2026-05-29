@@ -21,7 +21,7 @@ export function MobileAppContent() {
       return (
         <MobileErrorBoundary label="Pack opening unavailable">
           <div
-            className="fixed inset-0 z-[100] bg-[#0a0c10]"
+            className="fixed inset-0 z-[100] bg-black"
             aria-hidden
           />
           <div className="fixed inset-0 z-[101]">

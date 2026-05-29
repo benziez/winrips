@@ -17,7 +17,7 @@ export function AgeGate() {
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0a0c10] p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black p-4"
       style={{
         paddingTop: "max(1rem, env(safe-area-inset-top))",
         paddingBottom: "max(1rem, env(safe-area-inset-bottom))",

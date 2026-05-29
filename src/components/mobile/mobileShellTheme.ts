@@ -1,5 +1,5 @@
-/** App shell + header — matches WinRips wordmark charcoal background. */
-export const APP_SHELL_BG = "#0d1117";
+/** App shell + header — pure black canvas. */
+export const APP_SHELL_BG = "#000000";
 
 export const MOBILE_HEADER_BG = APP_SHELL_BG;
 

@@ -49,5 +49,7 @@
 	<string>WinRips uses your camera for identity verification when setting up withdrawals.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>WinRips accesses your photo library for identity verification when setting up withdrawals.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

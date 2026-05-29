@@ -4,11 +4,11 @@ import { useAuth } from "../../context/AuthContext";
 import { AppleSignInButton } from "./AppleSignInButton";
 import { Capacitor } from "@capacitor/core";
 import { isNativeCapacitorApp } from "../../utils/platform";
-import { validateDateOfBirthInput, parseDateOfBirthInput } from "../../utils/ageVerification";
+import { validateDateOfBirthInput, parseDateOfBirthInput, formatDateOfBirthAsTyping } from "../../utils/ageVerification";
 import { setAgeVerification } from "../../lib/complianceProfile";
 
 const MODAL_PANEL =
-  "relative w-full max-w-md rounded-2xl border border-white/10 bg-black p-6 sm:p-8";
+  "relative w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-black p-6 sm:p-8";
 const INPUT_LABEL =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#A1A1AA]";
 const INPUT_FIELD =
@@ -126,7 +126,7 @@ export function AuthModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
+      className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-title"
@@ -146,7 +146,7 @@ export function AuthModal() {
         </h2>
         <p className="mt-1.5 mb-6 text-sm text-[#A1A1AA]">{subtitle}</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4 pb-8">
           {!isLogin ? (
             <div>
               <label htmlFor="auth-username" className={INPUT_LABEL}>
@@ -175,12 +175,14 @@ export function AuthModal() {
               </label>
               <input
                 id="auth-dob"
-                type="text"
+                type="tel"
                 inputMode="numeric"
+                pattern="[0-9]*"
                 value={dateOfBirth}
-                onChange={(e) => setDateOfBirth(e.target.value)}
+                onChange={(e) => setDateOfBirth(formatDateOfBirthAsTyping(e.target.value))}
                 placeholder="MM/DD/YYYY"
                 required
+                maxLength={10}
                 autoComplete="bday"
                 className={INPUT_FIELD}
               />

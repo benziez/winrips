@@ -38,6 +38,18 @@ export function isAtLeast18(dobIso: string): boolean {
   return age !== null && age >= 18;
 }
 
+/** Formats partial numeric input as MM/DD/YYYY while the user types. */
+export function formatDateOfBirthAsTyping(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) {
+    return digits.length === 2 ? `${digits}/` : digits;
+  }
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}${digits.length === 4 ? "/" : ""}`;
+  }
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 export function parseDateOfBirthInput(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;

@@ -5,7 +5,7 @@ import { canShipCardValue, formatUsd, gemsToUsd } from "../../../constants/retai
 import { useFallbackImageSrc, IMAGE_PLACEHOLDER } from "../../../hooks/useFallbackImageSrc";
 import { resolveAssetUrl, isRenderableAssetUrl } from "../../../utils/resolveAssetUrl";
 import { CARD_PLACEHOLDER_IMAGE } from "../../../constants/cardAssets";
-import { ChevronLeft, InfoIcon } from "../../icons/AppIcons";
+import { InfoIcon, XIcon } from "../../icons/AppIcons";
 import { ObsidianImage } from "../ObsidianImage";
 import { RipBottomSheet } from "./RipBottomSheet";
 import { ShipCardSheet } from "../vault/ShipCardSheet";
@@ -59,33 +59,38 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
       <AnimatePresence>
         {open && card ? (
           <motion.div
-            className="fixed inset-0 z-[70] flex flex-col rip-ambient-bg"
+            className="fixed inset-0 z-[10100] flex flex-col rip-ambient-bg"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
+            <button
+              type="button"
+              onClick={() => {
+                void hapticTabSelect();
+                onClose();
+              }}
+              className="fixed z-[10110] flex items-center justify-center rounded-full bg-black/60 p-2 text-white backdrop-blur-sm"
+              style={{
+                top: "calc(env(safe-area-inset-top) + 1rem)",
+                right: "1rem",
+              }}
+              aria-label="Close"
+            >
+              <XIcon size={22} />
+            </button>
+
             <header
-              className="flex shrink-0 items-center justify-between px-6"
+              className="flex shrink-0 items-center px-6"
               style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
             >
               <button
                 type="button"
                 onClick={() => {
                   void hapticTabSelect();
-                  onClose();
-                }}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--rip-surface)] text-white"
-                aria-label="Back"
-              >
-                <ChevronLeft size={22} />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void hapticTabSelect();
                   setInfoOpen(true);
                 }}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--rip-surface)] text-white"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white"
                 aria-label="Card info"
               >
                 <InfoIcon size={20} />

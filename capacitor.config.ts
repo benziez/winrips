@@ -9,6 +9,13 @@ const config: CapacitorConfig = {
       resize: "none",
       style: "dark",
     },
+    SplashScreen: {
+      launchShowDuration: 2000,
+      backgroundColor: "#000000",
+      splashFullScreen: false,
+      splashImmersive: false,
+      androidScaleType: "CENTER_INSIDE",
+    },
   },
 };
 

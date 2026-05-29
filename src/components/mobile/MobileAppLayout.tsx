@@ -4,7 +4,13 @@ import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
 import { AgeGate } from "../compliance/AgeGate";
 import { DobCollectionScreen } from "../compliance/DobCollectionScreen";
+import { TermsAcknowledgmentScreen } from "../auth/TermsAcknowledgmentScreen";
 import { fetchComplianceProfile, setAgeVerification } from "../../lib/complianceProfile";
+import {
+  isGuestBrowseEnabled,
+  isTermsAccepted,
+  persistGuestBrowse,
+} from "../../constants/termsAcknowledgment";
 import { AuthModal } from "../auth/AuthModal";
 import { PurchaseModal } from "../wallet/PurchaseModal";
 import { WalletModal } from "../wallet/WalletModal";
@@ -76,9 +82,11 @@ function MobileAppLayoutInner() {
     shippingVaultItem,
     closeVaultShipping,
     markVaultItemPendingShipment,
+    openAuthModal,
   } = useApp();
   const { user, isAuthenticated } = useAuth();
-  const [guestSession, setGuestSession] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(() => isTermsAccepted());
+  const [guestBrowse, setGuestBrowse] = useState(() => isGuestBrowseEnabled());
   const [ageVerified, setAgeVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -122,7 +130,7 @@ function MobileAppLayoutInner() {
     };
   }, [isAuthenticated, isLoggedIn, user?.id, user?.user_metadata?.pending_date_of_birth]);
 
-  const showSignIn = !isLoggedIn && !guestSession;
+  const showWelcome = termsAccepted && !isLoggedIn && !guestBrowse;
   const immersive =
     IMMERSIVE_VIEWS.includes(currentView) ||
     cardDetailOverlayOpen ||
@@ -130,13 +138,29 @@ function MobileAppLayoutInner() {
     withdrawModalOpen;
   const showDock = !immersive;
 
-  if (showSignIn) {
+  const handleBrowsePacks = () => {
+    persistGuestBrowse();
+    setGuestBrowse(true);
+  };
+
+  if (!termsAccepted) {
+    return (
+      <>
+        <NativeSafeAreaTopCover />
+        <TermsAcknowledgmentScreen onAccepted={() => setTermsAccepted(true)} />
+      </>
+    );
+  }
+
+  if (showWelcome) {
     return (
       <>
         <NativeSafeAreaTopCover />
         <div className="fixed inset-0 overflow-hidden" style={{ background: APP_SHELL_BG }}>
-          <AgeGate />
-          <MobileSignInScreen onGuestContinue={() => setGuestSession(true)} />
+          <MobileSignInScreen
+            onBrowsePacks={handleBrowsePacks}
+            onSignIn={() => openAuthModal("login")}
+          />
           <AuthModal />
         </div>
       </>

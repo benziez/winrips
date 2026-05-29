@@ -1,7 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { WinRipsLogo } from "../brand/WinRipsLogo";
-import { useApp } from "../../context/AppContext";
-import { AppleSignInButton } from "../auth/AppleSignInButton";
 import { BTN_GHOST_OUTLINE } from "./mobileTheme";
 import { POKEMON_ITEMS } from "../../constants/pokemonCatalog";
 
@@ -28,9 +26,7 @@ function useGrailCollageImages(): string[] {
   }, []);
 }
 
-export function MobileSignInScreen({ onGuestContinue }: MobileSignInScreenProps) {
-  const { showCashoutToast } = useApp();
-  const [formError, setFormError] = useState<string | null>(null);
+export function MobileSignInScreen({ onBrowsePacks, onSignIn }: MobileSignInScreenProps) {
   const collageImages = useGrailCollageImages();
 
   return (
@@ -95,19 +91,16 @@ export function MobileSignInScreen({ onGuestContinue }: MobileSignInScreenProps)
         className="relative shrink-0 space-y-3 overflow-hidden px-6 pt-4"
         style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
       >
-        <AppleSignInButton
-          onError={(message) => setFormError(message)}
-          onSuccess={() => showCashoutToast("Welcome to WinRips!")}
-        />
+        <button
+          type="button"
+          onClick={onBrowsePacks}
+          className="w-full rounded-full bg-[#FF007F] py-4 text-center text-[15px] font-bold tracking-wide text-white shadow-[0_0_40px_rgba(255,0,127,0.22)] transition-transform active:scale-[0.98]"
+        >
+          Browse Packs
+        </button>
 
-        {formError ? (
-          <p className="text-center text-xs text-red-400" role="alert">
-            {formError}
-          </p>
-        ) : null}
-
-        <button type="button" onClick={onGuestContinue} className={`w-full ${BTN_GHOST_OUTLINE}`}>
-          Browse Drops
+        <button type="button" onClick={onSignIn} className={`w-full ${BTN_GHOST_OUTLINE}`}>
+          Sign In
         </button>
       </div>
     </div>
@@ -115,5 +108,6 @@ export function MobileSignInScreen({ onGuestContinue }: MobileSignInScreenProps)
 }
 
 interface MobileSignInScreenProps {
-  onGuestContinue: () => void;
+  onBrowsePacks: () => void;
+  onSignIn: () => void;
 }

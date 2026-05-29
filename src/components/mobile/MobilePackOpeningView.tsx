@@ -341,6 +341,7 @@ export function MobilePackOpeningView() {
     setSpinInProgress,
     syncGemBalanceFromServer,
     setAddFundsModalOpen,
+    openAuthModal,
   } = useApp();
   const isGuest = !userId;
 
@@ -654,6 +655,12 @@ export function MobilePackOpeningView() {
   const handleOpenPack = useCallback(async () => {
     if (!selectedPack || phase !== "pre-rip" || isChargingSpin) return;
 
+    if (isGuest) {
+      void hapticTabSelect();
+      openAuthModal("login");
+      return;
+    }
+
     void hapticTabSelect();
     // Spinner audio deferred — web uses SoundManager; mobile reveal is visual + haptics only.
     setIsChargingSpin(true);
@@ -683,6 +690,8 @@ export function MobilePackOpeningView() {
     setSpinInProgress,
     userId,
     syncGemBalanceFromServer,
+    isGuest,
+    openAuthModal,
   ]);
 
   const finishReveal = useCallback(() => {
@@ -752,9 +761,7 @@ export function MobilePackOpeningView() {
 
   const openLabel = isChargingSpin
     ? "Processing…"
-    : isGuest
-      ? "Demo Open Pack"
-      : `Open Pack · ${formatPackPriceUsd(totalCost)}`;
+    : `Open Pack · ${formatPackPriceUsd(totalCost)}`;
 
   const showPack = phase === "pre-rip";
   const showSpinner = phase === "spinning";

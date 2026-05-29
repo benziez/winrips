@@ -24,8 +24,10 @@ const TAB_ITEMS: {
 /** Space reserved above home indicator + floating dock. */
 export const MOBILE_DOCK_CLEARANCE = "calc(5.5rem + env(safe-area-inset-bottom))";
 
+const AUTH_GATED_VIEWS: AppView[] = ["vault", "account"];
+
 export function MobileFloatingDock() {
-  const { currentView, navigateToView } = useApp();
+  const { currentView, navigateToView, isLoggedIn, openAuthModal } = useApp();
 
   return (
     <nav
@@ -46,6 +48,10 @@ export function MobileFloatingDock() {
               type="button"
               onClick={() => {
                 void hapticTabSelect();
+                if (!isLoggedIn && AUTH_GATED_VIEWS.includes(item.id)) {
+                  openAuthModal("login");
+                  return;
+                }
                 navigateToView(item.id);
               }}
               className="relative flex flex-col items-center justify-center gap-1 px-0.5 py-1"

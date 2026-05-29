@@ -13,7 +13,13 @@ import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { BalancePill } from "./rip/BalancePill";
 import { AddFundsModal } from "./rip/AddFundsModal";
 import { WithdrawModal } from "./wallet/WithdrawModal";
-import { SettingsIcon, TrophyIcon, PacksIcon, ArrowRightIcon } from "../icons/AppIcons";
+import {
+  AccountIcon,
+  SettingsIcon,
+  TrophyIcon,
+  PacksIcon,
+  ArrowRightIcon,
+} from "../icons/AppIcons";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 import { isFastModeEnabled, setFastModeEnabled } from "../../lib/mobileRipPreferences";
 import { GlassSurface } from "./GlassSurface";
@@ -118,6 +124,7 @@ export function MobileAccountView() {
     syncUserProfileFromServer,
     navigateToView,
     logout,
+    openAuthModal,
     showCashoutToast,
     showErrorToast,
     closeWalletModal,
@@ -138,17 +145,20 @@ export function MobileAccountView() {
     setFastMode(isFastModeEnabled());
   }, []);
 
-  const displayUsername =
-    profileUsername?.trim() ||
-    (typeof user?.user_metadata?.username === "string" ? user.user_metadata.username.trim() : "") ||
-    (userId ? generatedHandleFromUserId(userId) : "Guest");
+  const displayUsername = isLoggedIn
+    ? profileUsername?.trim() ||
+      (typeof user?.user_metadata?.username === "string" ? user.user_metadata.username.trim() : "") ||
+      (userId ? generatedHandleFromUserId(userId) : "Guest")
+    : "Guest";
 
-  const joinedLabel = formatJoinedLabel(user?.created_at);
+  const joinedLabel = isLoggedIn ? formatJoinedLabel(user?.created_at) : "—";
 
   const biggestPullUsd = useMemo(() => {
-    if (vaultItems.length === 0) return 0;
+    if (!isLoggedIn || vaultItems.length === 0) return 0;
     return Math.max(...vaultItems.map((c) => gemsToUsd(c.value)));
-  }, [vaultItems]);
+  }, [isLoggedIn, vaultItems]);
+
+  const packsOpenedCount = isLoggedIn ? packsOpened : 0;
 
   useEffect(() => {
     if (!userId) return;
@@ -199,33 +209,20 @@ export function MobileAccountView() {
   }
 
   function handleAvatarEdit() {
+    if (!isLoggedIn) {
+      openAuthModal("login");
+      return;
+    }
     showErrorToast("Profile photo upload coming soon.");
   }
 
-  if (!isLoggedIn) {
-    return (
-      <RipAmbientShell>
-        <header
-          className="flex shrink-0 items-center justify-between px-6 pb-3"
-          style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
-        >
-          <h1 className="text-[28px] font-bold leading-tight text-white">Account</h1>
-          <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
-        </header>
-
-        <div
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-          style={{ paddingBottom: MOBILE_DOCK_CLEARANCE }}
-        >
-          <MobileSignInPromptCard
-            message="Sign in to save pulls, track stats, and cash out"
-            className="mt-2"
-          />
-        </div>
-
-        <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />
-      </RipAmbientShell>
-    );
+  function handleWithdrawPress() {
+    if (!isLoggedIn) {
+      openAuthModal("login");
+      return;
+    }
+    void hapticTabSelect();
+    setWithdrawOpen(true);
   }
 
   return (
@@ -252,10 +249,21 @@ export function MobileAccountView() {
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
         style={{ paddingBottom: MOBILE_DOCK_CLEARANCE }}
       >
+        {!isLoggedIn ? (
+          <MobileSignInPromptCard
+            message="Sign in to save pulls, track stats, and cash out"
+            className="mt-2"
+          />
+        ) : null}
+
         <div className="mt-6 flex flex-col items-center px-6">
           <div className="relative">
             <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[var(--rip-bg-ambient-from)] to-[var(--rip-bg-elevated)] text-3xl font-bold text-white">
-              {profileLoading ? "…" : profileInitial(displayUsername)}
+              {isLoggedIn ? (
+                profileLoading ? "…" : profileInitial(displayUsername)
+              ) : (
+                <AccountIcon size={40} className="text-white/70" />
+              )}
             </div>
             <button
               type="button"
@@ -267,23 +275,20 @@ export function MobileAccountView() {
             </button>
           </div>
           <h2 className="mt-4 text-center text-xl font-semibold text-white">{displayUsername}</h2>
-          {joinedLabel ? (
-            <p className="mt-1 text-[15px] text-[var(--rip-text-muted)]">{joinedLabel}</p>
-          ) : null}
+          <p className="mt-1 text-[15px] text-[var(--rip-text-muted)]">{joinedLabel}</p>
         </div>
 
         <button
           type="button"
-          onClick={() => {
-            void hapticTabSelect();
-            setWithdrawOpen(true);
-          }}
+          onClick={handleWithdrawPress}
           className="mx-4 mt-8 flex w-[calc(100%-2rem)] items-center justify-between rounded-2xl bg-[var(--rip-surface)] p-4 text-left"
         >
           <div>
             <p className="text-[20px] font-bold text-[var(--rip-green-bright)]">Withdraw</p>
             <p className="mt-1 text-[15px] text-[var(--rip-text-muted)]">
-              {formatUsd(gemsToUsd(withdrawableBalance))} withdrawable from sales
+              {isLoggedIn
+                ? `${formatUsd(gemsToUsd(withdrawableBalance))} withdrawable from sales`
+                : "$0 withdrawable from sales"}
             </p>
           </div>
           <ArrowRightIcon size={24} className="text-white" />
@@ -301,7 +306,7 @@ export function MobileAccountView() {
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--rip-surface-strong)]">
               <PacksIcon size={24} className="text-[var(--rip-green)]" />
             </div>
-            <p className="mt-3 text-xl font-bold text-white">{packsOpened}</p>
+            <p className="mt-3 text-xl font-bold text-white">{packsOpenedCount}</p>
             <p className="mt-1 text-[15px] text-[var(--rip-text-muted)]">Packs Opened</p>
           </div>
         </div>
@@ -344,22 +349,22 @@ export function MobileAccountView() {
           </div>
         </div>
 
-        <div className="mx-4 mt-8 flex flex-col gap-3 pb-6">
-          <button
-            type="button"
-            onClick={() => void handleSignOut()}
-            className={BTN_GHOST_OUTLINE}
-          >
-            Sign out
-          </button>
-          <button
-            type="button"
-            onClick={() => setDeleteModalOpen(true)}
-            className="text-center text-sm text-red-400/90"
-          >
-            Delete account
-          </button>
-        </div>
+        {isLoggedIn ? (
+          <div className="mx-4 mt-8 flex flex-col gap-3 pb-6">
+            <button type="button" onClick={() => void handleSignOut()} className={BTN_GHOST_OUTLINE}>
+              Sign out
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteModalOpen(true)}
+              className="text-center text-sm text-red-400/90"
+            >
+              Delete account
+            </button>
+          </div>
+        ) : (
+          <div className="pb-6" />
+        )}
       </div>
 
       <AddFundsModal open={addFundsOpen} onClose={() => setAddFundsOpen(false)} />

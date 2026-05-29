@@ -4,9 +4,9 @@ import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
 import { AgeGate } from "../compliance/AgeGate";
 import { DobCollectionScreen } from "../compliance/DobCollectionScreen";
-import { TermsAcknowledgmentScreen } from "../auth/TermsAcknowledgmentScreen";
 import { fetchComplianceProfile, setAgeVerification } from "../../lib/complianceProfile";
-import { isTermsAccepted, persistGuestBrowse, isGuestBrowseEnabled } from "../../constants/termsAcknowledgment";
+import { persistGuestBrowse } from "../../constants/termsAcknowledgment";
+import { isShippingNoticeSeen } from "../../constants/shippingNotice";
 import { AuthModal } from "../auth/AuthModal";
 import { PurchaseModal } from "../wallet/PurchaseModal";
 import { WalletModal } from "../wallet/WalletModal";
@@ -17,6 +17,7 @@ import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { MobileAppContent } from "./MobileAppContent";
 import { MobileHistoryBridge } from "./MobileHistoryBridge";
 import { MobileFloatingDock, MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
+import { USShippingModal } from "./USShippingModal";
 import { GlassSurface } from "./GlassSurface";
 import { MOBILE_COLORS } from "./mobileTheme";
 import { shouldSuppressMobileGemToast } from "../../utils/mobileGemUi";
@@ -79,21 +80,16 @@ function MobileAppLayoutInner() {
     markVaultItemPendingShipment,
   } = useApp();
   const { user, isAuthenticated } = useAuth();
-  const [termsAccepted, setTermsAccepted] = useState(() => isTermsAccepted());
   const [ageVerified, setAgeVerified] = useState<boolean | null>(null);
+  const [showShippingNotice, setShowShippingNotice] = useState(() => !isShippingNoticeSeen());
 
   useEffect(() => {
     document.documentElement.classList.add("capacitor-native");
+    persistGuestBrowse();
     return () => {
       document.documentElement.classList.remove("capacitor-native");
     };
   }, []);
-
-  useEffect(() => {
-    if (termsAccepted && !isGuestBrowseEnabled()) {
-      persistGuestBrowse();
-    }
-  }, [termsAccepted]);
 
   useEffect(() => {
     if (!isLoggedIn || !isAuthenticated || !user?.id) {
@@ -136,20 +132,6 @@ function MobileAppLayoutInner() {
     withdrawModalOpen;
   const showDock = !immersive;
 
-  const handleTermsAccepted = () => {
-    persistGuestBrowse();
-    setTermsAccepted(true);
-  };
-
-  if (!termsAccepted) {
-    return (
-      <>
-        <NativeSafeAreaTopCover />
-        <TermsAcknowledgmentScreen onAccepted={handleTermsAccepted} />
-      </>
-    );
-  }
-
   if (isLoggedIn && ageVerified === false) {
     return (
       <>
@@ -181,6 +163,11 @@ function MobileAppLayoutInner() {
 
       {showDock ? <MobileFloatingDock /> : null}
       <MobileToast />
+
+      <USShippingModal
+        open={showShippingNotice}
+        onDismiss={() => setShowShippingNotice(false)}
+      />
 
       <PurchaseModal />
       <WalletModal />

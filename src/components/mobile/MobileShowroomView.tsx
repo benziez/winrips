@@ -25,17 +25,17 @@ function ShowroomPullTile({ card, onSelect }: { card: Card; onSelect: () => void
     <button
       type="button"
       onClick={onSelect}
-      className="flex aspect-[3/4.2] w-52 shrink-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] text-left"
+      className="flex w-52 shrink-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] text-left"
     >
-      <div className="relative min-h-0 flex-[0.65] p-2">
-        <CollectibleImage src={card.image} alt={card.name} className="h-full w-full object-contain" />
-        <div
-          className="pointer-events-none absolute bottom-1 left-1/2 h-4 w-2/3 -translate-x-1/2 rounded-full bg-black/40 blur-md"
-          aria-hidden
+      <div className="p-2">
+        <CollectibleImage
+          src={card.image}
+          alt={card.name}
+          className="aspect-[3/4] w-full object-contain"
         />
       </div>
-      <div className="shrink-0 border-t border-[var(--rip-border)] px-3 pb-2 pt-1">
-        <p className="truncate text-[13px] font-medium text-white">{card.name}</p>
+      <div className="shrink-0 border-t border-[var(--rip-border)] px-3 pb-1 pt-1">
+        <p className="truncate text-[13px] font-medium leading-tight text-white">{card.name}</p>
         <p className="mt-0.5 text-[16px] font-bold leading-none text-[var(--rip-green-bright)]">
           {formatUsd(gemsToUsd(card.value))}
         </p>
@@ -62,7 +62,11 @@ export function MobileShowroomView() {
         }
       }
     }
-    return result;
+    return result.sort((a, b) => {
+      const topA = a.cards[0]?.value ?? 0;
+      const topB = b.cards[0]?.value ?? 0;
+      return topB - topA;
+    });
   }, [catalogPacks]);
 
   return (

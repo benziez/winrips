@@ -135,7 +135,7 @@ export function MobileRipLobby() {
         {SHOW_CATEGORY_SELECTOR ? (
           <CategorySelector onPress={() => setCategoryOpen(true)} />
         ) : (
-          <WinRipsLogo className="block h-7 w-auto object-contain" maxWidth={120} glow={false} />
+          <WinRipsLogo className="block h-9 w-auto object-contain" maxWidth={160} glow={false} />
         )}
         <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
       </header>

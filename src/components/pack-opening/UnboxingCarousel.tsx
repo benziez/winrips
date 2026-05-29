@@ -142,7 +142,9 @@ export function UnboxingCarousel({
         >
           {cards.map((card, index) => {
             const renderArt =
-              !compactCards || Math.abs(index - winnerIndex) <= ART_RENDER_WINDOW;
+              !compactCards ||
+              isSpinning ||
+              Math.abs(index - winnerIndex) <= ART_RENDER_WINDOW;
             return (
               <CarouselCard
                 key={`slot-${index}-${card.id}`}

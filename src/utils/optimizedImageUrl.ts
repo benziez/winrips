@@ -1,6 +1,8 @@
 import { normalizeLocalAssetPath, resolveAssetUrl } from "./resolveAssetUrl";
 import { apiUrl } from "./apiBaseUrl";
 
+import { isNativeCapacitorApp } from "./platform";
+
 const POKEMON_TCG_HOST = "images.pokemontcg.io";
 
 function isLocalPublicAsset(url: string): boolean {
@@ -51,7 +53,7 @@ export function optimizedImageUrl(
     resolved = toPokemonThumbnailUrl(trimmed);
   }
 
-  if (useWebpProxy && isPokemonTcgUrl(resolved) && import.meta.env.PROD) {
+  if (useWebpProxy && isPokemonTcgUrl(resolved) && import.meta.env.PROD && !isNativeCapacitorApp()) {
     return apiUrl(`/api/image/optimize?url=${encodeURIComponent(resolved)}`);
   }
 

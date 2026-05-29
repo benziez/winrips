@@ -13,6 +13,7 @@ export function isTermsAccepted(): boolean {
 export function persistTermsAccepted(marketingOptIn: boolean): void {
   try {
     localStorage.setItem(TERMS_ACCEPTED_STORAGE_KEY, "true");
+    localStorage.setItem(GUEST_BROWSE_STORAGE_KEY, "true");
     if (marketingOptIn) {
       localStorage.setItem(MARKETING_OPT_IN_STORAGE_KEY, "true");
     }

@@ -6,11 +6,7 @@ import { AgeGate } from "../compliance/AgeGate";
 import { DobCollectionScreen } from "../compliance/DobCollectionScreen";
 import { TermsAcknowledgmentScreen } from "../auth/TermsAcknowledgmentScreen";
 import { fetchComplianceProfile, setAgeVerification } from "../../lib/complianceProfile";
-import {
-  isGuestBrowseEnabled,
-  isTermsAccepted,
-  persistGuestBrowse,
-} from "../../constants/termsAcknowledgment";
+import { isTermsAccepted, persistGuestBrowse, isGuestBrowseEnabled } from "../../constants/termsAcknowledgment";
 import { AuthModal } from "../auth/AuthModal";
 import { PurchaseModal } from "../wallet/PurchaseModal";
 import { WalletModal } from "../wallet/WalletModal";
@@ -18,7 +14,6 @@ import { DepositModal } from "../modals/DepositModal";
 import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
 import { GemBalanceDepositNotifier } from "../wallet/GemBalanceDepositNotifier";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
-import { MobileSignInScreen } from "./MobileSignInScreen";
 import { MobileAppContent } from "./MobileAppContent";
 import { MobileHistoryBridge } from "./MobileHistoryBridge";
 import { MobileFloatingDock, MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
@@ -82,11 +77,9 @@ function MobileAppLayoutInner() {
     shippingVaultItem,
     closeVaultShipping,
     markVaultItemPendingShipment,
-    openAuthModal,
   } = useApp();
   const { user, isAuthenticated } = useAuth();
   const [termsAccepted, setTermsAccepted] = useState(() => isTermsAccepted());
-  const [guestBrowse, setGuestBrowse] = useState(() => isGuestBrowseEnabled());
   const [ageVerified, setAgeVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -95,6 +88,12 @@ function MobileAppLayoutInner() {
       document.documentElement.classList.remove("capacitor-native");
     };
   }, []);
+
+  useEffect(() => {
+    if (termsAccepted && !isGuestBrowseEnabled()) {
+      persistGuestBrowse();
+    }
+  }, [termsAccepted]);
 
   useEffect(() => {
     if (!isLoggedIn || !isAuthenticated || !user?.id) {
@@ -130,7 +129,6 @@ function MobileAppLayoutInner() {
     };
   }, [isAuthenticated, isLoggedIn, user?.id, user?.user_metadata?.pending_date_of_birth]);
 
-  const showWelcome = termsAccepted && !isLoggedIn && !guestBrowse;
   const immersive =
     IMMERSIVE_VIEWS.includes(currentView) ||
     cardDetailOverlayOpen ||
@@ -138,31 +136,16 @@ function MobileAppLayoutInner() {
     withdrawModalOpen;
   const showDock = !immersive;
 
-  const handleBrowsePacks = () => {
+  const handleTermsAccepted = () => {
     persistGuestBrowse();
-    setGuestBrowse(true);
+    setTermsAccepted(true);
   };
 
   if (!termsAccepted) {
     return (
       <>
         <NativeSafeAreaTopCover />
-        <TermsAcknowledgmentScreen onAccepted={() => setTermsAccepted(true)} />
-      </>
-    );
-  }
-
-  if (showWelcome) {
-    return (
-      <>
-        <NativeSafeAreaTopCover />
-        <div className="fixed inset-0 overflow-hidden" style={{ background: APP_SHELL_BG }}>
-          <MobileSignInScreen
-            onBrowsePacks={handleBrowsePacks}
-            onSignIn={() => openAuthModal("login")}
-          />
-          <AuthModal />
-        </div>
+        <TermsAcknowledgmentScreen onAccepted={handleTermsAccepted} />
       </>
     );
   }

@@ -32,8 +32,8 @@ export function USShippingModal({ open, onDismiss }: USShippingModalProps) {
           US-Only Shipping
         </h2>
         <p className="mt-3 text-[14px] leading-relaxed text-[#A1A1AA]">
-          We ship physical cards to US addresses only. Free shipping on orders $50+. Orders under $50
-          ship for a flat $8. International shipping is not available.
+          We currently only ship physical cards to US addresses. International users can still vault
+          their cards.
         </p>
         <button
           type="button"

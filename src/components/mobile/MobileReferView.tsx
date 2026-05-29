@@ -1,49 +1,73 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useApp } from "../../context/AppContext";
-import { generatedHandleFromUserId } from "../../utils/generatedHandle";
+import { fetchProfileReferralCode } from "../../lib/referrals";
 import { MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock";
 import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { BalancePill } from "./rip/BalancePill";
 import { AddFundsModal } from "./rip/AddFundsModal";
 import { GiftIcon } from "../icons/AppIcons";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
-
-function referralCodeForUser(userId: string): string {
-  const base = userId.replace(/-/g, "").slice(0, 8).toUpperCase();
-  return base.length >= 6 ? `WR-${base}` : "WR-GUEST";
-}
+import { copyToClipboard } from "../../utils/copyToClipboard";
+import {
+  REFERRAL_SIGNUP_BONUS_USD,
+  referralCodeForUserId,
+  referralShareUrl,
+} from "../../utils/referralCode";
 
 export function MobileReferView() {
   const { userId, showCashoutToast } = useApp();
   const [addFundsOpen, setAddFundsOpen] = useState(false);
+  const [code, setCode] = useState(() => (userId ? referralCodeForUserId(userId) : "WR-GUEST"));
 
-  const code = useMemo(
-    () => (userId ? referralCodeForUser(userId) : referralCodeForUser(generatedHandleFromUserId("guest"))),
-    [userId],
-  );
+  useEffect(() => {
+    if (!userId) {
+      setCode("WR-GUEST");
+      return;
+    }
+
+    let cancelled = false;
+    void fetchProfileReferralCode(userId).then((nextCode) => {
+      if (!cancelled && nextCode) {
+        setCode(nextCode);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  const shareUrl = useMemo(() => referralShareUrl(code), [code]);
 
   async function copyCode() {
     void hapticTabSelect();
-    try {
-      await navigator.clipboard.writeText(code);
-      showCashoutToast("Referral code copied.");
-    } catch {
-      showCashoutToast("Could not copy — select and copy manually.");
-    }
+    const copied = await copyToClipboard(code);
+    showCashoutToast(copied ? "Referral code copied." : "Could not copy — select and copy manually.");
   }
 
   async function shareCode() {
     void hapticTabSelect();
-    const text = `Join WinRips with my code ${code} — we both get $5!`;
-    if (navigator.share) {
+    const text = `Join WinRips with my code ${code} — we both get $${REFERRAL_SIGNUP_BONUS_USD}!`;
+
+    if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: "WinRips Referral", text });
+        await navigator.share({
+          title: "WinRips Referral",
+          text,
+          url: shareUrl,
+        });
         return;
-      } catch {
-        /* user cancelled */
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
       }
     }
-    await copyCode();
+
+    const copied = await copyToClipboard(`${text} ${shareUrl}`);
+    showCashoutToast(
+      copied ? "Referral link copied." : "Could not share — copy your code manually.",
+    );
   }
 
   return (
@@ -65,9 +89,11 @@ export function MobileReferView() {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--rip-surface)]">
             <GiftIcon size={32} className="text-[var(--rip-green-bright)]" />
           </div>
-          <h2 className="mt-6 text-[22px] font-bold text-white">Give $5, Get $5</h2>
+          <h2 className="mt-6 text-[22px] font-bold text-white">
+            Give ${REFERRAL_SIGNUP_BONUS_USD}, Get ${REFERRAL_SIGNUP_BONUS_USD}
+          </h2>
           <p className="mt-3 max-w-sm text-[14px] leading-relaxed text-[var(--rip-text-muted)]">
-            Share your code with friends. When they make their first purchase, you both earn bonus
+            Share your code with friends. When they sign up with your code, you both earn bonus
             credit.
           </p>
         </div>

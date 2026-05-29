@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { AgeGate } from "../compliance/AgeGate";
 import { DobCollectionScreen } from "../compliance/DobCollectionScreen";
 import { fetchComplianceProfile, setAgeVerification } from "../../lib/complianceProfile";
+import { captureReferralFromLocation } from "../../constants/pendingReferral";
 import { persistGuestBrowse } from "../../constants/termsAcknowledgment";
 import { isShippingNoticeSeen } from "../../constants/shippingNotice";
 import { AuthModal } from "../auth/AuthModal";
@@ -21,7 +22,7 @@ import { USShippingModal } from "./USShippingModal";
 import { GlassSurface } from "./GlassSurface";
 import { MOBILE_COLORS } from "./mobileTheme";
 import { shouldSuppressMobileGemToast } from "../../utils/mobileGemUi";
-import { APP_SHELL_BG, MOBILE_HEADER_BG } from "./mobileShellTheme";
+import { APP_SHELL_BG } from "./mobileShellTheme";
 import type { AppView } from "../../types";
 
 const IMMERSIVE_VIEWS: AppView[] = ["pack-open", "settings"];
@@ -34,7 +35,7 @@ function NativeSafeAreaTopCover() {
       className="pointer-events-none fixed left-0 right-0 top-0 z-[9999]"
       style={{
         height: "env(safe-area-inset-top)",
-        background: MOBILE_HEADER_BG,
+        background: "#000000",
       }}
     />
   );
@@ -86,6 +87,7 @@ function MobileAppLayoutInner() {
   useEffect(() => {
     document.documentElement.classList.add("capacitor-native");
     persistGuestBrowse();
+    captureReferralFromLocation(window.location.search);
     return () => {
       document.documentElement.classList.remove("capacitor-native");
     };

@@ -13,7 +13,7 @@ import { AddFundsModal } from "./rip/AddFundsModal";
 import { CardDetailOverlay } from "./rip/CardDetailOverlay";
 import { WinRipsLogo } from "../brand/WinRipsLogo";
 import { CollectibleImage } from "../ui/CollectibleImage";
-import { MOBILE_HEADER_BG, mobileHeaderSafePaddingStyle } from "./mobileShellTheme";
+import { mobileHeaderSafePaddingStyle } from "./mobileShellTheme";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 
 // Single-category app for now — keep the selector code but hide it (re-enable when
@@ -73,7 +73,7 @@ export function MobileShowroomView() {
     <RipAmbientShell>
       <header
         className="relative z-[10000] flex shrink-0 items-center justify-between border-none px-6 pb-3 shadow-none"
-        style={{ ...mobileHeaderSafePaddingStyle, background: MOBILE_HEADER_BG }}
+        style={{ ...mobileHeaderSafePaddingStyle, background: "#000000" }}
       >
         {SHOW_CATEGORY_SELECTOR ? (
           <CategorySelector onPress={() => setCategoryOpen(true)} />

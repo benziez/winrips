@@ -10,6 +10,11 @@ import {
 } from "react";
 import { signInWithApple as runAppleSignIn } from "../lib/appleAuth";
 import { supabase, isSupabaseConfigured } from "../lib/supabaseClient";
+import {
+  clearPendingReferralCode,
+  readPendingReferralCode,
+} from "../constants/pendingReferral";
+import { normalizeReferralCodeInput } from "../utils/referralCode";
 
 export interface AuthActionResult {
   error: string | null;
@@ -121,6 +126,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         metadata.pending_date_of_birth = dateOfBirth.trim();
       }
 
+      const pendingReferral = normalizeReferralCodeInput(readPendingReferralCode());
+      if (pendingReferral) {
+        metadata.referral_code = pendingReferral;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -131,6 +141,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (error) {
         return { error: error.message, needsEmailConfirmation: false };
+      }
+
+      if (pendingReferral) {
+        clearPendingReferralCode();
       }
 
       return {

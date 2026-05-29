@@ -17,7 +17,7 @@ import { CategorySelector } from "./rip/CategorySelector";
 import { CategorySheet } from "./rip/CategorySheet";
 import { AddFundsModal } from "./rip/AddFundsModal";
 import { hapticMediumImpact } from "../../utils/mobileHaptics";
-import { MOBILE_HEADER_BG, mobileHeaderSafePaddingStyle } from "./mobileShellTheme";
+import { mobileHeaderSafePaddingStyle } from "./mobileShellTheme";
 import featuredWotcBanner from "../../assets/banners/featured-wotc-banner.png";
 
 /**
@@ -131,7 +131,7 @@ export function MobileRipLobby() {
     <RipAmbientShell scratch>
       <header
         className="relative z-[10000] flex shrink-0 items-center justify-between border-none px-6 pb-3 shadow-none"
-        style={{ ...mobileHeaderSafePaddingStyle, background: MOBILE_HEADER_BG }}
+        style={{ ...mobileHeaderSafePaddingStyle, background: "#000000" }}
       >
         {SHOW_CATEGORY_SELECTOR ? (
           <CategorySelector onPress={() => setCategoryOpen(true)} />
@@ -170,7 +170,7 @@ export function MobileRipLobby() {
           {openPackRow.length > 0 ? (
             <section className="space-y-3">
               <SectionHeader title="Open a Pack" />
-              <div className="rip-hide-scrollbar flex snap-x gap-3 overflow-x-auto overflow-y-hidden px-6 pb-1">
+              <div className="rip-hide-scrollbar flex snap-x gap-3 overflow-x-auto overflow-y-hidden pl-4 pr-6 pb-1">
                 {openPackRow.map((pack, index) => (
                   <motion.button
                     key={pack.id}

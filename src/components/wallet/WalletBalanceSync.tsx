@@ -5,6 +5,7 @@ import { useApp } from "../../context/AppContext";
 import { clearLoggedIn } from "../../constants/userSession";
 import { fetchUserBalanceSnapshot } from "../../queries/userBalances";
 import { queryKeys } from "../../queries/queryKeys";
+import { claimPendingReferralIfNeeded } from "../../lib/referrals";
 
 /**
  * Keeps AppContext wallet state aligned with Supabase auth — wipes on sign-out,
@@ -17,6 +18,7 @@ export function WalletBalanceSync() {
     setGoldVolts,
     syncUserProfileFromServer,
     syncVaultFromServer,
+    syncGemBalanceFromServer,
     logout,
   } = useApp();
 
@@ -42,6 +44,7 @@ export function WalletBalanceSync() {
     setBalanceUserId(userId);
     void syncUserProfileFromServer(userId);
     void syncVaultFromServer(userId);
+    void claimPendingReferralIfNeeded(userId).then(() => syncGemBalanceFromServer(userId));
   }, [
     authLoading,
     isAuthenticated,
@@ -50,6 +53,7 @@ export function WalletBalanceSync() {
     setBalanceUserId,
     syncUserProfileFromServer,
     syncVaultFromServer,
+    syncGemBalanceFromServer,
   ]);
 
   useEffect(() => {

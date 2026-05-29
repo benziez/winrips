@@ -7,6 +7,15 @@ import { isNativeCapacitorApp } from "../../utils/platform";
 import { validateDateOfBirthInput } from "../../utils/ageVerification";
 import { setAgeVerification } from "../../lib/complianceProfile";
 
+const MODAL_PANEL =
+  "relative w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0a0c10] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.65)] sm:p-8";
+const INPUT_LABEL =
+  "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#A1A1AA]";
+const INPUT_FIELD =
+  "w-full rounded-lg border border-white/[0.08] bg-[#1a1f2e] px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-[#FF007F]/50 focus:outline-none focus:ring-1 focus:ring-[#FF007F]/30";
+const SSO_BUTTON =
+  "flex w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-[#1a1f2e] py-2.5 text-sm font-semibold text-white transition-colors hover:border-white/[0.14] hover:bg-[#222836]";
+
 export function AuthModal() {
   const {
     authModalOpen,
@@ -111,33 +120,30 @@ export function AuthModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-labelledby="auth-title"
     >
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-slate p-6 sm:p-8">
+      <div className={MODAL_PANEL}>
         <button
           type="button"
           onClick={handleClose}
-          className="absolute top-4 right-4 text-xl text-muted hover:text-white"
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-lg text-white/45 transition-colors hover:bg-white/[0.06] hover:text-white/80"
           aria-label="Close"
         >
           ×
         </button>
 
-        <h2 id="auth-title" className="text-xl font-bold text-white">
+        <h2 id="auth-title" className="pr-8 text-2xl font-bold text-white">
           {title}
         </h2>
-        <p className="mt-1 mb-6 text-sm text-muted">{subtitle}</p>
+        <p className="mt-1.5 mb-6 text-sm text-[#A1A1AA]">{subtitle}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin ? (
             <div>
-              <label
-                htmlFor="auth-username"
-                className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted"
-              >
+              <label htmlFor="auth-username" className={INPUT_LABEL}>
                 Username
               </label>
               <input
@@ -151,17 +157,14 @@ export function AuthModal() {
                 maxLength={24}
                 autoComplete="username"
                 pattern="[a-zA-Z0-9_]{3,24}"
-                className="w-full rounded-lg border border-border bg-obsidian px-4 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-fuchsia/50 focus:outline-none focus:ring-1 focus:ring-fuchsia/30"
+                className={INPUT_FIELD}
               />
             </div>
           ) : null}
 
           {!isLogin ? (
             <div>
-              <label
-                htmlFor="auth-dob"
-                className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted"
-              >
+              <label htmlFor="auth-dob" className={INPUT_LABEL}>
                 Date of birth
               </label>
               <input
@@ -171,16 +174,13 @@ export function AuthModal() {
                 onChange={(e) => setDateOfBirth(e.target.value)}
                 required
                 max={new Date().toISOString().slice(0, 10)}
-                className="w-full rounded-lg border border-border bg-obsidian px-4 py-2.5 text-sm text-white focus:border-fuchsia/50 focus:outline-none focus:ring-1 focus:ring-fuchsia/30"
+                className={INPUT_FIELD}
               />
             </div>
           ) : null}
 
           <div>
-            <label
-              htmlFor="auth-email"
-              className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted"
-            >
+            <label htmlFor="auth-email" className={INPUT_LABEL}>
               Email
             </label>
             <input
@@ -191,14 +191,11 @@ export function AuthModal() {
               placeholder="you@example.com"
               required
               autoComplete="email"
-              className="w-full rounded-lg border border-border bg-obsidian px-4 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-fuchsia/50 focus:outline-none focus:ring-1 focus:ring-fuchsia/30"
+              className={INPUT_FIELD}
             />
           </div>
           <div>
-            <label
-              htmlFor="auth-password"
-              className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-muted"
-            >
+            <label htmlFor="auth-password" className={INPUT_LABEL}>
               Password
             </label>
             <input
@@ -210,7 +207,7 @@ export function AuthModal() {
               required
               minLength={6}
               autoComplete={isLogin ? "current-password" : "new-password"}
-              className="w-full rounded-lg border border-border bg-obsidian px-4 py-2.5 text-sm text-white placeholder:text-muted/50 focus:border-fuchsia/50 focus:outline-none focus:ring-1 focus:ring-fuchsia/30"
+              className={INPUT_FIELD}
             />
           </div>
 
@@ -223,22 +220,24 @@ export function AuthModal() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-xl bg-[#FF007F] py-3 text-sm font-bold uppercase tracking-wide text-white hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl bg-[#FF007F] py-3 text-sm font-bold uppercase tracking-wide text-white shadow-[0_0_24px_rgba(255,0,127,0.2)] hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? "Please wait…" : isLogin ? "Log In" : "Sign Up"}
           </button>
         </form>
 
         <div className="my-5 flex items-center gap-3">
-          <span className="h-px flex-1 bg-border" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">or</span>
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-white/[0.08]" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">
+            or
+          </span>
+          <span className="h-px flex-1 bg-white/[0.08]" />
         </div>
 
         <div className="space-y-2.5">
           {isNativeCapacitorApp() && Capacitor.getPlatform() === "ios" ? (
             <AppleSignInButton
-              className="rounded-lg py-2.5"
+              className="!rounded-lg !border !border-white/[0.08] !bg-[#1a1f2e] !py-2.5 !text-sm !font-semibold !text-white hover:!bg-[#222836]"
               onError={(message) => setFormError(message)}
               onSuccess={() => {
                 showCashoutToast("Welcome to WinRips!");
@@ -247,19 +246,11 @@ export function AuthModal() {
             />
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => handleSso("Google")}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-metallic py-2.5 text-sm font-semibold text-white transition-colors hover:border-fuchsia/40 hover:bg-metallic-hover"
-              >
+              <button type="button" onClick={() => handleSso("Google")} className={SSO_BUTTON}>
                 <span className="text-base">G</span>
                 Continue with Google
               </button>
-              <button
-                type="button"
-                onClick={() => handleSso("Discord")}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-metallic py-2.5 text-sm font-semibold text-white transition-colors hover:border-fuchsia/40 hover:bg-metallic-hover"
-              >
+              <button type="button" onClick={() => handleSso("Discord")} className={SSO_BUTTON}>
                 <span className="text-base">◎</span>
                 Continue with Discord
               </button>
@@ -267,7 +258,7 @@ export function AuthModal() {
           )}
         </div>
 
-        <p className="mt-5 text-center text-xs text-muted">
+        <p className="mt-5 text-center text-xs text-[#A1A1AA]">
           {isLogin ? "New here?" : "Already have an account?"}{" "}
           <button
             type="button"
@@ -275,7 +266,7 @@ export function AuthModal() {
               setFormError(null);
               openAuthModal(isLogin ? "signup" : "login");
             }}
-            className="font-semibold text-fuchsia hover:underline"
+            className="font-semibold text-[#FF007F] hover:underline"
           >
             {isLogin ? "Sign Up" : "Log In"}
           </button>

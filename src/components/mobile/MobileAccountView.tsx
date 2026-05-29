@@ -222,7 +222,7 @@ export function MobileAccountView() {
             onClick={() => openAuthModal("login")}
             className="mt-4 text-[15px] font-medium text-[var(--rip-green-bright)]"
           >
-            Other sign-in options
+            Sign in with email
           </button>
         </div>
       </RipAmbientShell>

@@ -5,11 +5,14 @@ import { resolveAssetUrl } from "../../utils/resolveAssetUrl";
 interface WinRipsLogoProps {
   className?: string;
   maxWidth?: number;
+  /** When false, skip the fuchsia drop-shadow (header / flat surfaces). */
+  glow?: boolean;
 }
 
 export function WinRipsLogo({
   className = "block h-10 w-auto object-contain lg:h-11",
   maxWidth = 160,
+  glow = true,
 }: WinRipsLogoProps = {}) {
   return (
     <img
@@ -20,7 +23,11 @@ export function WinRipsLogo({
       fetchPriority="high"
       style={{
         maxWidth: `${maxWidth}px`,
-        filter: `drop-shadow(0 0 10px color-mix(in srgb, ${BRAND_FUCHSIA} 30%, transparent))`,
+        ...(glow
+          ? {
+              filter: `drop-shadow(0 0 10px color-mix(in srgb, ${BRAND_FUCHSIA} 30%, transparent))`,
+            }
+          : {}),
       }}
       decoding="async"
     />

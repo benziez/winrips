@@ -182,7 +182,7 @@ export function CollectibleImage({
     // Hard bypass: lobby grids pass optimize={false} for direct Pokémon TCG / local URLs.
     if (optimize === false) {
       if (displayMode === "primary" && typeof src === "string" && src.trim()) {
-        return src.trim();
+        return optimizedImageUrl(src.trim(), { optimize: false });
       }
       return rawImageSrc;
     }

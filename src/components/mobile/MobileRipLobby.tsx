@@ -129,13 +129,13 @@ export function MobileRipLobby() {
   return (
     <RipAmbientShell scratch>
       <header
-        className="flex shrink-0 items-center justify-between bg-[#0a0c10] px-6 pb-3"
+        className="relative z-20 flex shrink-0 items-center justify-between border-none bg-[#0a0c10] px-6 pb-3 shadow-none"
         style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
       >
         {SHOW_CATEGORY_SELECTOR ? (
           <CategorySelector onPress={() => setCategoryOpen(true)} />
         ) : (
-          <WinRipsLogo className="block h-7 w-auto object-contain" maxWidth={120} />
+          <WinRipsLogo className="block h-7 w-auto object-contain" maxWidth={120} glow={false} />
         )}
         <BalancePill onAddFunds={() => setAddFundsOpen(true)} />
       </header>

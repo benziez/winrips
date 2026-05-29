@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { optimizedImageUrl } from "../../utils/optimizedImageUrl";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../../context/AppContext";
@@ -93,7 +94,7 @@ function preloadWinnerArt(strip: Card[], winnerIndex: number): void {
     if (!url) continue;
     const img = new Image();
     img.decoding = "async";
-    img.src = url;
+    img.src = optimizedImageUrl(url, { optimize: true });
   }
 }
 
@@ -290,7 +291,6 @@ function RevealStage({ card, rarity }: { card: Card; rarity: StoreRarity }) {
             alt={card.name}
             className="w-full object-contain"
             priority
-            optimize={false}
             forceShow
           />
         </motion.div>

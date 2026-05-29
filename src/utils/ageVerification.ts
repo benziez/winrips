@@ -38,9 +38,27 @@ export function isAtLeast18(dobIso: string): boolean {
   return age !== null && age >= 18;
 }
 
+export function parseDateOfBirthInput(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!match) return null;
+
+  const month = match[1]!.padStart(2, "0");
+  const day = match[2]!.padStart(2, "0");
+  const year = match[3]!;
+  return `${year}-${month}-${day}`;
+}
+
 export function validateDateOfBirthInput(dobIso: string): string | null {
-  if (!dobIso.trim()) return "Date of birth is required.";
-  const age = ageFromDateOfBirth(dobIso);
+  const normalized = parseDateOfBirthInput(dobIso) ?? dobIso.trim();
+  if (!normalized) return "Date of birth is required.";
+  const age = ageFromDateOfBirth(normalized);
   if (age === null) return "Enter a valid date of birth.";
   if (age < 18) return UNDERAGE_ERROR;
   return null;

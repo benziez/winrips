@@ -1,81 +1,17 @@
-import { useMemo } from "react";
 import { WinRipsLogo } from "../brand/WinRipsLogo";
 import { BTN_GHOST_OUTLINE } from "./mobileTheme";
-import { POKEMON_ITEMS } from "../../constants/pokemonCatalog";
-
-const COLLAGE_TILE_COUNT = 12;
-
-/** Highest-value grail card art, deduped, padded to fill the collage grid. */
-function useGrailCollageImages(): string[] {
-  return useMemo(() => {
-    const seen = new Set<string>();
-    const urls: string[] = [];
-    for (const item of [...POKEMON_ITEMS].sort((a, b) => b.value - a.value)) {
-      const src = item.image?.trim();
-      if (!src || seen.has(src)) continue;
-      seen.add(src);
-      urls.push(src);
-      if (urls.length >= COLLAGE_TILE_COUNT) break;
-    }
-    if (urls.length === 0) return [];
-    const filled = [...urls];
-    for (let i = 0; filled.length < COLLAGE_TILE_COUNT; i += 1) {
-      filled.push(urls[i % urls.length]!);
-    }
-    return filled;
-  }, []);
-}
 
 export function MobileSignInScreen({ onBrowsePacks, onSignIn }: MobileSignInScreenProps) {
-  const collageImages = useGrailCollageImages();
-
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col overflow-hidden bg-black"
+      className="fixed inset-0 z-40 flex flex-col overflow-hidden bg-[#0a0c10]"
       data-shell="mobile"
     >
-      {/* Blurred grail-card collage backdrop */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
-        <div className="grid h-full w-full scale-110 grid-cols-3 grid-rows-4 gap-2 opacity-50 blur-2xl">
-          {collageImages.map((src, index) => (
-            <img
-              key={`${src}-${index}`}
-              src={src}
-              alt=""
-              className="h-full w-full rounded-lg object-cover"
-              loading="eager"
-              decoding="async"
-              draggable={false}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Gold glow accent */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse at 50% 12%, rgba(212, 175, 55, 0.18), transparent 55%)",
-        }}
-        aria-hidden
-      />
-
-      {/* Dark scrim — darker toward the bottom where the buttons sit */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.32) 28%, rgba(0,0,0,0.78) 66%, rgba(0,0,0,0.97) 100%)",
-        }}
-        aria-hidden
-      />
-
       <div
         className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-6"
         style={{ paddingTop: "max(0px, env(safe-area-inset-top))" }}
       >
-        <WinRipsLogo className="block h-16 w-auto object-contain" maxWidth={300} />
+        <WinRipsLogo className="block h-16 w-auto object-contain" maxWidth={300} glow={false} />
       </div>
 
       <div

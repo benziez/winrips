@@ -4,17 +4,17 @@ import { useAuth } from "../../context/AuthContext";
 import { AppleSignInButton } from "./AppleSignInButton";
 import { Capacitor } from "@capacitor/core";
 import { isNativeCapacitorApp } from "../../utils/platform";
-import { validateDateOfBirthInput } from "../../utils/ageVerification";
+import { validateDateOfBirthInput, parseDateOfBirthInput } from "../../utils/ageVerification";
 import { setAgeVerification } from "../../lib/complianceProfile";
 
 const MODAL_PANEL =
-  "relative w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#0a0c10] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.65)] sm:p-8";
+  "relative w-full max-w-md rounded-2xl border border-white/10 bg-[#0a0c10] p-6 sm:p-8";
 const INPUT_LABEL =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#A1A1AA]";
 const INPUT_FIELD =
-  "w-full rounded-lg border border-white/[0.08] bg-[#1a1f2e] px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-[#FF007F]/50 focus:outline-none focus:ring-1 focus:ring-[#FF007F]/30";
+  "w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-sm text-white placeholder:text-white/35 focus:border-[#FF007F]/50 focus:outline-none focus:ring-1 focus:ring-[#FF007F]/30";
 const SSO_BUTTON =
-  "flex w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-[#1a1f2e] py-2.5 text-sm font-semibold text-white transition-colors hover:border-white/[0.14] hover:bg-[#222836]";
+  "flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 bg-black/40 py-2.5 text-sm font-semibold text-white transition-colors hover:border-white/20 hover:bg-black/55";
 
 export function AuthModal() {
   const {
@@ -76,7 +76,13 @@ export function AuthModal() {
         return;
       }
 
-      const dobError = validateDateOfBirthInput(dateOfBirth);
+      const dobIso = parseDateOfBirthInput(dateOfBirth);
+      if (!dobIso) {
+        setFormError("Enter a valid date of birth (MM/DD/YYYY).");
+        return;
+      }
+
+      const dobError = validateDateOfBirthInput(dobIso);
       if (dobError) {
         setFormError(dobError);
         return;
@@ -86,7 +92,7 @@ export function AuthModal() {
         email,
         password,
         username,
-        dateOfBirth,
+        dobIso,
       );
       if (error) {
         setFormError(error);
@@ -94,7 +100,7 @@ export function AuthModal() {
       }
 
       if (!needsEmailConfirmation) {
-        const { error: ageError } = await setAgeVerification(dateOfBirth);
+        const { error: ageError } = await setAgeVerification(dobIso);
         if (ageError) {
           setFormError(ageError);
           return;
@@ -169,11 +175,13 @@ export function AuthModal() {
               </label>
               <input
                 id="auth-dob"
-                type="date"
+                type="text"
+                inputMode="numeric"
                 value={dateOfBirth}
                 onChange={(e) => setDateOfBirth(e.target.value)}
+                placeholder="MM/DD/YYYY"
                 required
-                max={new Date().toISOString().slice(0, 10)}
+                autoComplete="bday"
                 className={INPUT_FIELD}
               />
             </div>
@@ -237,7 +245,7 @@ export function AuthModal() {
         <div className="space-y-2.5">
           {isNativeCapacitorApp() && Capacitor.getPlatform() === "ios" ? (
             <AppleSignInButton
-              className="!rounded-lg !border !border-white/[0.08] !bg-[#1a1f2e] !py-2.5 !text-sm !font-semibold !text-white hover:!bg-[#222836]"
+              className="!rounded-lg !border !border-white/10 !bg-black/40 !py-2.5 !text-sm !font-semibold !text-white hover:!bg-black/55"
               onError={(message) => setFormError(message)}
               onSuccess={() => {
                 showCashoutToast("Welcome to WinRips!");

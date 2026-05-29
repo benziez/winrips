@@ -50,7 +50,6 @@ export function CarouselCard({
             src={card.image}
             alt={card.name}
             className="h-full w-full rounded-lg object-contain"
-            optimize={compact ? false : undefined}
             loading="lazy"
             placeholderTintRgb={tintRgb}
           />

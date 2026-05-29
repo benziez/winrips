@@ -113,7 +113,7 @@ async function sumRecentWithdrawalsCents(userId: string): Promise<number> {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await supabase
     .from("withdrawals")
-    .select("amount_cents")
+    .select("amount")
     .eq("user_id", userId)
     .in("status", ["pending", "completed"])
     .gte("created_at", since);
@@ -123,7 +123,7 @@ async function sumRecentWithdrawalsCents(userId: string): Promise<number> {
   }
 
   return (data ?? []).reduce(
-    (sum, row) => sum + Math.max(0, Math.round(Number(row.amount_cents) || 0)),
+    (sum, row) => sum + Math.max(0, Math.round(Number(row.amount) || 0)),
     0,
   );
 }

@@ -146,7 +146,7 @@ begin
     v_ytd := 0;
   end if;
 
-  select coalesce(sum(amount_cents), 0)
+  select coalesce(sum(amount), 0)
     into v_recent_total
   from public.withdrawals
   where user_id = p_user_id
@@ -165,7 +165,7 @@ begin
     withdrawn_ytd_year = v_current_year
   where id = p_user_id;
 
-  insert into public.withdrawals (user_id, amount_cents, status)
+  insert into public.withdrawals (user_id, amount, status)
   values (p_user_id, p_amount_cents, 'pending')
   returning id into v_withdrawal_id;
 

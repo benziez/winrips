@@ -4,7 +4,7 @@
 create table if not exists public.withdrawals (
   id uuid default gen_random_uuid() primary key,
   user_id uuid references auth.users(id) on delete cascade,
-  amount_cents integer not null,
+  amount integer not null,
   stripe_transfer_id text,
   status text not null default 'pending',
   created_at timestamptz default now()
@@ -56,7 +56,7 @@ begin
     v_ytd := 0;
   end if;
 
-  select coalesce(sum(amount_cents), 0)
+  select coalesce(sum(amount), 0)
     into v_recent_total
   from public.withdrawals
   where user_id = p_user_id
@@ -75,7 +75,7 @@ begin
     withdrawn_ytd_year = v_current_year
   where id = p_user_id;
 
-  insert into public.withdrawals (user_id, amount_cents, status)
+  insert into public.withdrawals (user_id, amount, status)
   values (p_user_id, p_amount_cents, 'pending')
   returning id into v_withdrawal_id;
 
@@ -104,7 +104,7 @@ begin
     return;
   end if;
 
-  select user_id, amount_cents
+  select user_id, amount
     into v_user_id, v_amount
   from public.withdrawals
   where id = p_withdrawal_id;

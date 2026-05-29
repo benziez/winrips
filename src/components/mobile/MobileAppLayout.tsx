@@ -20,6 +20,7 @@ import { MobileFloatingDock, MOBILE_DOCK_CLEARANCE } from "./MobileFloatingDock"
 import { GlassSurface } from "./GlassSurface";
 import { MOBILE_COLORS } from "./mobileTheme";
 import { shouldSuppressMobileGemToast } from "../../utils/mobileGemUi";
+import { MOBILE_HEADER_BG } from "./mobileShellTheme";
 import type { AppView } from "../../types";
 
 const IMMERSIVE_VIEWS: AppView[] = ["pack-open", "settings"];
@@ -33,7 +34,7 @@ function NativeSafeAreaTopCover() {
       className="pointer-events-none fixed left-0 right-0 top-0 z-[9999]"
       style={{
         height: "env(safe-area-inset-top)",
-        background: APP_SHELL_BG,
+        background: MOBILE_HEADER_BG,
       }}
     />
   );

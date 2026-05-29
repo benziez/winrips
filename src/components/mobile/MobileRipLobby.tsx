@@ -17,6 +17,7 @@ import { CategorySelector } from "./rip/CategorySelector";
 import { CategorySheet } from "./rip/CategorySheet";
 import { AddFundsModal } from "./rip/AddFundsModal";
 import { hapticMediumImpact } from "../../utils/mobileHaptics";
+import { MOBILE_HEADER_BG, mobileHeaderSafePaddingStyle } from "./mobileShellTheme";
 import featuredWotcBanner from "../../assets/banners/featured-wotc-banner.png";
 
 /**
@@ -129,8 +130,8 @@ export function MobileRipLobby() {
   return (
     <RipAmbientShell scratch>
       <header
-        className="relative z-20 flex shrink-0 items-center justify-between border-none bg-[#0a0c10] px-6 pb-3 shadow-none"
-        style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
+        className="relative z-[10000] flex shrink-0 items-center justify-between border-none px-6 pb-3 shadow-none"
+        style={{ ...mobileHeaderSafePaddingStyle, background: MOBILE_HEADER_BG }}
       >
         {SHOW_CATEGORY_SELECTOR ? (
           <CategorySelector onPress={() => setCategoryOpen(true)} />
@@ -206,9 +207,14 @@ export function MobileRipLobby() {
           {biggestPulls.length > 0 ? (
             <section className="space-y-3">
               <SectionHeader title="Biggest Pulls" />
-              <div className="rip-hide-scrollbar flex snap-x gap-3 overflow-x-auto overflow-y-hidden px-6 pb-1">
-                {biggestPulls.map((tile) => (
-                  <div key={tile.key} className="flex w-[30vw] shrink-0 snap-start flex-col">
+              <div className="rip-hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden px-4 pb-1">
+                {biggestPulls.map((tile, index) => (
+                  <div
+                    key={tile.key}
+                    className={`flex w-[30vw] shrink-0 snap-start flex-col${
+                      index === 0 ? " ml-4" : ""
+                    }${index === biggestPulls.length - 1 ? " mr-4" : ""}`}
+                  >
                     <div className="relative aspect-[3/4] w-full overflow-hidden rounded-lg bg-[var(--rip-surface)]">
                       <CollectibleImage
                         src={tile.image}

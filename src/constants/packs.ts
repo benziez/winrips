@@ -3,27 +3,46 @@ import type { StoreItem } from "../types/store";
 import { getPackStoreItems } from "./catalog";
 import { getFloorFillersForPackId, isFloorFillerItemId } from "./floorFillers";
 import { initializePackFloorEconomy } from "./packEconomy";
+import { enrichPackDailyLimit } from "./packDailyLimits";
 import {
   computePackExpectedValue,
   expectedValueBounds,
+  packHouseEdgeTarget,
   targetPackExpectedValue,
 } from "../utils/packProbability";
 import { logger } from "../lib/logger";
+import { getBundledPackCover } from "../assets/packCoverMap";
 import {
   EVOLVING_SKIES_ITEM_IDS,
+  FLASH_ITEM_IDS,
   GOD_PACK_1999_ITEM_IDS,
   LEGENDARY_HUNT_ITEM_IDS,
   MEGA_EVOLUTION_ITEM_IDS,
+  MIDNIGHT_GRAIL_ITEM_IDS,
   OBSIDIAN_VAULT_ITEM_IDS,
   PACK_151_ITEM_IDS,
+  POWER_HOUR_ITEM_IDS,
   PRISMATIC_SIR_ITEM_IDS,
   PSA_10_CHASER_ITEM_IDS,
   SHINY_VAULT_ITEM_IDS,
   TRAINERS_STARTER_ITEM_IDS,
   WAIFU_VAULT_ITEM_IDS,
+  WEEKEND_WARRIOR_ITEM_IDS,
   WOTC_FIRST_EDITION_ITEM_IDS,
 } from "./packPokemonPools";
+import {
+  INFINITE_APEX_ITEM_IDS,
+  INFINITE_OMEGA_ITEM_IDS,
+  INFINITE_PRIME_ITEM_IDS,
+  INFINITE_ZENITH_ITEM_IDS,
+} from "./infiniteSeriesPools";
 import { POKEMON_ALL_ITEM_IDS, POKEMON_ITEMS } from "./pokemonCatalog";
+
+export {
+  INFINITE_SERIES_PACK_IDS,
+  isInfiniteSeriesPackId,
+} from "./infiniteSeriesPools";
+export type { InfiniteSeriesPackId } from "./infiniteSeriesPools";
 
 export interface CatalogPack extends Pack {
   /** Seeded card IDs in this pack's drop pool — never auto-filled. */
@@ -36,6 +55,11 @@ function coverFromCatalog(catalog: StoreItem[], name: string): string {
 
 function tcgCover(setId: string, number: string): string {
   return `https://images.pokemontcg.io/${setId}/${number}_hires.png`;
+}
+
+/** Vite-bundled lobby art from `src/assets/packs/` (same path as PackCatalogImage). */
+function bundledPackCover(packId: string): string {
+  return getBundledPackCover(packId) ?? "";
 }
 
 /** Active launch Pokémon packs — unique ~25-card pools per tier. */
@@ -52,7 +76,23 @@ export const ACTIVE_POKEMON_PACK_IDS = [
   "psa-10-chaser",
   "waifu-vault",
   "shiny-vault",
+  "infinite-prime",
+  "infinite-apex",
+  "infinite-zenith",
+  "infinite-omega",
 ] as const;
+
+/** Limited-time lobby drops — excluded from the main Open a Pack row. */
+export const LIMITED_DROP_PACK_IDS = [
+  "power-hour",
+  "midnight-grail",
+  "flash",
+  "weekend-warrior",
+] as const;
+
+export type LimitedDropPackId = (typeof LIMITED_DROP_PACK_IDS)[number];
+
+const LIMITED_DROP_PACK_ID_SET = new Set<string>(LIMITED_DROP_PACK_IDS);
 
 /** Pokémon mystery packs — eight launch tiers with distinct registries. */
 export function buildPokemonPacks(): CatalogPack[] {
@@ -193,11 +233,111 @@ export function buildPokemonPacks(): CatalogPack[] {
       items: [...SHINY_VAULT_ITEM_IDS],
       accentLabel: "SHINY VAULT",
     },
+    {
+      id: "infinite-prime",
+      name: "Infinite Prime",
+      cost: 50_000,
+      theme: "gold",
+      description:
+        "High-roller Infinite Series — 30-card curated pool with 77/18/5 floor, mid, and grail variance.",
+      category: "pokemon",
+      image: bundledPackCover("infinite-prime")!,
+      items: [...INFINITE_PRIME_ITEM_IDS],
+      accentLabel: "∞ INFINITE",
+      ribbon: "High Roller",
+    },
+    {
+      id: "infinite-apex",
+      name: "Infinite Apex",
+      cost: 75_000,
+      theme: "gold",
+      description:
+        "Elevated Infinite Series tier — tighter mid-tier hits and stronger grail ceiling.",
+      category: "pokemon",
+      image: bundledPackCover("infinite-apex")!,
+      items: [...INFINITE_APEX_ITEM_IDS],
+      accentLabel: "∞ INFINITE",
+      ribbon: "High Roller",
+    },
+    {
+      id: "infinite-zenith",
+      name: "Infinite Zenith",
+      cost: 85_000,
+      theme: "mystic",
+      description:
+        "Near-peak Infinite Series — vintage grails blended with modern alt-art chase cards.",
+      category: "pokemon",
+      image: bundledPackCover("infinite-zenith")!,
+      items: [...INFINITE_ZENITH_ITEM_IDS],
+      accentLabel: "∞ INFINITE",
+      ribbon: "High Roller",
+    },
+    {
+      id: "infinite-omega",
+      name: "Infinite Omega",
+      cost: 100_000,
+      theme: "mystic",
+      description:
+        "Flagship Infinite Series — maximum grail ceiling with WOTC 1st Edition chase hits.",
+      category: "pokemon",
+      image: bundledPackCover("infinite-omega")!,
+      items: [...INFINITE_OMEGA_ITEM_IDS],
+      accentLabel: "∞ LEGENDARY",
+      ribbon: "Omega Tier",
+    },
+    {
+      id: "power-hour",
+      name: "Power Hour",
+      cost: 3_000,
+      theme: "gold",
+      description: "Daily 8–10PM drop window with boosted Mythic odds on chase hits.",
+      category: "pokemon",
+      image: bundledPackCover("power-hour"),
+      items: [...POWER_HOUR_ITEM_IDS],
+      accentLabel: "⚡ LIMITED DROP",
+    },
+    {
+      id: "midnight-grail",
+      name: "Midnight Grail",
+      cost: 7_500,
+      theme: "mystic",
+      description: "Late-night vintage and obsidian grails — Mythic and Legendary heavy.",
+      category: "pokemon",
+      image: bundledPackCover("midnight-grail"),
+      items: [...MIDNIGHT_GRAIL_ITEM_IDS],
+      accentLabel: "🌙 LIMITED DROP",
+    },
+    {
+      id: "flash",
+      name: "Flash Pack",
+      cost: 2_000,
+      theme: "gold",
+      description: "Limited-time Prismatic SIR chase with boosted Epic odds.",
+      category: "pokemon",
+      image: bundledPackCover("flash"),
+      items: [...FLASH_ITEM_IDS],
+      accentLabel: "🔥 LIMITED DROP",
+    },
+    {
+      id: "weekend-warrior",
+      name: "Weekend Warrior",
+      cost: 5_000,
+      theme: "gold",
+      description: "Weekend-only drop blending Legendary Hunt grails and PSA 10 chases.",
+      category: "pokemon",
+      image: bundledPackCover("weekend-warrior"),
+      items: [...WEEKEND_WARRIOR_ITEM_IDS],
+      accentLabel: "👑 LIMITED DROP",
+    },
   ];
 }
 
+export function isLimitedDropPackId(packId: string): boolean {
+  return LIMITED_DROP_PACK_ID_SET.has(packId);
+}
+
 export function buildCatalogPacks(): CatalogPack[] {
-  return initializePackFloorEconomy(buildPokemonPacks());
+  return initializePackFloorEconomy(buildPokemonPacks()).map(enrichPackDailyLimit);
 }
 
 /** Dev-time guard: every whitelisted ID must exist in the Pokémon catalog. */
@@ -228,9 +368,10 @@ if (import.meta.env?.DEV) {
     validatePackCatalog(LOBBY_PACK_CATALOG);
     for (const pack of LOBBY_PACK_CATALOG) {
       const items = getPackStoreItems(pack);
+      const edge = packHouseEdgeTarget(pack.id);
       const ev = computePackExpectedValue(items);
-      const { min, max } = expectedValueBounds(pack.cost);
-      const target = targetPackExpectedValue(pack.cost);
+      const { min, max } = expectedValueBounds(pack.cost, edge);
+      const target = targetPackExpectedValue(pack.cost, edge);
       if (ev < min - 1 || ev > max + 1) {
         logger.warn(
           `[pack economy] ${pack.id}: EV ${ev.toFixed(2)} outside ${min.toFixed(0)}–${max.toFixed(0)} (target ${target.toFixed(0)})`,

@@ -48,7 +48,9 @@ export function hasHighResCollectibleImage(image?: string | null): boolean {
   if (url.includes("/back.png") || url.includes("/back.jpg")) return false;
 
   if (url.includes("pokemontcg.io")) {
-    return url.includes("_hires");
+    if (url.includes("/back.png") || url.includes("/back.jpg")) return false;
+    // Standard (.png) and hires assets from the official Pokémon TCG CDN.
+    return /\.png(\?|$)/i.test(url) || url.includes("_hires");
   }
 
   return url.startsWith("https://") || url.startsWith("http://");

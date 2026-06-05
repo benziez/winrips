@@ -1,21 +1,29 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { auditCollectibleImageSources, resolveCollectibleImageSrc } from "../../utils/collectibleImageSrc";
+import { auditCollectibleImageSources } from "../../utils/collectibleImageSrc";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { useApp } from "../../context/AppContext";
-import { recordPlayHistory } from "../../lib/playHistory";
+import { useAuth } from "../../context/AuthContext";
+import { recordPlayHistory, fetchPlayHistory } from "../../lib/playHistory";
+import { requestAppReview } from "../../lib/requestAppReview";
 import { openPack } from "../../lib/spinLogic";
 import {
   buildFullDropTableStrip,
   cardFromPullEntry,
   rollMultipleWithRoll,
+  rollTopValueCardForPack,
   ROULETTE_WINNER_INDEX,
   type PackPullEntry,
 } from "../../utils/rng";
 import { formatPackPriceUsd, formatUsd, gemsToUsd, canShipCardValue } from "../../constants/retail";
 import { formatPackExpectedValueUsd } from "../../utils/packValueRange";
+import { getPackDetailDescription } from "../../constants/packDescriptions";
 import { AddFundsModal, defaultDepositUsdForShortfall } from "./rip/AddFundsModal";
 import { AdjustOddsSheet } from "./rip/AdjustOddsSheet";
+import {
+  isRiskyRipOddsMode,
+  type OddsMode,
+} from "./rip/adjustOdds";
 import { RipCardTile } from "./rip/RipCardTile";
 import { PackCatalogImage } from "./PackCatalogImage";
 import { UnboxingCarousel } from "../pack-opening/UnboxingCarousel";
@@ -23,29 +31,49 @@ import { SpinStageAtmosphere } from "../pack-opening/SpinStageAtmosphere";
 import { glowPaletteForStoreRarity, type RarityGlowPalette } from "../../utils/rarityGlowColors";
 import { MobileWhatsInsideDrawer } from "./MobileWhatsInsideDrawer";
 import { hapticHeavyImpact, hapticSpinnerTick, hapticTabSelect } from "../../utils/mobileHaptics";
+import { preloadSpinnerStripImages } from "../../utils/spinnerImagePreload";
 import { isFastModeEnabled } from "../../lib/mobileRipPreferences";
 import {
   buildPendingFairnessSession,
   commitFairnessSession,
   type FairnessSession,
 } from "../../utils/provablyFair";
-import { TransactionFailureModal } from "../pack-opening/TransactionFailureModal";
 import { formatProbability, getPackDropTable } from "../../data/packDropTables";
 import type { StoreRarity } from "../../types/store";
 import type { Card, VaultedCard } from "../../types";
 import { CollectibleImage } from "../ui/CollectibleImage";
-import { ChevronLeft, ChevronRight, InfoIcon } from "../icons/AppIcons";
+import { ChevronLeft, ChevronRight } from "../icons/AppIcons";
 import { PAGE_STACK_SPRING } from "./mobileTheme";
+import {
+  OVERLAY_DISMISS_EXIT,
+  OVERLAY_DISMISS_TRANSITION,
+} from "./rip/ripMotion";
 import { MobileErrorBoundary } from "./MobileErrorBoundary";
 import { DismissPill } from "./DismissPill";
 import { GlassSurface } from "./GlassSurface";
-import { RipBottomSheet } from "./rip/RipBottomSheet";
 import { ShipCardSheet } from "./vault/ShipCardSheet";
+import { isGuestDemoSpinAvailable, markGuestDemoSpinUsed } from "../../constants/guestDemoSpin";
+import {
+  bypassesPackDailyLimitUi,
+  isPackSoldOutToday,
+  packOpensRemaining,
+} from "../../constants/packDailyLimits";
+import { getLimitedDropOpenBlockMessage } from "../../utils/limitedDropWindows";
+import { getPackRollPool } from "../../data/boxCatalog";
+import type { StoreItem } from "../../types/store";
+import { JustPulledHorizontalFeed } from "./JustPulledHorizontalFeed";
+import type { JustPulledFeedTile } from "./JustPulledFeedCard";
+import StarField, { getStarFieldBackground, getPackPriceTier } from "./StarField";
 
 type OpenPhase = "pre-rip" | "spinning" | "complete";
 
 const BUTTON_SPRING = { type: "spring" as const, stiffness: 500, damping: 26 };
 const INSIDE_GRID_PREVIEW = 6;
+const PACK_JUST_PULLED_LIMIT = 8;
+const PACK_JUST_PULLED_TICK_MS = 3_000;
+const SIM_PULL_POOL_MIN = 15;
+const SIM_PULL_POOL_MAX = 20;
+const SIM_SEED_AGES_SEC = [2, 9, 19, 34, 48, 55, 58, 60];
 const SPINNER_EXIT_TRANSITION = { duration: 0.25 };
 const COMPLETE_ENTER_TRANSITION = { duration: 0.4, ease: "easeOut" as const, delay: 0.15 };
 const COMPLETE_EXIT_TRANSITION = { duration: 0.4, ease: "easeOut" as const };
@@ -57,6 +85,43 @@ const MOBILE_SPIN_CARD_WIDTH = 200;
 
 const COMPLETE_ACTION_BTN =
   "flex h-12 flex-1 items-center justify-center rounded-full text-[15px] font-semibold transition-opacity active:opacity-80 disabled:opacity-30";
+
+/** 15–20 unique cards from the pack roll pool — source for simulated Just Pulled tiles. */
+function buildSimPullPool(packId: string): StoreItem[] {
+  const rollPool = getPackRollPool(packId);
+  const unique = [...new Map(rollPool.map((item) => [item.id, item])).values()];
+  if (unique.length === 0) return [];
+
+  const target = Math.min(
+    unique.length,
+    SIM_PULL_POOL_MIN + Math.floor(Math.random() * (SIM_PULL_POOL_MAX - SIM_PULL_POOL_MIN + 1)),
+  );
+
+  const shuffled = [...unique];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
+
+  return shuffled.slice(0, target);
+}
+
+function spawnSimPullTile(
+  pool: StoreItem[],
+  packId: string,
+  seq: number,
+  ageSec: number,
+): JustPulledFeedTile {
+  const item = pool[Math.floor(Math.random() * pool.length)]!;
+  return {
+    key: `sim-${packId}-${seq}`,
+    name: item.name,
+    value: item.value,
+    image: item.image ?? "",
+    rarity: item.appRarity,
+    acquiredAt: new Date(Date.now() - ageSec * 1000).toISOString(),
+  };
+}
 
 function resolveStoreRarityForCard(
   card: Card | null | undefined,
@@ -84,19 +149,7 @@ function resolveStoreRarityForEntry(
   return resolveStoreRarityForCard(card, dropTable);
 }
 
-const WINNER_PRELOAD_RADIUS = 2;
-
-/** Warm the browser cache for the landing card + immediate neighbors before the reel stops. */
-function preloadWinnerArt(strip: Card[], winnerIndex: number): void {
-  if (typeof window === "undefined") return;
-  for (let offset = -WINNER_PRELOAD_RADIUS; offset <= WINNER_PRELOAD_RADIUS; offset += 1) {
-    const url = strip[winnerIndex + offset]?.image?.trim();
-    if (!url) continue;
-    const img = new Image();
-    img.decoding = "async";
-    img.src = resolveCollectibleImageSrc(url);
-  }
-}
+const SPIN_PRELOAD_LEAD = 20;
 
 /** Celebration intensity per rarity tier — common stays modest, grail goes huge. */
 const STORE_RARITY_RANK: Record<StoreRarity, number> = {
@@ -287,6 +340,7 @@ function RevealStage({ card, rarity }: { card: Card; rarity: StoreRarity }) {
             aria-hidden
           />
           <CollectibleImage
+            key={`reveal-${card.id}-${card.image}`}
             src={card.image}
             alt={card.name}
             className="w-full object-contain"
@@ -338,13 +392,16 @@ export function MobilePackOpeningView() {
     showErrorToast,
     goldVolts,
     userId,
+    isLoggedIn,
     appendVaultPullFromSpin,
     setSpinInProgress,
     syncGemBalanceFromServer,
     setAddFundsModalOpen,
     openAuthModal,
+    authModalOpen,
   } = useApp();
-  const isGuest = !userId;
+  const { isAuthenticated } = useAuth();
+  const isGuest = !isLoggedIn;
 
   const [phase, setPhase] = useState<OpenPhase>("pre-rip");
   const [isChargingSpin, setIsChargingSpin] = useState(false);
@@ -352,30 +409,91 @@ export function MobilePackOpeningView() {
   const [queueIndex, setQueueIndex] = useState(0);
   const [pullVaultIds, setPullVaultIds] = useState<string[]>([]);
   const [fairnessSession, setFairnessSession] = useState<FairnessSession | null>(null);
-  const [transactionFailureOpen, setTransactionFailureOpen] = useState(false);
+  const [isPresent, setIsPresent] = useState(true);
   const [whatsInsideOpen, setWhatsInsideOpen] = useState(false);
   const [adjustOddsOpen, setAdjustOddsOpen] = useState(false);
+  const [oddsMode, setOddsMode] = useState<OddsMode>("normal");
   const [revealStoreRarity, setRevealStoreRarity] = useState<StoreRarity>("Common");
   const [carouselCards, setCarouselCards] = useState<Card[]>([]);
   const [isCarouselSpinning, setIsCarouselSpinning] = useState(false);
+  const [isPreparingPull, setIsPreparingPull] = useState(false);
+  const [preloadedImagesBySlot, setPreloadedImagesBySlot] = useState<
+    Map<number, HTMLImageElement>
+  >(() => new Map());
+  const [preloadedImagesByUrl, setPreloadedImagesByUrl] = useState<
+    Map<string, HTMLImageElement>
+  >(() => new Map());
   const [spinKey, setSpinKey] = useState(0);
-  const [completeInfoOpen, setCompleteInfoOpen] = useState(false);
   const [shipSheetOpen, setShipSheetOpen] = useState(false);
   const [addFundsOpen, setAddFundsOpen] = useState(false);
   const [reelGlowSettled, setReelGlowSettled] = useState(false);
   const [reelGlowFast, setReelGlowFast] = useState(false);
+  const [isGuestDemoSpin, setIsGuestDemoSpin] = useState(false);
   const pendingSpinAfterDeposit = useRef(false);
+  const isGuestDemoSpinRef = useRef(false);
+
+  const pendingLobbyRedirectAfterAuthRef = useRef(false);
+  const packsOpenedCountRef = useRef(0);
+  const reviewPromptPendingRef = useRef(false);
 
   const spinLandTimerRef = useRef<number | null>(null);
   const spinnerHapticIntervalRef = useRef<number | null>(null);
+  const spinPreloadPinsRef = useRef<HTMLImageElement[]>([]);
+  const spinPrepareCancelledRef = useRef(false);
 
   const [quantity, setQuantity] = useState(1);
+  const [dropWindowNow, setDropWindowNow] = useState(() => Date.now());
+  const [packJustPulled, setPackJustPulled] = useState<JustPulledFeedTile[]>([]);
+  const simPullPoolRef = useRef<StoreItem[]>([]);
+  const simPullSeqRef = useRef(0);
   // Fast Mode is set in Account; read the persisted pref on mount so each open honors it.
   const [fastMode] = useState(() => isFastModeEnabled());
   const fastModeRef = useRef(fastMode);
   useEffect(() => {
     fastModeRef.current = fastMode;
   }, [fastMode]);
+
+  useEffect(() => {
+    const clockId = window.setInterval(() => {
+      setDropWindowNow(Date.now());
+    }, 1_000);
+
+    return () => window.clearInterval(clockId);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedPack || phase !== "pre-rip") {
+      setPackJustPulled([]);
+      simPullPoolRef.current = [];
+      return;
+    }
+
+    const packId = selectedPack.id;
+    const simPool = buildSimPullPool(packId);
+    simPullPoolRef.current = simPool;
+    if (simPool.length === 0) {
+      setPackJustPulled([]);
+      return;
+    }
+
+    simPullSeqRef.current = 0;
+    const seedTiles = SIM_SEED_AGES_SEC.slice(0, PACK_JUST_PULLED_LIMIT).map((ageSec) => {
+      simPullSeqRef.current += 1;
+      return spawnSimPullTile(simPool, packId, simPullSeqRef.current, ageSec);
+    });
+    setPackJustPulled(seedTiles);
+
+    const intervalId = window.setInterval(() => {
+      const pool = simPullPoolRef.current;
+      if (pool.length === 0) return;
+
+      simPullSeqRef.current += 1;
+      const fresh = spawnSimPullTile(pool, packId, simPullSeqRef.current, 0);
+      setPackJustPulled((prev) => [fresh, ...prev].slice(0, PACK_JUST_PULLED_LIMIT));
+    }, PACK_JUST_PULLED_TICK_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [selectedPack, phase]);
 
   const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
   const activePullCard = useMemo(() => {
@@ -431,13 +549,28 @@ export function MobilePackOpeningView() {
     return defaultDepositUsdForShortfall(gemsToUsd(packTotalCost - goldVolts));
   }, [selectedPack, isGuest, goldVolts, quantity]);
 
-  const stackPop = useCallback(() => {
-    void hapticTabSelect();
+  const completeDismiss = useCallback(() => {
     if (window.history.length > 1) {
       navigate(-1);
     }
+  }, [navigate]);
+
+  const stackPop = useCallback(() => {
+    void hapticTabSelect();
     goToLobby();
-  }, [goToLobby, navigate]);
+    setIsPresent(false);
+  }, [goToLobby]);
+
+  const dismissPackOpenOnError = useCallback(
+    (message = "Could not open pack.") => {
+      setSpinInProgress(false);
+      setIsChargingSpin(false);
+      showErrorToast(message);
+      goToLobby();
+      setIsPresent(false);
+    },
+    [goToLobby, setSpinInProgress, showErrorToast],
+  );
 
   const clearCarouselSpin = useCallback(() => {
     if (spinLandTimerRef.current != null) {
@@ -452,10 +585,26 @@ export function MobilePackOpeningView() {
 
   useEffect(() => () => clearCarouselSpin(), [clearCarouselSpin]);
 
+  useEffect(() => {
+    return () => {
+      spinPrepareCancelledRef.current = true;
+    };
+  }, []);
+
   const completeReveal = useCallback(() => {
     setPhase("complete");
     setSpinInProgress(false);
-  }, [setSpinInProgress]);
+
+    if (
+      reviewPromptPendingRef.current &&
+      !isGuestDemoSpinRef.current &&
+      !isGuest &&
+      packsOpenedCountRef.current === 3
+    ) {
+      reviewPromptPendingRef.current = false;
+      void requestAppReview();
+    }
+  }, [isGuest, setSpinInProgress]);
 
   const settleReelGlow = useCallback((fast: boolean) => {
     setReelGlowFast(fast);
@@ -492,12 +641,32 @@ export function MobilePackOpeningView() {
   }, [clearCarouselSpin, landCarouselSpin]);
 
   const handleDismiss = useCallback(() => {
+    spinPrepareCancelledRef.current = true;
     clearCarouselSpin();
     setIsCarouselSpinning(false);
+    setIsPreparingPull(false);
     setSpinInProgress(false);
     setShipSheetOpen(false);
+    setIsGuestDemoSpin(false);
+    isGuestDemoSpinRef.current = false;
     stackPop();
   }, [clearCarouselSpin, setSpinInProgress, stackPop]);
+
+  useEffect(() => {
+    if (!userId || isGuest) {
+      packsOpenedCountRef.current = 0;
+      return;
+    }
+
+    let cancelled = false;
+    void fetchPlayHistory(userId, 100).then((rows) => {
+      if (!cancelled) packsOpenedCountRef.current = rows.length;
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, isGuest]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -514,24 +683,60 @@ export function MobilePackOpeningView() {
     setPullQueue([]);
     setQueueIndex(0);
     setPullVaultIds([]);
-    setTransactionFailureOpen(false);
     setWhatsInsideOpen(false);
-    setCompleteInfoOpen(false);
     setRevealStoreRarity("Common");
     setCarouselCards([]);
     setIsCarouselSpinning(false);
     setReelGlowSettled(false);
     setReelGlowFast(false);
     setSpinKey(0);
+    setIsGuestDemoSpin(false);
+    isGuestDemoSpinRef.current = false;
+    setOddsMode("normal");
     void buildPendingFairnessSession(selectedPack.id).then(setFairnessSession);
   }, [clearCarouselSpin, selectedPack?.id]);
 
-  const executeRip = useCallback(async (): Promise<RipResult> => {
-    if (!selectedPack) return { ok: false };
+  useEffect(() => {
+    if (!pendingLobbyRedirectAfterAuthRef.current) return;
+    if (!isAuthenticated || !isLoggedIn) return;
 
-    const totalCost = selectedPack.cost * quantity;
+    pendingLobbyRedirectAfterAuthRef.current = false;
+    isGuestDemoSpinRef.current = false;
+    setIsGuestDemoSpin(false);
+    setSpinInProgress(false);
+    goToLobby();
+  }, [goToLobby, isAuthenticated, isLoggedIn, setSpinInProgress]);
+
+  useEffect(() => {
+    if (authModalOpen || !pendingLobbyRedirectAfterAuthRef.current) return;
+    if (isAuthenticated && isLoggedIn) return;
+    pendingLobbyRedirectAfterAuthRef.current = false;
+  }, [authModalOpen, isAuthenticated, isLoggedIn]);
+
+  const executeRip = useCallback(async (
+    spinQuantity = quantity,
+    options?: { forceTopValueCard?: boolean },
+  ): Promise<RipResult> => {
+    console.log("[OpenPack] executeRip called", {
+      packId: selectedPack?.id,
+      spinQuantity,
+      isGuest,
+      userId: userId ?? null,
+      forceTopValueCard: options?.forceTopValueCard ?? false,
+    });
+
+    if (!selectedPack) {
+      console.warn("[OpenPack] executeRip early exit: no selectedPack");
+      return { ok: false };
+    }
+
+    const totalCost = selectedPack.cost * spinQuantity;
 
     if (!isGuest && userId && goldVolts < totalCost) {
+      console.warn("[OpenPack] executeRip early exit: insufficient balance", {
+        goldVolts,
+        totalCost,
+      });
       showErrorToast("Add funds to open this pack.");
       pendingSpinAfterDeposit.current = true;
       setAddFundsOpen(true);
@@ -545,18 +750,35 @@ export function MobilePackOpeningView() {
 
       if (!isGuest && userId) {
         setSpinInProgress(true);
+        console.log("[OpenPack] executeRip calling openPack RPC…", {
+          packId: selectedPack.id,
+          spinQuantity,
+          spinCost: selectedPack.cost,
+          riskyRip: isRiskyRipOddsMode(oddsMode),
+        });
         const openResult = await openPack(
           selectedPack.id,
           selectedPack.cost,
-          quantity,
+          spinQuantity,
           userId,
+          isRiskyRipOddsMode(oddsMode),
         );
         if (!openResult.ok) {
-          setSpinInProgress(false);
-          showErrorToast(openResult.error);
-          setTransactionFailureOpen(true);
+          console.error("[OpenPack] openPack RPC rejected:", {
+            error: openResult.error,
+            code: openResult.code,
+            step: openResult.step,
+            rpcData: openResult.rpcData,
+            packId: selectedPack.id,
+          });
+          dismissPackOpenOnError(openResult.error);
           return { ok: false };
         }
+        console.log("[OpenPack] openPack RPC success", {
+          packId: selectedPack.id,
+          winnerCount: openResult.winners.length,
+          gemsBalance: openResult.gemsBalance,
+        });
 
         setGoldVolts(openResult.gemsBalance);
         pullEntries = openResult.winners.map((winner) => ({
@@ -585,7 +807,11 @@ export function MobilePackOpeningView() {
 
         void commitFairnessSession(selectedPack.id, 0, fairnessSession).then(setFairnessSession);
       } else {
-        const rollResults = rollMultipleWithRoll(quantity, selectedPack.id);
+        const rollResults = options?.forceTopValueCard
+          ? Array.from({ length: spinQuantity }, () => rollTopValueCardForPack(selectedPack.id))
+          : rollMultipleWithRoll(spinQuantity, selectedPack.id, {
+              riskyRip: isRiskyRipOddsMode(oddsMode),
+            });
         pullEntries = rollResults.map((result) => ({
           itemId: result.card.id,
           rolledNumber: result.rolledNumber,
@@ -599,6 +825,7 @@ export function MobilePackOpeningView() {
 
       const historyUserId = userId;
       if (historyUserId) {
+        const packsOpenedBefore = packsOpenedCountRef.current;
         for (const entry of pullEntries) {
           const cardData = cardFromPullEntry(selectedPack.id, entry);
           void recordPlayHistory({
@@ -611,27 +838,70 @@ export function MobilePackOpeningView() {
             rolledNumber: entry.rolledNumber,
           });
         }
+        packsOpenedCountRef.current = packsOpenedBefore + pullEntries.length;
+        if (packsOpenedBefore < 3 && packsOpenedCountRef.current >= 3) {
+          reviewPromptPendingRef.current = true;
+        }
       }
 
+      console.log("[OpenPack] executeRip completed", {
+        packId: selectedPack.id,
+        pullCount: pullEntries.length,
+      });
       return { ok: true, entries: pullEntries, vaultIds };
     } catch (ripError) {
-      console.error("[OpenPack] executeRip failed", ripError);
-      setTransactionFailureOpen(true);
+      console.error("[OpenPack] executeRip threw:", ripError);
+      if (ripError && typeof ripError === "object") {
+        console.error("[OpenPack] executeRip error details:", {
+          ...ripError,
+          message: ripError instanceof Error ? ripError.message : String(ripError),
+          stack: ripError instanceof Error ? ripError.stack : undefined,
+        });
+      }
+      dismissPackOpenOnError();
       return { ok: false };
     }
   }, [
     selectedPack,
     isGuest,
+    isLoggedIn,
     userId,
     goldVolts,
     fairnessSession,
     quantity,
-    showErrorToast,
+    oddsMode,
+    dismissPackOpenOnError,
     setGoldVolts,
     appendVaultPullFromSpin,
     setSpinInProgress,
     setAddFundsModalOpen,
   ]);
+
+  const prepareAndStartCarouselSpin = useCallback(
+    async (strip: Card[]) => {
+      spinPrepareCancelledRef.current = false;
+      setIsPreparingPull(true);
+      setIsCarouselSpinning(false);
+      setPreloadedImagesBySlot(new Map());
+
+      const preload = await preloadSpinnerStripImages(strip, ROULETTE_WINNER_INDEX, {
+        leadCount: SPIN_PRELOAD_LEAD,
+        compactMobile: true,
+        preloadFullStrip: true,
+      });
+
+      if (spinPrepareCancelledRef.current) return;
+
+      spinPreloadPinsRef.current = preload.pinned;
+      setPreloadedImagesBySlot(new Map(preload.byIndex));
+      setPreloadedImagesByUrl(new Map(preload.byUrl));
+
+      // Do not start CSS spin animation until preload Promise.all has fully settled.
+      setIsPreparingPull(false);
+      startCarouselSpin();
+    },
+    [startCarouselSpin],
+  );
 
   const beginSpinSequence = useCallback(
     (entries: PackPullEntry[], vaultIds: string[]) => {
@@ -641,7 +911,6 @@ export function MobilePackOpeningView() {
       const firstCard = cardFromPullEntry(selectedPack.id, firstEntry);
       const { strip } = buildFullDropTableStrip(firstCard, selectedPack.id);
       auditCollectibleImageSources("spin-carousel", strip);
-      preloadWinnerArt(strip, ROULETTE_WINNER_INDEX);
 
       setPullQueue(entries);
       setQueueIndex(0);
@@ -649,17 +918,70 @@ export function MobilePackOpeningView() {
       setRevealStoreRarity(resolveStoreRarityForEntry(firstEntry, firstCard, dropTable));
       setCarouselCards(strip);
       setPhase("spinning");
-      startCarouselSpin();
+      void prepareAndStartCarouselSpin(strip);
     },
-    [dropTable, selectedPack, startCarouselSpin],
+    [dropTable, prepareAndStartCarouselSpin, selectedPack],
   );
 
   const handleOpenPack = useCallback(async () => {
-    if (!selectedPack || phase !== "pre-rip" || isChargingSpin) return;
+    console.log("Open Pack clicked, starting executeRip...", {
+      packId: selectedPack?.id,
+      phase,
+      isChargingSpin,
+      isGuest,
+    });
+
+    if (!selectedPack || phase !== "pre-rip" || isChargingSpin) {
+      console.warn("[OpenPack] handleOpenPack early exit: preconditions", {
+        hasSelectedPack: Boolean(selectedPack),
+        phase,
+        isChargingSpin,
+      });
+      return;
+    }
+
+    const limitedDropBlock = getLimitedDropOpenBlockMessage(
+      selectedPack.id,
+      dropWindowNow,
+    );
+    if (limitedDropBlock) {
+      console.warn("[OpenPack] handleOpenPack early exit: limited drop block", {
+        packId: selectedPack.id,
+        limitedDropBlock,
+      });
+      return;
+    }
 
     if (isGuest) {
       void hapticTabSelect();
-      openAuthModal("login");
+      if (!isGuestDemoSpinAvailable(selectedPack.id)) {
+        openAuthModal("signup");
+        return;
+      }
+
+      setIsGuestDemoSpin(true);
+      isGuestDemoSpinRef.current = true;
+      setIsChargingSpin(true);
+      setSpinInProgress(true);
+
+      try {
+        const result = await executeRip(1, { forceTopValueCard: true });
+        if (!result.ok) {
+          setSpinInProgress(false);
+          setIsGuestDemoSpin(false);
+          isGuestDemoSpinRef.current = false;
+          return;
+        }
+        markGuestDemoSpinUsed(selectedPack.id);
+        beginSpinSequence(result.entries, result.vaultIds);
+      } catch (openPackError) {
+        console.error("[OpenPack] guest demo spin failed", openPackError);
+        setSpinInProgress(false);
+        setIsGuestDemoSpin(false);
+        isGuestDemoSpinRef.current = false;
+      } finally {
+        setIsChargingSpin(false);
+      }
       return;
     }
 
@@ -670,16 +992,32 @@ export function MobilePackOpeningView() {
     try {
       const result = await executeRip();
       if (!result.ok) {
-        setSpinInProgress(false);
+        console.warn("[OpenPack] handleOpenPack: executeRip returned ok:false", {
+          packId: selectedPack.id,
+        });
         return;
       }
+      console.log("[OpenPack] handleOpenPack: starting spin sequence", {
+        packId: selectedPack.id,
+        entryCount: result.entries.length,
+      });
       beginSpinSequence(result.entries, result.vaultIds);
       if (userId) {
         void syncGemBalanceFromServer(userId);
       }
     } catch (openPackError) {
-      console.error("[OpenPack] handleOpenPack failed", openPackError);
-      setSpinInProgress(false);
+      console.error("[OpenPack] handleOpenPack threw:", openPackError);
+      if (openPackError && typeof openPackError === "object") {
+        console.error("[OpenPack] handleOpenPack error details:", {
+          ...openPackError,
+          message:
+            openPackError instanceof Error
+              ? openPackError.message
+              : String(openPackError),
+          stack: openPackError instanceof Error ? openPackError.stack : undefined,
+        });
+      }
+      dismissPackOpenOnError();
     } finally {
       setIsChargingSpin(false);
     }
@@ -687,9 +1025,10 @@ export function MobilePackOpeningView() {
     selectedPack,
     phase,
     isChargingSpin,
+    dropWindowNow,
     executeRip,
     beginSpinSequence,
-    setSpinInProgress,
+    dismissPackOpenOnError,
     userId,
     syncGemBalanceFromServer,
     isGuest,
@@ -699,19 +1038,19 @@ export function MobilePackOpeningView() {
   const finishReveal = useCallback(() => {
     clearCarouselSpin();
     setIsCarouselSpinning(false);
+    setIsPreparingPull(false);
 
     if (queueIndex < pullQueue.length - 1 && selectedPack) {
       const nextIndex = queueIndex + 1;
       const nextEntry = pullQueue[nextIndex]!;
       const nextCard = cardFromPullEntry(selectedPack.id, nextEntry);
       const { strip } = buildFullDropTableStrip(nextCard, selectedPack.id);
-      preloadWinnerArt(strip, ROULETTE_WINNER_INDEX);
 
       setQueueIndex(nextIndex);
       setRevealStoreRarity(resolveStoreRarityForEntry(nextEntry, nextCard, dropTable));
       setCarouselCards(strip);
       setPhase("spinning");
-      startCarouselSpin();
+      void prepareAndStartCarouselSpin(strip);
       return;
     }
 
@@ -730,8 +1069,25 @@ export function MobilePackOpeningView() {
     setSpinInProgress,
     stackPop,
     dropTable,
-    startCarouselSpin,
+    prepareAndStartCarouselSpin,
   ]);
+
+  const handleGuestDemoSignUp = useCallback(() => {
+    pendingLobbyRedirectAfterAuthRef.current = true;
+    openAuthModal("signup");
+  }, [openAuthModal]);
+
+  const handleGuestDemoLogIn = useCallback(() => {
+    pendingLobbyRedirectAfterAuthRef.current = true;
+    openAuthModal("login");
+  }, [openAuthModal]);
+
+  const handleGuestDemoLetItGo = useCallback(() => {
+    setIsGuestDemoSpin(false);
+    isGuestDemoSpinRef.current = false;
+    setSpinInProgress(false);
+    stackPop();
+  }, [setSpinInProgress, stackPop]);
 
   const handleSendToVault = useCallback(() => {
     if (!activePullCard || isGuest) return;
@@ -760,34 +1116,91 @@ export function MobilePackOpeningView() {
   }
 
   const totalCost = selectedPack.cost * quantity;
+  const bypassDailyLimit = bypassesPackDailyLimitUi(selectedPack.id);
+  const soldOutToday =
+    !isGuest && !bypassDailyLimit && isPackSoldOutToday(selectedPack);
+  const dailyOpensRemaining =
+    !isGuest && !bypassDailyLimit ? packOpensRemaining(selectedPack) : null;
+  const exceedsDailyRemaining =
+    dailyOpensRemaining !== null && dailyOpensRemaining < quantity;
+  const limitedDropOpenBlockMessage = getLimitedDropOpenBlockMessage(
+    selectedPack.id,
+    dropWindowNow,
+  );
 
   const openLabel = isChargingSpin
     ? "Processing…"
-    : `Open Pack · ${formatPackPriceUsd(totalCost)}`;
+    : soldOutToday
+      ? "Sold out today"
+      : limitedDropOpenBlockMessage
+        ? limitedDropOpenBlockMessage
+        : isGuest
+          ? isGuestDemoSpinAvailable(selectedPack.id)
+            ? "Try Free Spin"
+            : "Sign Up to Open"
+          : `Open Pack · ${formatPackPriceUsd(totalCost)}`;
 
   const showPack = phase === "pre-rip";
   const showSpinner = phase === "spinning";
   const showComplete = phase === "complete" && activePullCard;
+  const showStarField = showSpinner || showComplete;
 
   const reelRarityGlow = glowPaletteForStoreRarity(revealStoreRarity);
 
   const effectiveSpinDurationMs = fastMode ? FAST_SPIN_DURATION_MS : MOBILE_SPIN_DURATION_MS;
 
   const expectedValueLabel = formatPackExpectedValueUsd(selectedPack.id);
+  const oddsSheetExpectedValueLabel = formatPackPriceUsd(selectedPack.cost);
 
   // Most valuable pullable card — same deduped/value-sorted pool the EV reads.
   const topHit = insideCards[0] ?? null;
 
+  const packPriceUsd = gemsToUsd(selectedPack.cost);
+
+  const spinningPackTitleGlow = useMemo((): string | undefined => {
+    const tier = getPackPriceTier(packPriceUsd);
+    switch (tier) {
+      case "elite":
+        return "0 0 20px rgba(239, 68, 68, 0.8)";
+      case "high":
+        return "0 0 20px rgba(251, 191, 36, 0.8)";
+      case "mid":
+        return "0 0 20px rgba(167, 139, 250, 0.8)";
+      default:
+        return undefined;
+    }
+  }, [packPriceUsd]);
+
   return (
     <>
-      <div className="fixed inset-0 z-[100] bg-black" aria-hidden />
-      <motion.div
-        className="rip-ambient-bg fixed inset-0 z-[101] flex flex-col overflow-hidden bg-black"
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={PAGE_STACK_SPRING}
-      >
+      <AnimatePresence onExitComplete={completeDismiss}>
+        {isPresent ? (
+          <>
+            <motion.div
+              key="pack-open-backdrop"
+              className="fixed inset-0 z-[100]"
+              style={{ background: showStarField ? getStarFieldBackground(packPriceUsd) : "#000000" }}
+              aria-hidden
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={OVERLAY_DISMISS_TRANSITION}
+            />
+            <motion.div
+              key="pack-open-panel"
+              className={`fixed inset-0 z-[101] flex flex-col overflow-hidden ${
+                showStarField ? "" : "rip-ambient-bg bg-black"
+              }`}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={OVERLAY_DISMISS_EXIT}
+              transition={{
+                y: PAGE_STACK_SPRING,
+                opacity: OVERLAY_DISMISS_TRANSITION,
+                default: OVERLAY_DISMISS_TRANSITION,
+              }}
+            >
+        {showStarField ? <StarField packPrice={packPriceUsd} /> : null}
         {phase === "spinning" ? (
           <header
             className="relative z-50 shrink-0 px-6 pb-3"
@@ -804,17 +1217,13 @@ export function MobilePackOpeningView() {
               </button>
             ) : null}
             <div className="px-10 text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[var(--rip-text-muted)]">
-                Opening
-              </p>
+              <p className="mb-1 text-xs uppercase tracking-[0.3em] text-gray-400">Opening</p>
               <h2
-                className="mt-1 text-[22px] font-bold leading-tight text-white"
-                style={{
-                  textShadow: reelGlowSettled
-                    ? `0 0 28px rgba(${reelRarityGlow.rgb}, 0.7)`
-                    : "0 0 22px rgba(255, 122, 0, 0.35)",
-                  transition: "text-shadow 320ms ease",
-                }}
+                key={spinKey}
+                className="animate-fade-in text-3xl font-bold leading-tight text-white"
+                style={
+                  spinningPackTitleGlow ? { textShadow: spinningPackTitleGlow } : undefined
+                }
               >
                 {selectedPack.name}
               </h2>
@@ -822,7 +1231,7 @@ export function MobilePackOpeningView() {
           </header>
         ) : phase === "complete" ? (
           <header
-            className="relative z-50 flex shrink-0 items-center justify-between px-6 pb-3"
+            className="relative z-50 flex shrink-0 items-center px-6 pb-3"
             style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
           >
             <button
@@ -835,17 +1244,6 @@ export function MobilePackOpeningView() {
               aria-label="Back"
             >
               <ChevronLeft size={22} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void hapticTabSelect();
-                setCompleteInfoOpen(true);
-              }}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--rip-surface)] text-white"
-              aria-label="Card info"
-            >
-              <InfoIcon size={20} />
             </button>
           </header>
         ) : (
@@ -886,57 +1284,83 @@ export function MobilePackOpeningView() {
                   </h1>
 
                   <div className="mt-4 flex justify-center">
-                    <GlassSurface
-                      variant="default"
-                      className="relative aspect-[3/4] w-[min(58vw,240px)] overflow-hidden rounded-2xl p-0"
-                    >
-                      <div className="relative h-full w-full">
-                        <PackCatalogImage
-                          packId={selectedPack.id}
-                          src={selectedPack.image}
-                          alt={selectedPack.name}
-                          priority
-                        />
+                    {isRiskyRipOddsMode(oddsMode) ? (
+                      <div className="risky-rip-pack-frame">
+                        <div className="risky-rip-pack-frame__inner">
+                          <GlassSurface
+                            variant="default"
+                            className="relative aspect-[3/4] w-[min(58vw,240px)] overflow-hidden rounded-2xl p-0"
+                          >
+                            <div className="relative h-full w-full">
+                              <PackCatalogImage
+                                packId={selectedPack.id}
+                                src={selectedPack.image}
+                                alt={selectedPack.name}
+                                priority
+                              />
+                            </div>
+                          </GlassSurface>
+                        </div>
                       </div>
-                    </GlassSurface>
+                    ) : (
+                      <GlassSurface
+                        variant="default"
+                        className="relative aspect-[3/4] w-[min(58vw,240px)] overflow-hidden rounded-2xl p-0"
+                      >
+                        <div className="relative h-full w-full">
+                          <PackCatalogImage
+                            packId={selectedPack.id}
+                            src={selectedPack.image}
+                            alt={selectedPack.name}
+                            priority
+                          />
+                        </div>
+                      </GlassSurface>
+                    )}
                   </div>
 
-                  <div className="mt-6 flex gap-2">
-                    {[1, 2, 3, 4, 5].map((q) => {
-                      const active = quantity === q;
-                      return (
-                        <button
-                          key={q}
-                          type="button"
-                          onClick={() => {
-                            void hapticTabSelect();
-                            setQuantity(q);
-                          }}
-                          className={`h-11 flex-1 rounded-full text-[15px] font-bold transition-colors ${
-                            active
-                              ? "bg-[var(--rip-orange)] text-white"
-                              : "bg-[var(--rip-surface)] text-[var(--rip-text-muted)]"
-                          }`}
-                        >
-                          {q}x
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {!isGuest ? (
+                    <div className="mt-6 flex gap-2">
+                      {[1, 2, 3, 4, 5].map((q) => {
+                        const active = quantity === q;
+                        return (
+                          <button
+                            key={q}
+                            type="button"
+                            onClick={() => {
+                              void hapticTabSelect();
+                              setQuantity(q);
+                            }}
+                            className={`h-11 flex-1 rounded-full text-[15px] font-bold transition-colors ${
+                              active
+                                ? "bg-[var(--rip-orange)] text-white"
+                                : "bg-[var(--rip-surface)] text-[var(--rip-text-muted)]"
+                            }`}
+                          >
+                            {q}x
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
 
                   <motion.button
                     type="button"
                     whileTap={{ scale: 0.97 }}
                     onClick={() => void handleOpenPack()}
-                    disabled={isChargingSpin}
+                    disabled={
+                      isChargingSpin ||
+                      soldOutToday ||
+                      exceedsDailyRemaining ||
+                      limitedDropOpenBlockMessage !== null
+                    }
                     className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-[var(--rip-orange)] text-[16px] font-bold text-white transition-transform active:scale-[0.98] active:bg-[var(--rip-orange-pressed)] disabled:opacity-40"
                   >
                     {openLabel}
                   </motion.button>
 
                   <p className="mt-3 text-center text-[13px] leading-relaxed text-[var(--rip-text-muted)]">
-                    Each pack contains one graded card — ship it to your door, or sell it back at
-                    85% of Fair Market Value with our buyback guarantee.
+                    {getPackDetailDescription(selectedPack.id)}
                   </p>
 
                   <button
@@ -947,7 +1371,14 @@ export function MobilePackOpeningView() {
                     }}
                     className="mt-5 flex w-full items-center justify-between rounded-2xl border border-[var(--rip-border)] bg-[var(--rip-surface)] px-4 py-3.5 active:bg-white/5"
                   >
-                    <span className="text-[15px] font-semibold text-white">Top Hit</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="text-[15px] font-semibold text-white">Top Hit</span>
+                      {isRiskyRipOddsMode(oddsMode) ? (
+                        <span className="risky-rip-mode-badge shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold text-[#ffb3c6]">
+                          ⚡ Risky Rip
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="flex items-center gap-1.5 text-[14px] font-semibold text-[var(--rip-green-bright)]">
                       {topHit ? formatUsd(gemsToUsd(topHit.value)) : expectedValueLabel}
                       <ChevronRight size={18} className="text-[var(--rip-text-muted)]" />
@@ -974,6 +1405,26 @@ export function MobilePackOpeningView() {
                           Show all {insideCards.length}
                         </button>
                       ) : null}
+                    </section>
+                  ) : null}
+
+                  {packJustPulled.length > 0 ? (
+                    <section className="mt-8 space-y-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="relative flex h-2 w-2 shrink-0" aria-hidden>
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--rip-green-bright)] opacity-50" />
+                          <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--rip-green-bright)]" />
+                        </span>
+                        <h3 className="text-[18px] font-bold text-white">Just Pulled</h3>
+                      </div>
+                      <div className="-mx-6">
+                        <JustPulledHorizontalFeed
+                          tiles={packJustPulled}
+                          nowMs={dropWindowNow}
+                          paddingStart={24}
+                          className="snap-x snap-mandatory scroll-pl-6 pr-6 pb-1"
+                        />
+                      </div>
                     </section>
                   ) : null}
                 </motion.div>
@@ -1014,15 +1465,26 @@ export function MobilePackOpeningView() {
                       aria-hidden
                     />
                     <div className="relative z-10 w-full">
-                      <UnboxingCarousel
-                        cards={carouselCards}
-                        isSpinning={isCarouselSpinning}
-                        winnerIndex={ROULETTE_WINNER_INDEX}
-                        spinDurationMs={effectiveSpinDurationMs}
-                        cardWidth={MOBILE_SPIN_CARD_WIDTH}
-                        compactCards
-                        suppressEdgeFades
-                      />
+                      {isPreparingPull ? (
+                        <div className="flex min-h-[340px] flex-col items-center justify-center gap-3">
+                          <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/30" />
+                          <p className="text-sm font-medium uppercase tracking-[0.35em] text-white/50">
+                            Preparing Pull…
+                          </p>
+                        </div>
+                      ) : (
+                        <UnboxingCarousel
+                          cards={carouselCards}
+                          isSpinning={isCarouselSpinning}
+                          winnerIndex={ROULETTE_WINNER_INDEX}
+                          spinDurationMs={effectiveSpinDurationMs}
+                          cardWidth={MOBILE_SPIN_CARD_WIDTH}
+                          compactCards
+                          suppressEdgeFades
+                          preloadedImagesBySlot={preloadedImagesBySlot}
+                          preloadedImagesByUrl={preloadedImagesByUrl}
+                        />
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -1082,7 +1544,36 @@ export function MobilePackOpeningView() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={BUTTON_SPRING}
                   >
-                    {isGuest ? (
+                    {isGuestDemoSpin ? (
+                      <div className="w-full text-center">
+                        <p className="text-[22px] font-bold leading-tight text-white">
+                          You could have won this.
+                        </p>
+                        <div className="mt-5 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={handleGuestDemoSignUp}
+                            className={`${COMPLETE_ACTION_BTN} bg-[#FF007F] text-white shadow-[0_0_24px_rgba(255,0,127,0.35)] active:brightness-110`}
+                          >
+                            Sign Up
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleGuestDemoLogIn}
+                            className={`${COMPLETE_ACTION_BTN} border border-white/20 bg-[var(--rip-surface)] text-white active:bg-white/10`}
+                          >
+                            Log In
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleGuestDemoLetItGo}
+                          className="mt-4 py-2 text-[14px] font-medium text-[var(--rip-text-muted)] active:text-white"
+                        >
+                          Let it go
+                        </button>
+                      </div>
+                    ) : isGuest ? (
                       <button
                         type="button"
                         onClick={finishReveal}
@@ -1110,77 +1601,56 @@ export function MobilePackOpeningView() {
           </div>
         </MobileErrorBoundary>
 
-      </motion.div>
+            </motion.div>
 
-      <MobileWhatsInsideDrawer
-        packId={selectedPack.id}
-        packName={selectedPack.name}
-        open={whatsInsideOpen}
-        onClose={() => setWhatsInsideOpen(false)}
-      />
+            <MobileWhatsInsideDrawer
+              packId={selectedPack.id}
+              packName={selectedPack.name}
+              open={whatsInsideOpen}
+              onClose={() => setWhatsInsideOpen(false)}
+            />
 
-      <AdjustOddsSheet
-        pack={selectedPack}
-        open={adjustOddsOpen}
-        onClose={() => setAdjustOddsOpen(false)}
-        showVolatility={false}
-        expectedValueUsd={expectedValueLabel}
-        zIndex={120}
-        topHit={
-          topHit
-            ? { name: topHit.name, value: topHit.value, image: topHit.image }
-            : undefined
-        }
-      />
+            <AdjustOddsSheet
+              pack={selectedPack}
+              open={adjustOddsOpen}
+              onClose={() => setAdjustOddsOpen(false)}
+              selected={oddsMode}
+              onApply={setOddsMode}
+              expectedValueUsd={oddsSheetExpectedValueLabel}
+              zIndex={120}
+              topHit={
+                topHit
+                  ? { name: topHit.name, value: topHit.value, image: topHit.image }
+                  : undefined
+              }
+            />
 
-      <ShipCardSheet
-        open={shipSheetOpen}
-        onClose={() => setShipSheetOpen(false)}
-        card={activeVaultCard}
-        onSuccess={finishReveal}
-      />
+            <ShipCardSheet
+              open={shipSheetOpen}
+              onClose={() => setShipSheetOpen(false)}
+              card={activeVaultCard}
+              onSuccess={finishReveal}
+            />
 
-      <AddFundsModal
-        open={addFundsOpen}
-        defaultAmountUsd={smartDepositUsd}
-        onSuccess={() => {
-          if (pendingSpinAfterDeposit.current) {
-            pendingSpinAfterDeposit.current = false;
-            void handleOpenPack();
-          }
-        }}
-        onClose={() => {
-          pendingSpinAfterDeposit.current = false;
-          setAddFundsOpen(false);
-          setAddFundsModalOpen(false);
-        }}
-      />
+            <AddFundsModal
+              open={addFundsOpen}
+              defaultAmountUsd={smartDepositUsd}
+              onSuccess={() => {
+                if (pendingSpinAfterDeposit.current) {
+                  pendingSpinAfterDeposit.current = false;
+                  void handleOpenPack();
+                }
+              }}
+              onClose={() => {
+                pendingSpinAfterDeposit.current = false;
+                setAddFundsOpen(false);
+                setAddFundsModalOpen(false);
+              }}
+            />
 
-      {transactionFailureOpen ? (
-        <TransactionFailureModal onClose={() => setTransactionFailureOpen(false)} />
-      ) : null}
-
-      <RipBottomSheet open={completeInfoOpen} onClose={() => setCompleteInfoOpen(false)} heightClass="h-auto max-h-[50dvh]">
-        {activePullCard ? (
-          <div className="px-6 pb-8 pt-14">
-            <h3 className="text-xl font-bold text-white">Card details</h3>
-            <dl className="mt-4 space-y-3 text-[15px]">
-              <div>
-                <dt className="text-[var(--rip-text-muted)]">Name</dt>
-                <dd className="text-white">{activePullCard.name}</dd>
-              </div>
-              <div>
-                <dt className="text-[var(--rip-text-muted)]">Rarity</dt>
-                <dd className="text-white">{activePullCard.rarity}</dd>
-              </div>
-              <div>
-                <dt className="text-[var(--rip-text-muted)]">Fair market value</dt>
-                <dd className="text-white">{formatUsd(gemsToUsd(activePullCard.value))}</dd>
-              </div>
-            </dl>
-          </div>
+          </>
         ) : null}
-      </RipBottomSheet>
+      </AnimatePresence>
     </>
   );
 }

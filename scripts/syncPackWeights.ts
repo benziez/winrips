@@ -19,7 +19,7 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ACTIVE_POKEMON_PACK_IDS } from "../src/constants/packs";
+import { ACTIVE_POKEMON_PACK_IDS, LIMITED_DROP_PACK_IDS } from "../src/constants/packs";
 import { getPackRollPool } from "../src/data/boxCatalog";
 import { getPackDropTable } from "../src/data/packDropTables";
 import { getPackTierOdds, PACK_TIER_ORDER } from "../src/utils/packTierOdds";
@@ -36,6 +36,25 @@ interface WeightRow {
   roll_weight: number;
   value_gems: number;
   image_url: string;
+}
+
+/** Columns refreshed from packPokemonPools on every sync (display + roll metadata). */
+const UPSERT_CONFLICT = "pack_id,catalog_item_id";
+
+function toUpsertPayload(rows: WeightRow[]) {
+  const updated_at = new Date().toISOString();
+  return rows.map((row) => ({
+    pack_id: row.pack_id,
+    catalog_item_id: row.catalog_item_id,
+    // Display fields — must overwrite stale DB values on conflict (name / rarity / price / image).
+    item_name: row.item_name,
+    store_rarity: row.store_rarity,
+    value_gems: row.value_gems,
+    image_url: row.image_url,
+    // Roll weight — same source of truth, always merged on conflict.
+    roll_weight: row.roll_weight,
+    updated_at,
+  }));
 }
 
 /** Robust .env loader — the repo .env has a few non KEY=VALUE lines we must skip. */
@@ -141,7 +160,7 @@ function printParityTable(results: PackParity[]): void {
 async function main(): Promise<void> {
   loadEnvFromFile();
 
-  const packIds = [...ACTIVE_POKEMON_PACK_IDS];
+  const packIds = [...ACTIVE_POKEMON_PACK_IDS, ...LIMITED_DROP_PACK_IDS];
   const rowsByPack = new Map<string, WeightRow[]>();
   for (const packId of packIds) rowsByPack.set(packId, buildRowsForPack(packId));
 
@@ -165,13 +184,33 @@ async function main(): Promise<void> {
 
   let written = 0;
   for (const packId of packIds) {
-    const rows = rowsByPack.get(packId)!.map((r) => ({ ...r, updated_at: new Date().toISOString() }));
-    const { error } = await supabase
-      .from("pack_card_weights")
-      .upsert(rows, { onConflict: "pack_id,catalog_item_id" });
+    const rows = toUpsertPayload(rowsByPack.get(packId)!);
+
+    // merge-duplicates = ON CONFLICT DO UPDATE SET … for every column in the payload
+    // (item_name, store_rarity, value_gems, image_url, roll_weight, updated_at).
+    const { error } = await supabase.from("pack_card_weights").upsert(rows, {
+      onConflict: UPSERT_CONFLICT,
+      ignoreDuplicates: false,
+      defaultToNull: false,
+    });
     if (error) {
       throw new Error(`Upsert failed for ${packId}: ${error.message}`);
     }
+
+    const currentIds = rows.map((row) => row.catalog_item_id);
+    const { error: pruneError } = await supabase
+      .from("pack_card_weights")
+      .delete()
+      .eq("pack_id", packId)
+      .not(
+        "catalog_item_id",
+        "in",
+        `(${currentIds.map((id) => `"${id.replace(/"/g, '""')}"`).join(",")})`,
+      );
+    if (pruneError) {
+      throw new Error(`Prune stale rows failed for ${packId}: ${pruneError.message}`);
+    }
+
     written += rows.length;
     console.log(`  ${packId}: upserted ${rows.length} cards`);
   }

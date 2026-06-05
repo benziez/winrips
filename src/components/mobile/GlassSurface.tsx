@@ -1,6 +1,6 @@
 import type { CSSProperties, ElementType, HTMLAttributes, ReactNode } from "react";
 
-type GlassVariant = "default" | "dock" | "none";
+type GlassVariant = "default" | "dock" | "solid" | "none";
 
 interface GlassSurfaceProps extends HTMLAttributes<HTMLElement> {
   as?: ElementType;
@@ -14,6 +14,7 @@ interface GlassSurfaceProps extends HTMLAttributes<HTMLElement> {
 const VARIANT_CLASS: Record<Exclude<GlassVariant, "none">, string> = {
   default: "obsidian-glass",
   dock: "obsidian-glass-dock",
+  solid: "obsidian-glass-solid",
 };
 
 /**

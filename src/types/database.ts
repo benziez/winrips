@@ -111,6 +111,7 @@ export interface Database {
           withdrawable_balance?: number | null;
           stripe_connect_account_id?: string | null;
           username: string | null;
+          avatar_url?: string | null;
           is_admin?: boolean | null;
           date_of_birth?: string | null;
           is_age_verified?: boolean | null;
@@ -173,6 +174,26 @@ export interface Database {
         Update: Record<string, unknown>;
         Relationships: [];
       };
+      battle_record: {
+        Row: {
+          user_id: string;
+          wins: number;
+          losses: number;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          wins?: number;
+          losses?: number;
+          updated_at?: string;
+        };
+        Update: Partial<{
+          wins: number;
+          losses: number;
+          updated_at: string;
+        }>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -199,8 +220,38 @@ export interface Database {
           p_pack_id: string;
           p_quantity?: number;
           p_spin_cost?: number;
+          p_risky_rip?: boolean;
         };
         Returns: Json;
+      };
+      get_recent_lobby_pulls: {
+        Args: {
+          p_limit?: number;
+        };
+        Returns: {
+          id: string;
+          item_id: string;
+          item_name: string;
+          rarity: string;
+          gem_value: number;
+          image_url: string;
+          created_at: string;
+        }[];
+      };
+      get_recent_pack_pulls: {
+        Args: {
+          p_pack_id: string;
+          p_limit?: number;
+        };
+        Returns: {
+          id: string;
+          item_id: string;
+          item_name: string;
+          rarity: string;
+          gem_value: number;
+          image_url: string;
+          created_at: string;
+        }[];
       };
       process_shipping_request: {
         Args: {
@@ -251,6 +302,31 @@ export interface Database {
           p_battle_id: string;
         };
         Returns: Json;
+      };
+      award_battle_bonus: {
+        Args: {
+          p_user_id: string;
+          p_amount_cents: number;
+        };
+        Returns: Json;
+      };
+      record_battle_loss: {
+        Args: {
+          p_user_id: string;
+        };
+        Returns: Json;
+      };
+      fetch_top_battlers: {
+        Args: {
+          p_limit?: number;
+        };
+        Returns: {
+          user_id: string;
+          username: string;
+          wins: number;
+          losses: number;
+          win_rate: number;
+        }[];
       };
       set_age_verification: {
         Args: {

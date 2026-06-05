@@ -12,6 +12,7 @@ export interface VaultReleaseConfirmDeps {
     vaultId: string,
     shippingName: string,
     shippingAddress: string,
+    serverGemsBalance?: number,
   ) => void;
 }
 
@@ -34,7 +35,12 @@ export function createVaultReleaseOnConfirm(deps: VaultReleaseConfirmDeps) {
       return { ok: false, error: result.error };
     }
 
-    deps.markVaultItemPendingShipment(deps.vaultItemId, name, address);
+    deps.markVaultItemPendingShipment(
+      deps.vaultItemId,
+      name,
+      address,
+      result.gemsBalance,
+    );
     return { ok: true };
   };
 }

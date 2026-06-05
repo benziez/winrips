@@ -40,3 +40,12 @@ export function getPackExpectedGemValue(packId: string): number {
 export function formatPackExpectedValueUsd(packId: string): string {
   return formatUsd(gemsToUsd(getPackExpectedGemValue(packId)));
 }
+
+/** Highest-value pullable card in a pack's roll pool (gems). */
+export function getPackTopHitGems(packId: string): number {
+  return getPackGemValueRange(packId)?.maxGems ?? 0;
+}
+
+export function formatPackTopHitUsd(packId: string): string {
+  return formatUsd(gemsToUsd(getPackTopHitGems(packId)));
+}

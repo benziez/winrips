@@ -10,6 +10,7 @@ const config: CapacitorConfig = {
       style: "dark",
     },
     SplashScreen: {
+      launchAutoHide: false,
       launchShowDuration: 2000,
       backgroundColor: "#000000",
       splashFullScreen: false,

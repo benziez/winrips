@@ -9,6 +9,7 @@ export type ExchangeVaultItemResult =
       vaultItemId: string;
       gemsAdded: number;
       gemsBalance: number;
+      withdrawableBalance: number;
     }
   | { ok: false; error: string };
 
@@ -17,9 +18,13 @@ interface ExchangeRpcPayload {
   error?: string;
   gems_added?: number;
   gems_balance?: number;
+  withdrawable_balance?: number;
   item_id?: string;
   status?: string;
 }
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const inFlightExchangeIds = new Set<string>();
 
@@ -29,6 +34,7 @@ export interface VaultExchangeUiHandlers {
     vaultItemId: string,
     gemsAdded: number,
     serverGemsBalance?: number,
+    serverWithdrawableBalance?: number,
   ) => void;
   /** Close the reveal modal or any exchange overlay. */
   closeModal?: () => void;
@@ -38,11 +44,21 @@ export interface VaultExchangeUiHandlers {
   toastSuccess?: (gemsAdded: number) => void;
   /** Fetch authoritative gems_balance when RPC omits credit fields. */
   syncGemBalance?: () => Promise<void>;
+  /** Invalidate cached wallet/vault queries (React Query). */
+  invalidateBalanceQueries?: () => Promise<void>;
 }
 
 function parseRpcPayload(data: unknown): ExchangeRpcPayload | null {
-  if (data == null || typeof data !== "object") return null;
-  return data as ExchangeRpcPayload;
+  if (data == null) return null;
+  if (typeof data === "string") {
+    try {
+      return JSON.parse(data) as ExchangeRpcPayload;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof data === "object") return data as ExchangeRpcPayload;
+  return null;
 }
 
 function mapTransportError(message: string): string {
@@ -51,12 +67,27 @@ function mapTransportError(message: string): string {
   if (normalized.includes("not_authenticated")) {
     return "Sign in to exchange vault items.";
   }
+  if (normalized.includes("pgrst202") || normalized.includes("could not find the function")) {
+    return "Sell is unavailable — exchange_vault_item RPC is not deployed.";
+  }
+  if (normalized.includes("item_not_found")) {
+    return "Vault item not found.";
+  }
+  if (normalized.includes("item_not_exchangeable")) {
+    return "This item cannot be sold.";
+  }
+  if (normalized.includes("invalid input syntax for type uuid")) {
+    return "Invalid vault item id.";
+  }
 
   return message.trim() || "Unable to exchange this item. Please try again.";
 }
 
-function toCleanVaultItemId(vaultItemId: string): string {
-  return vaultItemId.trim().replace("vault-", "");
+/** Resolve the Supabase vault_items primary key (UUID) for RPC calls. */
+export function resolveVaultItemUuid(vaultItemId: string): string {
+  const trimmed = vaultItemId.trim();
+  if (UUID_RE.test(trimmed)) return trimmed;
+  return trimmed.replace(/^vault-/, "");
 }
 
 function resolveDbError(payload: ExchangeRpcPayload | null, fallback: string): string {
@@ -64,6 +95,12 @@ function resolveDbError(payload: ExchangeRpcPayload | null, fallback: string): s
     return payload.error.trim();
   }
   return fallback;
+}
+
+function readFiniteInt(value: unknown): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.round(parsed);
 }
 
 /** Calls `exchange_vault_item` and returns a typed result from the JSON payload. */
@@ -76,8 +113,8 @@ export async function exchangeVaultItem(vaultItemId: string): Promise<ExchangeVa
   }
 
   const sourceVaultItemId = vaultItemId.trim();
-  const cleanId = toCleanVaultItemId(sourceVaultItemId);
-  if (!cleanId) {
+  const cleanId = resolveVaultItemUuid(sourceVaultItemId);
+  if (!cleanId || !UUID_RE.test(cleanId)) {
     return { ok: false, error: "Vault item not found." };
   }
   if (inFlightExchangeIds.has(cleanId)) {
@@ -86,7 +123,7 @@ export async function exchangeVaultItem(vaultItemId: string): Promise<ExchangeVa
   inFlightExchangeIds.add(cleanId);
 
   try {
-    logger.log("[exchange_vault_item] RPC request");
+    logger.log("[exchange_vault_item] RPC request", { vaultItemId: cleanId });
 
     // @ts-expect-error Database RPC typings omit exchange_vault_item args.
     const { data, error } = await supabase.rpc("exchange_vault_item", { p_item_id: cleanId });
@@ -105,28 +142,37 @@ export async function exchangeVaultItem(vaultItemId: string): Promise<ExchangeVa
     }
 
     if (payload?.success !== true) {
-      logger.warn("[exchange_vault_item] Invalid response");
+      logger.warn("[exchange_vault_item] Invalid response", payload);
       return {
         ok: false,
         error: resolveDbError(payload, "Exchange returned an invalid response."),
       };
     }
 
-    const gemsAdded = Number(payload.gems_added);
-    const gemsBalance = Number(payload.gems_balance);
-    const normalizedAdded = Number.isFinite(gemsAdded) ? Math.round(gemsAdded) : 0;
-    const normalizedBalance = Number.isFinite(gemsBalance) ? Math.round(gemsBalance) : 0;
+    const gemsAdded = readFiniteInt(payload.gems_added) ?? 0;
+    const gemsBalance = readFiniteInt(payload.gems_balance);
+    const withdrawableBalance = readFiniteInt(payload.withdrawable_balance);
+
+    if (gemsAdded <= 0) {
+      logger.warn("[exchange_vault_item] success without gems_added", payload);
+      return {
+        ok: false,
+        error: "Exchange completed without a credit amount. Please try again.",
+      };
+    }
 
     logger.log("[exchange_vault_item] credit applied:", {
-      gemsAdded: normalizedAdded,
-      gemsBalance: normalizedBalance,
+      gemsAdded,
+      gemsBalance,
+      withdrawableBalance,
     });
 
     return {
       ok: true,
       vaultItemId: sourceVaultItemId,
-      gemsAdded: normalizedAdded,
-      gemsBalance: normalizedBalance,
+      gemsAdded,
+      gemsBalance: gemsBalance ?? 0,
+      withdrawableBalance: withdrawableBalance ?? 0,
     };
   } finally {
     inFlightExchangeIds.delete(cleanId);
@@ -140,22 +186,32 @@ export async function exchangeVaultItem(vaultItemId: string): Promise<ExchangeVa
 export async function exchangeVaultItemInUi(
   vaultItemId: string,
   handlers: VaultExchangeUiHandlers,
-): Promise<void> {
+): Promise<boolean> {
   const result = await exchangeVaultItem(vaultItemId);
 
   if (!result.ok) {
     handlers.toastError(result.error);
-    return;
+    return false;
   }
 
   logger.log("[exchangeVaultItemInUi] applying exchange:", {
     gemsAdded: result.gemsAdded,
     gemsBalance: result.gemsBalance,
+    withdrawableBalance: result.withdrawableBalance,
   });
 
-  handlers.removeVaultItem(result.vaultItemId, result.gemsAdded, result.gemsBalance);
+  handlers.removeVaultItem(
+    result.vaultItemId,
+    result.gemsAdded,
+    result.gemsBalance > 0 ? result.gemsBalance : undefined,
+    result.withdrawableBalance > 0 ? result.withdrawableBalance : undefined,
+  );
 
-  if (result.gemsAdded <= 0 && result.gemsBalance <= 0 && handlers.syncGemBalance) {
+  if (handlers.invalidateBalanceQueries) {
+    await handlers.invalidateBalanceQueries();
+  }
+
+  if (handlers.syncGemBalance) {
     await handlers.syncGemBalance();
   }
 
@@ -164,6 +220,8 @@ export async function exchangeVaultItemInUi(
   if (handlers.toastSuccess && result.gemsAdded > 0) {
     handlers.toastSuccess(result.gemsAdded);
   }
+
+  return true;
 }
 
 export function formatExchangeSuccessToast(gemsAdded: number): string {

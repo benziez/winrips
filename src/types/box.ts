@@ -14,6 +14,8 @@ export interface BoxRow {
   visual: string | null;
   is_active: boolean;
   sort_order: number;
+  daily_limit: number | null;
+  opens_today: number;
 }
 
 export interface BoxItemRow {

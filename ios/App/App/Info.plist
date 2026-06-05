@@ -46,10 +46,23 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>WinRips uses your camera for identity verification when setting up withdrawals.</string>
+	<string>WinRips needs access to your camera so you can upload a profile picture.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>WinRips accesses your photo library for identity verification when setting up withdrawals.</string>
+	<string>WinRips needs access to your photos so you can upload a profile picture.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>WinRips needs access to your photos so you can upload a profile picture.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.winrips.app.stripe</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.winrips.app</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

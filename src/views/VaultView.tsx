@@ -182,23 +182,31 @@ export function VaultView() {
     setExchangingVaultId(card.vaultId);
 
     try {
-      await exchangeVaultItemInUi(card.vaultId, {
-        removeVaultItem: (vaultItemId, gemsAdded, serverGemsBalance) => {
-          applyVaultExchange(vaultItemId, gemsAdded, serverGemsBalance);
+      const sold = await exchangeVaultItemInUi(card.vaultId, {
+        removeVaultItem: (vaultItemId, gemsAdded, serverGemsBalance, serverWithdrawableBalance) => {
+          applyVaultExchange(
+            vaultItemId,
+            gemsAdded,
+            serverGemsBalance,
+            serverWithdrawableBalance,
+          );
         },
         syncGemBalance: userId
           ? async () => {
               await syncGemBalanceFromServer(userId);
             }
           : undefined,
+        invalidateBalanceQueries: async () => {
+          await queryClient.invalidateQueries({ queryKey: queryKeys.vaultAll });
+          await queryClient.invalidateQueries({ queryKey: queryKeys.userAll });
+        },
         toastError: showErrorToast,
         toastSuccess: (gemsAdded) => {
           showCashoutToast(formatExchangeSuccessToast(gemsAdded));
         },
       });
 
-      await queryClient.invalidateQueries({ queryKey: queryKeys.vaultAll });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.userAll });
+      if (!sold) return;
     } finally {
       setExchangingVaultId(null);
     }

@@ -13,7 +13,6 @@ import { PurchaseModal } from "../wallet/PurchaseModal";
 import { WalletModal } from "../wallet/WalletModal";
 import { DepositModal } from "../modals/DepositModal";
 import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
-import { GemBalanceDepositNotifier } from "../wallet/GemBalanceDepositNotifier";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { MobileAppContent } from "./MobileAppContent";
 import { MobileHistoryBridge } from "./MobileHistoryBridge";
@@ -163,7 +162,17 @@ function MobileAppLayoutInner() {
         </div>
       </main>
 
-      {showDock ? <MobileFloatingDock /> : null}
+      <div
+        aria-hidden={!showDock}
+        className="fixed inset-x-0 bottom-0 z-50 transition-[transform,opacity] duration-150 ease-out"
+        style={{
+          transform: showDock ? "translateY(0)" : "translateY(100%)",
+          opacity: showDock ? 1 : 0,
+          pointerEvents: showDock ? "auto" : "none",
+        }}
+      >
+        <MobileFloatingDock />
+      </div>
       <MobileToast />
 
       <USShippingModal
@@ -175,7 +184,6 @@ function MobileAppLayoutInner() {
       <WalletModal />
       <DepositModal />
       <AuthModal />
-      <GemBalanceDepositNotifier />
 
       {shippingVaultItem ? (
         <VaultReleaseModal

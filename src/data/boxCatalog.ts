@@ -23,7 +23,19 @@ import {
   TRAINERS_STARTER_POOL,
   WAIFU_VAULT_POOL,
   WOTC_FIRST_EDITION_POOL,
+  POWER_HOUR_POOL,
+  MIDNIGHT_GRAIL_POOL,
+  FLASH_POOL,
+  WEEKEND_WARRIOR_POOL,
 } from "../constants/packPokemonPools";
+import {
+  INFINITE_APEX_POOL,
+  INFINITE_OMEGA_POOL,
+  INFINITE_PRIME_POOL,
+  INFINITE_ZENITH_POOL,
+} from "../constants/infiniteSeriesPools";
+import { gemsToUsd } from "../constants/retail";
+import { resolveStoreItemImage } from "../utils/collectibleFallback";
 import { applyValueScaledProbabilities } from "../utils/packProbability";
 import { logger } from "../lib/logger";
 import {
@@ -50,6 +62,14 @@ const DIRECT_STATIC_POOLS: Record<string, StoreItem[]> = {
   "psa-10-chaser": PSA_10_CHASER_POOL,
   "waifu-vault": WAIFU_VAULT_POOL,
   "shiny-vault": SHINY_VAULT_POOL,
+  "power-hour": POWER_HOUR_POOL,
+  "midnight-grail": MIDNIGHT_GRAIL_POOL,
+  flash: FLASH_POOL,
+  "weekend-warrior": WEEKEND_WARRIOR_POOL,
+  "infinite-prime": INFINITE_PRIME_POOL,
+  "infinite-apex": INFINITE_APEX_POOL,
+  "infinite-zenith": INFINITE_ZENITH_POOL,
+  "infinite-omega": INFINITE_OMEGA_POOL,
 };
 
 let remotePacks: CatalogPack[] | null = null;
@@ -65,13 +85,33 @@ function filterPokemonLobbyPacks(packs: CatalogPack[]): CatalogPack[] {
 }
 
 function mergeStoreItems(primary: StoreItem[], secondary: StoreItem[]): StoreItem[] {
-  const seen = new Set(primary.map((item) => item.id));
-  const merged = [...primary];
+  const localById = new Map(secondary.map((item) => [item.id, item]));
+  const seen = new Set<string>();
+  const merged: StoreItem[] = [];
+
+  for (const remote of primary) {
+    seen.add(remote.id);
+    const local = localById.get(remote.id);
+    merged.push(
+      local
+        ? {
+            ...remote,
+            name: local.name,
+            image: local.image?.trim() || remote.image,
+            value: local.value > 0 ? local.value : remote.value,
+            rarity: local.rarity,
+            appRarity: local.appRarity,
+          }
+        : remote,
+    );
+  }
+
   for (const item of secondary) {
     if (seen.has(item.id)) continue;
     seen.add(item.id);
     merged.push(item);
   }
+
   return merged;
 }
 
@@ -173,6 +213,7 @@ function resolveDirectStaticPool(packId: string): StoreItem[] {
   const pack = findStaticPackById(trimmed) ?? findPackById(trimmed);
   return applyValueScaledProbabilities([...pool], {
     spinCost: pack?.cost ?? 100,
+    packId: pack?.id ?? trimmed,
     floorShare: packFloorShareOverride(pack?.id ?? trimmed),
     grailMaxProbability: packGrailMaxOverride(pack?.id ?? trimmed),
     grailMinProbability: packGrailMinOverride(pack?.id ?? trimmed),
@@ -233,6 +274,7 @@ export function getPackStoreItemsForPack(pack: Pack): StoreItem[] {
     ];
     return applyValueScaledProbabilities(merged, {
       spinCost: pack.cost,
+      packId: pack.id,
       floorShare: packFloorShareOverride(pack.id),
       grailMaxProbability: packGrailMaxOverride(pack.id),
       grailMinProbability: packGrailMinOverride(pack.id),
@@ -271,4 +313,77 @@ export function getPackRollPool(packId: string): StoreItem[] {
 /** Synchronous drop-table source — never waits on remote catalog fetch. */
 export function resolveDropTableItems(packId: string): StoreItem[] {
   return getPackRollPool(packId);
+}
+
+/**
+ * Best-guess pack for a catalog item among pools that contain it.
+ * Cheap cards → cheapest pack; mid value → middle-cost pack; grails → highest-cost pack.
+ */
+export function findPackForCatalogItemId(
+  itemId: string,
+  valueGems?: number,
+): Pack | undefined {
+  const normalized = itemId.trim();
+  if (!normalized) return undefined;
+
+  const candidates: Pack[] = [];
+  for (const pack of getLobbyPackCatalog()) {
+    const pool = getPackRollPool(pack.id);
+    if (pool.some((entry) => entry.id === normalized)) {
+      candidates.push(pack);
+    }
+  }
+
+  if (candidates.length === 0) return undefined;
+  if (candidates.length === 1) return candidates[0];
+
+  candidates.sort((a, b) => a.cost - b.cost);
+
+  let gems = valueGems;
+  if (gems == null || !Number.isFinite(gems)) {
+    for (const pack of candidates) {
+      const entry = getPackRollPool(pack.id).find((item) => item.id === normalized);
+      if (entry) {
+        gems = entry.value;
+        break;
+      }
+    }
+  }
+
+  const usd = gems != null && Number.isFinite(gems) ? gemsToUsd(gems) : 0;
+
+  if (usd < 50) {
+    return candidates[0];
+  }
+  if (usd < 200) {
+    return candidates[Math.floor((candidates.length - 1) / 2)]!;
+  }
+  return candidates[candidates.length - 1]!;
+}
+
+/** Catalog art for a pull when vault_items.image_url is empty or stale. */
+export function findCatalogItemImageUrl(itemId: string): string {
+  const normalized = itemId.trim();
+  if (!normalized) return "";
+
+  for (const pack of getLobbyPackCatalog()) {
+    const entry = getPackRollPool(pack.id).find((item) => item.id === normalized);
+    const image = resolveStoreItemImage(entry ?? {});
+    if (image) return image;
+  }
+
+  return "";
+}
+
+/** Storefront tier (Common → Mythic) for a catalog item id. */
+export function findCatalogItemStoreRarity(itemId: string): StoreItem["rarity"] {
+  const normalized = itemId.trim();
+  if (!normalized) return "Common";
+
+  for (const pack of getLobbyPackCatalog()) {
+    const entry = getPackRollPool(pack.id).find((item) => item.id === normalized);
+    if (entry) return entry.rarity;
+  }
+
+  return "Common";
 }

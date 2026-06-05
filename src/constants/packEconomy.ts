@@ -1,4 +1,5 @@
 import type { CatalogPack } from "../types/box";
+import { isInfiniteSeriesPackId } from "./infiniteSeriesPools";
 import {
   createFloorFillerItems,
   floorFillerCountForPack,
@@ -10,6 +11,10 @@ import {
  * and registers them for storefront + validation lookups.
  */
 export function enrichPackWithFloorEconomy(pack: CatalogPack): CatalogPack {
+  if (isInfiniteSeriesPackId(pack.id)) {
+    return pack;
+  }
+
   const fillers = createFloorFillerItems(pack);
   const fillerIds = fillers.map((item) => item.id);
   const mergedItems = [...pack.items];

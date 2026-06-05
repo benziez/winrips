@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import type { VaultedCard } from "../../../types";
 import { useApp } from "../../../context/AppContext";
@@ -8,7 +9,8 @@ import {
   gemsToUsd,
 } from "../../../constants/retail";
 import { VAULT_SHIPPING_COST } from "../../../constants/shipping";
-import { createVaultReleaseOnConfirm } from "../../../lib/vaultReleaseFlow";
+import { shipVaultItemInUi } from "../../../lib/shippingLogic";
+import { queryKeys } from "../../../queries/queryKeys";
 import { CollectibleImage } from "../../ui/CollectibleImage";
 import { RipBottomSheet } from "../rip/RipBottomSheet";
 import {
@@ -21,6 +23,7 @@ interface ShipCardSheetProps {
   onClose: () => void;
   card: VaultedCard | null;
   onSuccess?: () => void;
+  zIndex?: number;
 }
 
 interface ShippingFormValues {
@@ -46,14 +49,20 @@ function buildAddress(values: ShippingFormValues): string {
 const INPUT_CLASS =
   "mt-2 w-full rounded-xl border border-[var(--rip-border)] bg-[var(--rip-surface)] px-4 py-3 text-[15px] text-white outline-none placeholder:text-[var(--rip-text-muted)]";
 
-export function ShipCardSheet({ open, onClose, card, onSuccess }: ShipCardSheetProps) {
+export function ShipCardSheet({
+  open,
+  onClose,
+  card,
+  onSuccess,
+  zIndex = 95,
+}: ShipCardSheetProps) {
+  const queryClient = useQueryClient();
   const {
     goldVolts,
     userId,
     showCashoutToast,
     showErrorToast,
     markVaultItemPendingShipment,
-    syncVaultFromServer,
     syncGemBalanceFromServer,
   } = useApp();
 
@@ -111,29 +120,46 @@ export function ShipCardSheet({ open, onClose, card, onSuccess }: ShipCardSheetP
     setProcessing(true);
 
     try {
-      const confirm = createVaultReleaseOnConfirm({
-        vaultItemId: card.vaultId,
-        markVaultItemPendingShipment,
-      });
+      const shipped = await shipVaultItemInUi(
+        card.vaultId,
+        { name, address },
+        {
+          onShipped: (vaultItemId, serverGemsBalance) => {
+            markVaultItemPendingShipment(
+              vaultItemId,
+              name,
+              address,
+              serverGemsBalance,
+            );
+          },
+          syncGemBalance: userId
+            ? async () => {
+                await syncGemBalanceFromServer(userId);
+              }
+            : undefined,
+          invalidateBalanceQueries: async () => {
+            await queryClient.invalidateQueries({ queryKey: queryKeys.vaultAll });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.userAll });
+          },
+          toastError: showErrorToast,
+          toastSuccess: (message) => {
+            void hapticNotificationSuccess();
+            showCashoutToast(message);
+          },
+          closeModal: () => {
+            onSuccess?.();
+            onClose();
+          },
+        },
+      );
 
-      const result = await confirm({ name, address });
-
-      if (!result.ok) {
-        showErrorToast(result.error ?? "Something went wrong, try again.");
-        return;
+      if (!shipped) {
+        console.error("[ShipCardSheet] processShippingRequest failed:", {
+          vaultItemId: card.vaultId,
+        });
       }
-
-      void hapticNotificationSuccess();
-      showCashoutToast("Shipping confirmed — tracking will be emailed");
-
-      if (userId) {
-        void syncVaultFromServer(userId);
-        void syncGemBalanceFromServer(userId);
-      }
-
-      onSuccess?.();
-      onClose();
-    } catch {
+    } catch (error) {
+      console.error("[ShipCardSheet] processShippingRequest threw:", error);
       showErrorToast("Something went wrong, try again.");
     } finally {
       setProcessing(false);
@@ -141,8 +167,8 @@ export function ShipCardSheet({ open, onClose, card, onSuccess }: ShipCardSheetP
   }
 
   return (
-    <RipBottomSheet open={open} onClose={onClose} heightClass="h-[85dvh]" zIndex={95}>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-[max(1rem,env(safe-area-inset-bottom))] pt-14">
+    <RipBottomSheet open={open} onClose={onClose} heightClass="h-[85dvh]" zIndex={zIndex}>
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-32 pt-14">
         <div className="mt-4 px-6">
           <p className="text-[12px] font-medium uppercase tracking-wider text-[var(--rip-text-muted)]">
             Physical Fulfillment

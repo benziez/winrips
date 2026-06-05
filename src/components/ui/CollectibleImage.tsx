@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { PackCategory } from "../../types";
 import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
 import {
@@ -7,6 +7,7 @@ import {
 } from "../../constants/sportsAssets";
 import { optimizedImageUrl } from "../../utils/optimizedImageUrl";
 import { isRenderableAssetUrl } from "../../utils/resolveAssetUrl";
+import { ImageLoadingShimmer } from "./ImageLoadingShimmer";
 
 function isRenderableSrc(src?: string | null): src is string {
   if (!src?.trim()) return false;
@@ -34,6 +35,9 @@ interface CollectibleImageProps {
   optimize?: boolean;
   /** Lock card frame ratio to prevent layout shift (omit when parent sets aspect). */
   aspectRatio?: string;
+  /** Intrinsic dimensions — helps the browser reserve space and skip lazy heuristics. */
+  width?: number;
+  height?: number;
   /** Skip load-gated opacity and shimmer — show the image immediately. */
   forceShow?: boolean;
   /** Optional rarity rgb (e.g. "96, 165, 250") to tint the card-back placeholder. */
@@ -155,6 +159,8 @@ export function CollectibleImage({
   thumbnail = true,
   optimize = true,
   aspectRatio,
+  width,
+  height,
   forceShow = false,
   placeholderTintRgb,
 }: CollectibleImageProps) {
@@ -167,9 +173,6 @@ export function CollectibleImage({
     setLoaded(false);
     setRetryDirectUrl(false);
   }, [src]);
-
-  const resolvedLoading = priority ? "eager" : loading;
-  const resolvedFetchPriority = priority ? "high" : fetchPriority;
 
   const showSlab = displayMode === "slab";
   const rawImageSrc = srcForMode(src, displayMode);
@@ -228,25 +231,59 @@ export function CollectibleImage({
     height: "100%",
   } as const;
 
+  const resolvedLoading = priority ? "eager" : loading;
+  const resolvedFetchPriority = priority ? "high" : fetchPriority;
+  const resolvedDecoding = priority ? "sync" : "async";
+  const isPrimary = displayMode === "primary";
+  const showLoadingState = isPrimary && !loaded && !forceShow && !priority;
+
+  const handleImgRef = useCallback(
+    (node: HTMLImageElement | null) => {
+      if (node?.complete && node.naturalWidth > 0) {
+        setLoaded(true);
+      }
+    },
+    [imageSrc],
+  );
+
+  const loadingLayer =
+    showLoadingState ? (
+      <>
+        <CardBackPlaceholder
+          tintRgb={placeholderTintRgb}
+          className="absolute inset-0 scale-105 opacity-25 blur-sm"
+        />
+        <ImageLoadingShimmer />
+      </>
+    ) : null;
+
   if (forceShow && !showSlab) {
     return (
       <div
         className={`collectible-image-frame relative flex h-full w-full items-center justify-center overflow-hidden bg-transparent ${frameClassName}`}
       >
-        <CardBackPlaceholder tintRgb={placeholderTintRgb} className="absolute inset-0" />
-        {displayMode === "primary" ? (
+        {loadingLayer}
+        {isPrimary ? (
           <img
+            ref={handleImgRef}
             src={imageSrc}
             alt={alt}
-            className={`${className} relative z-[1] opacity-100`}
+            width={width}
+            height={height}
+            className={`${className} relative z-[1] ${
+              priority || loaded ? "opacity-100" : "opacity-0 transition-opacity duration-200"
+            }`}
             style={imgSizeStyle}
             loading={resolvedLoading}
             fetchPriority={resolvedFetchPriority}
-            decoding="async"
+            decoding={resolvedDecoding}
             referrerPolicy="no-referrer"
+            onLoad={() => setLoaded(true)}
             onError={handleImageError}
           />
-        ) : null}
+        ) : (
+          <CardBackPlaceholder tintRgb={placeholderTintRgb} className="absolute inset-0" />
+        )}
       </div>
     );
   }
@@ -260,18 +297,24 @@ export function CollectibleImage({
         <LuxurySlabFrame alt={alt} className={className} />
       ) : (
         <>
-          <CardBackPlaceholder tintRgb={placeholderTintRgb} className="absolute inset-0" />
-          {displayMode === "primary" ? (
+          {loadingLayer}
+          {displayMode === "placeholder" && !showLoadingState ? (
+            <CardBackPlaceholder tintRgb={placeholderTintRgb} className="absolute inset-0" />
+          ) : null}
+          {isPrimary ? (
             <img
+              ref={handleImgRef}
               src={imageSrc}
               alt={alt}
-              className={`${className} relative z-[1] transition-opacity duration-200 ${
-                loaded ? "opacity-100" : "opacity-0"
+              width={width}
+              height={height}
+              className={`${className} relative z-[1] ${
+                priority || loaded ? "opacity-100" : "opacity-0 transition-opacity duration-200"
               }`}
               style={aspectRatio ? { aspectRatio: imgAspectRatio, width: "100%", height: "100%" } : imgSizeStyle}
               loading={resolvedLoading}
               fetchPriority={resolvedFetchPriority}
-              decoding="async"
+              decoding={resolvedDecoding}
               referrerPolicy="no-referrer"
               onLoad={() => setLoaded(true)}
               onError={handleImageError}

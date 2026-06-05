@@ -4,6 +4,8 @@ import { apiUrl } from "../utils/apiBaseUrl";
 export interface CreateStripePaymentIntentResult {
   clientSecret: string;
   paymentIntentId: string;
+  /** From Stripe API — must match app publishable key mode (pk_live_ vs pk_test_). */
+  livemode: boolean;
 }
 
 async function getDepositAccessToken(): Promise<string> {
@@ -39,7 +41,12 @@ export async function createStripePaymentIntent(
   });
 
   const payload = (await response.json().catch(() => null)) as
-    | { client_secret?: string; payment_intent_id?: string; error?: string }
+    | {
+        client_secret?: string;
+        payment_intent_id?: string;
+        livemode?: boolean;
+        error?: string;
+      }
     | null;
 
   if (!response.ok) {
@@ -53,5 +60,7 @@ export async function createStripePaymentIntent(
     throw new Error("Payment could not be started. Please try again.");
   }
 
-  return { clientSecret, paymentIntentId };
+  const livemode = payload?.livemode === true;
+
+  return { clientSecret, paymentIntentId, livemode };
 }

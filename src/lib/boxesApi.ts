@@ -74,6 +74,11 @@ function mapBoxRow(row: Record<string, unknown>): BoxRow {
     visual: row.visual != null ? String(row.visual) : null,
     is_active: Boolean(row.is_active ?? true),
     sort_order: Number(row.sort_order ?? 0),
+    daily_limit:
+      row.daily_limit != null && row.daily_limit !== ""
+        ? Number(row.daily_limit)
+        : null,
+    opens_today: Number(row.opens_today ?? 0),
   };
 }
 
@@ -128,6 +133,11 @@ export function boxRowToCatalogPack(row: BoxRow, itemIds: string[]): CatalogPack
     visual: asPackVisual(row.visual),
     ribbon: row.ribbon ?? undefined,
     accentLabel: row.accent_label ?? undefined,
+    // Use only DB-configured limits for remote catalog. Client defaults caused false
+    // sold-out states when daily_limit was null but opens_today was elevated globally.
+    dailyLimit:
+      row.daily_limit != null && row.daily_limit > 0 ? row.daily_limit : undefined,
+    opensToday: Number.isFinite(row.opens_today) ? Math.max(0, row.opens_today) : 0,
   };
 }
 
@@ -142,7 +152,7 @@ export async function fetchRemoteBoxCatalog(): Promise<RemoteBoxCatalog | null> 
   const { data: boxes, error: boxesError } = await supabase
     .from("boxes")
     .select(
-      "id, name, cost, description, category, image_url, theme, accent_label, ribbon, visual, is_active, sort_order",
+      "id, name, cost, description, category, image_url, theme, accent_label, ribbon, visual, is_active, sort_order, daily_limit, opens_today",
     )
     .eq("is_active", true)
     .order("sort_order", { ascending: true })

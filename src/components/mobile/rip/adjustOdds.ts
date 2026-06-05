@@ -1,16 +1,25 @@
-export type OddsMode = "normal" | "better" | "best";
+import type { OddsMode } from "../../../utils/riskyRipOdds";
+
+export type { OddsMode } from "../../../utils/riskyRipOdds";
 
 export const ODDS_MODE_OPTIONS: {
   id: OddsMode;
   label: string;
-  subtitle: string;
-  multiplier: number;
 }[] = [
-  { id: "normal", label: "Normal", subtitle: "1× price, default odds", multiplier: 1 },
-  { id: "better", label: "Better", subtitle: "2× price, improved rare chance", multiplier: 2 },
-  { id: "best", label: "Best", subtitle: "5× price, maximum rare chance", multiplier: 5 },
+  { id: "normal", label: "Normal" },
+  { id: "risky_rip", label: "Risky Rip" },
 ];
 
-export function oddsMultiplierForMode(mode: OddsMode): number {
-  return ODDS_MODE_OPTIONS.find((o) => o.id === mode)?.multiplier ?? 1;
+export const NORMAL_ODDS_DISCLAIMER =
+  "Standard odds. Balanced mix of commons, rares, and chase cards.";
+
+export const RISKY_RIP_DISCLAIMER =
+  "High variance mode. Commons dominate, but Legendary and Mythic odds are boosted. Swing for the fences — every pull still wins a real card.";
+
+export function oddsModeDisclaimer(mode: OddsMode): string {
+  return mode === "risky_rip" ? RISKY_RIP_DISCLAIMER : NORMAL_ODDS_DISCLAIMER;
+}
+
+export function isRiskyRipOddsMode(mode: OddsMode): boolean {
+  return mode === "risky_rip";
 }

@@ -65,6 +65,7 @@ export function getPackStoreItems(pack: Pack): StoreItem[] {
 
   return applyValueScaledProbabilities(packItems, {
     spinCost: pack.cost,
+    packId: pack.id,
     floorShare: packFloorShareOverride(pack.id),
     grailMaxProbability: packGrailMaxOverride(pack.id),
     grailMinProbability: packGrailMinOverride(pack.id),

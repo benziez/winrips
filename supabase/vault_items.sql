@@ -24,10 +24,5 @@ create policy "Users read own vault items"
   on public.vault_items for select
   using (auth.uid() = user_id);
 
-create policy "Users insert own vault items"
-  on public.vault_items for insert
-  with check (auth.uid() = user_id);
-
-create policy "Users delete own vault items"
-  on public.vault_items for delete
-  using (auth.uid() = user_id);
+-- Inserts and deletes are restricted to security definer RPCs (open_pack, etc.).
+-- Do not grant INSERT/DELETE policies to authenticated clients.

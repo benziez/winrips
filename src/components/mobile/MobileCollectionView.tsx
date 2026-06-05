@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import type { VaultedCard } from "../../types";
 import { useApp } from "../../context/AppContext";
 import { formatUsd, gemsToUsd } from "../../constants/retail";
@@ -12,6 +12,8 @@ import { ChevronDown, ChevronRight, GridViewIcon, ListViewIcon } from "../icons/
 import { CollectibleImage } from "../ui/CollectibleImage";
 import { MobileSignInPromptCard } from "./MobileSignInPromptCard";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
+import { ProgressiveLoadFooter } from "../ui/ProgressiveLoadFooter";
+import { useProgressiveRender } from "../../hooks/useProgressiveRender";
 
 type ViewMode = "grid" | "list";
 type SortKey = "price-desc" | "price-asc" | "name";
@@ -29,12 +31,18 @@ function EmptyCollectionIllustration() {
   );
 }
 
-export function MobileCollectionView() {
+export const MobileCollectionView = memo(function MobileCollectionView({
+  isActive: _tabActive = true,
+}: {
+  isActive?: boolean;
+}) {
+  void _tabActive;
   const { vaultItems, vaultItemsLoading, isLoggedIn } = useApp();
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [sortKey, setSortKey] = useState<SortKey>("price-desc");
   const [addFundsOpen, setAddFundsOpen] = useState(false);
   const [selectedVaultItem, setSelectedVaultItem] = useState<VaultedCard | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const sortedItems = useMemo(() => {
     const items = [...vaultItems];
@@ -45,6 +53,14 @@ export function MobileCollectionView() {
     });
     return items;
   }, [vaultItems, sortKey]);
+
+  const {
+    visibleItems: visibleCollectionItems,
+    hasMore: hasMoreCollectionItems,
+    remaining: remainingCollectionItems,
+    loadMore: loadMoreCollectionItems,
+    sentinelRef: collectionSentinelRef,
+  } = useProgressiveRender(sortedItems, scrollRef);
 
   return (
     <RipAmbientShell>
@@ -74,7 +90,8 @@ export function MobileCollectionView() {
         </div>
       ) : (
       <div
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+        ref={scrollRef}
+        className="h-full min-h-0 flex-1 transform-gpu overflow-y-auto overflow-x-hidden overscroll-contain"
         style={{ paddingBottom: MOBILE_DOCK_CLEARANCE }}
       >
         <PortfolioGraph />
@@ -144,19 +161,25 @@ export function MobileCollectionView() {
               </p>
             </div>
           ) : viewMode === "grid" ? (
-            <div className="grid grid-cols-2 gap-3">
-              {sortedItems.map((item) => (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                {visibleCollectionItems.map((item, index) => (
                   <button
-                    key={item.id}
+                    key={item.vaultId}
                     type="button"
                     onClick={() => setSelectedVaultItem(item)}
-                    className="flex flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] p-3 text-left"
+                    className="flex w-full min-w-0 flex-col overflow-hidden rounded-2xl bg-gradient-to-b from-[var(--rip-surface)] to-[var(--rip-bg-elevated)] p-3 text-left"
                   >
                     <div className="flex aspect-[3/4] w-full items-center justify-center">
                       <CollectibleImage
                         src={item.image}
                         alt={item.name}
                         className="max-h-full max-w-full object-contain"
+                        priority={index < 4}
+                        loading="eager"
+                        width={150}
+                        height={200}
+                        aspectRatio="3 / 4"
                       />
                     </div>
                     <div className="pt-2">
@@ -167,11 +190,19 @@ export function MobileCollectionView() {
                     </div>
                   </button>
                 ))}
-            </div>
+              </div>
+              <ProgressiveLoadFooter
+                sentinelRef={collectionSentinelRef}
+                hasMore={hasMoreCollectionItems}
+                remaining={remainingCollectionItems}
+                onLoadMore={loadMoreCollectionItems}
+              />
+            </>
           ) : (
-            <ul>
-              {sortedItems.map((item) => (
-                  <li key={item.id} className="border-b border-[var(--rip-border)]">
+            <>
+              <ul className="divide-y divide-[var(--rip-border)]">
+                {visibleCollectionItems.map((item) => (
+                  <li key={item.vaultId}>
                     <button
                       type="button"
                       onClick={() => setSelectedVaultItem(item)}
@@ -182,6 +213,10 @@ export function MobileCollectionView() {
                           src={item.image}
                           alt={item.name}
                           className="h-full w-full object-contain"
+                          loading="eager"
+                          width={64}
+                          height={80}
+                          aspectRatio="4 / 5"
                         />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -194,7 +229,14 @@ export function MobileCollectionView() {
                     </button>
                   </li>
                 ))}
-            </ul>
+              </ul>
+              <ProgressiveLoadFooter
+                sentinelRef={collectionSentinelRef}
+                hasMore={hasMoreCollectionItems}
+                remaining={remainingCollectionItems}
+                onLoadMore={loadMoreCollectionItems}
+              />
+            </>
           )}
         </div>
       </div>
@@ -208,4 +250,4 @@ export function MobileCollectionView() {
       />
     </RipAmbientShell>
   );
-}
+});

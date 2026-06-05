@@ -4,6 +4,11 @@ import { createClient } from "@supabase/supabase-js";
 import { requireAuthenticatedUserId } from "./verifySupabaseSession.js";
 import { logger } from "./logger.js";
 import { handleStripeIdentityWebhookEvent } from "./stripeKyc.js";
+import {
+  getStripeSecretKeyDiagnostics,
+  redactPaymentIntentClientSecret,
+  stripeSecretKeyMode,
+} from "./stripeKeyDiagnostics.js";
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
@@ -106,7 +111,20 @@ export async function handleStripeCreatePaymentIntentRoute(
       return true;
     }
 
-    const stripe = new Stripe(readStripeSecret());
+    const secretKey = readStripeSecret();
+    const secretDiagnostics = getStripeSecretKeyDiagnostics(secretKey);
+
+    // Safely log only the first 8 characters (sk_live_ / sk_test_)
+    console.log(
+      "DEBUG_STRIPE_KEY_PREFIX:",
+      process.env.STRIPE_SECRET_KEY?.substring(0, 8),
+    );
+
+    logger.critical(
+      `[stripe/create-payment-intent] Stripe secret key prefix=${secretDiagnostics.keyPrefix ?? "(missing)"} mode=${secretDiagnostics.mode} amountUsd=${amountUsd}`,
+    );
+
+    const stripe = new Stripe(secretKey);
 
     const intent = await stripe.paymentIntents.create({
       amount: Math.round(amountUsd * 100),
@@ -123,9 +141,23 @@ export async function handleStripeCreatePaymentIntentRoute(
       return true;
     }
 
+    const piMode = intent.livemode ? "live" : "test";
+    const secretMode = stripeSecretKeyMode(secretKey);
+    if (secretMode !== "unknown" && secretMode !== piMode) {
+      logger.critical(
+        `[stripe/create-payment-intent] WARNING secret key mode (${secretMode}) does not match PaymentIntent.livemode (${piMode})`,
+      );
+    }
+
+    logger.critical(
+      `[stripe/create-payment-intent] created paymentIntentId=${intent.id} livemode=${intent.livemode} clientSecret=${redactPaymentIntentClientSecret(intent.client_secret)} — native app must use matching pk_${piMode}_ publishable key`,
+    );
+
     sendJson(res, 200, {
       client_secret: intent.client_secret,
       payment_intent_id: intent.id,
+      /** Lets the app detect test/live PI without reading the secret. */
+      livemode: intent.livemode,
     });
     return true;
   } catch (error) {

@@ -1,8 +1,16 @@
+import { resolveVaultItemUuid } from "./exchangeLogic";
 import { logger } from "./logger";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
-function toCleanVaultItemId(vaultItemId: string): string {
-  return vaultItemId.trim().replace(/^vault-/, "");
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isShippingRpcSuccess(payload: ShippingRpcPayload | null): boolean {
+  if (!payload) return false;
+  if (payload.success === true) return true;
+  if (payload.success === false) return false;
+  if (payload.status === "pending_shipment") return true;
+  return typeof payload.item_id === "string" && payload.item_id.trim().length > 0;
 }
 
 export type ProcessShippingRequestResult =
@@ -69,11 +77,11 @@ export async function processShippingRequest(
     };
   }
 
-  const cleanItemId = toCleanVaultItemId(input.itemId);
+  const cleanItemId = resolveVaultItemUuid(input.itemId);
   const name = input.name.trim();
   const fullAddress = input.address.trim();
 
-  if (!cleanItemId) {
+  if (!cleanItemId || !UUID_RE.test(cleanItemId)) {
     return { ok: false, error: "Vault item not found." };
   }
   if (inFlightShippingIds.has(cleanItemId)) {
@@ -94,6 +102,13 @@ export async function processShippingRequest(
     });
 
     if (error) {
+      console.error("[processShippingRequest] RPC error:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        itemId: cleanItemId,
+      });
       logger.error("RPC Error:", error);
       const rpcMessage =
         typeof error.message === "string" && error.message.trim()
@@ -114,7 +129,11 @@ export async function processShippingRequest(
     }
 
     const payload = parseRpcPayload(data);
-    if (!payload?.success) {
+    if (!payload || !isShippingRpcSuccess(payload)) {
+      console.error("[processShippingRequest] RPC returned unsuccessful payload:", {
+        itemId: cleanItemId,
+        data,
+      });
       return {
         ok: false,
         error: "Unable to submit shipping request. Please try again.",
@@ -141,4 +160,57 @@ export async function processShippingRequest(
   } finally {
     inFlightShippingIds.delete(cleanItemId);
   }
+}
+
+export interface VaultShippingUiHandlers {
+  onShipped: (vaultItemId: string, serverGemsBalance?: number) => void;
+  toastError: (message: string) => void;
+  toastSuccess?: (message: string) => void;
+  closeModal?: () => void;
+  invalidateBalanceQueries?: () => Promise<void>;
+  syncGemBalance?: () => Promise<void>;
+}
+
+/** Runs the shipping RPC and updates local UI immediately — does not block on vault refetch. */
+export async function shipVaultItemInUi(
+  vaultItemId: string,
+  input: { name: string; address: string },
+  handlers: VaultShippingUiHandlers,
+): Promise<boolean> {
+  const result = await processShippingRequest({
+    itemId: vaultItemId,
+    name: input.name,
+    address: input.address,
+  });
+
+  if (!result.ok) {
+    handlers.toastError(result.error);
+    return false;
+  }
+
+  const shippedId =
+    typeof result.itemId === "string" && result.itemId.trim()
+      ? resolveVaultItemUuid(result.itemId)
+      : resolveVaultItemUuid(vaultItemId);
+
+  logger.log("[shipVaultItemInUi] applying shipping:", {
+    vaultItemId: shippedId,
+    gemsBalance: result.gemsBalance,
+    status: result.status,
+  });
+
+  handlers.onShipped(shippedId, result.gemsBalance);
+
+  if (handlers.invalidateBalanceQueries) {
+    await handlers.invalidateBalanceQueries();
+  }
+
+  if (handlers.syncGemBalance) {
+    await handlers.syncGemBalance();
+  }
+
+  handlers.toastSuccess?.("Shipping confirmed — tracking will be emailed");
+  handlers.closeModal?.();
+
+  return true;
 }

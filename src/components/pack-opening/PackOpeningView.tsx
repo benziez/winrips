@@ -36,7 +36,6 @@ import {
 } from "../../utils/provablyFair";
 import { CardDetailModalProvider } from "../../context/CardDetailModalContext";
 import { SoundManager } from "../../lib/SoundManager";
-import { TransactionFailureModal } from "./TransactionFailureModal";
 
 const SPIN_DURATION_MS = ROULETTE_SPIN_MS;
 const MOBILE_PREVIEW_LENGTH = 3;
@@ -98,7 +97,6 @@ export function PackOpeningView() {
   const [isExchanging, setIsExchanging] = useState(false);
   const [fairnessSession, setFairnessSession] = useState<FairnessSession | null>(null);
   const [fairnessModalOpen, setFairnessModalOpen] = useState(false);
-  const [transactionFailureOpen, setTransactionFailureOpen] = useState(false);
   const activeVaultItemId = pullVaultIds[queueIndex] ?? null;
 
   const activePullCard = useMemo(() => {
@@ -190,7 +188,6 @@ export function PackOpeningView() {
     setPullVaultIds([]);
     setIsExchanging(false);
     setFairnessModalOpen(false);
-      setTransactionFailureOpen(false);
     void buildPendingFairnessSession(selectedPack.id).then(setFairnessSession);
   }, [selectedPack?.id, buildIdlePreviewStrip]);
 
@@ -226,8 +223,8 @@ export function PackOpeningView() {
         );
         if (!openResult.ok) {
           showErrorToast(openResult.error);
-          setTransactionFailureOpen(true);
           setSpinInProgress(false);
+          goToLobby();
           return;
         }
 
@@ -291,7 +288,8 @@ export function PackOpeningView() {
         void syncGemBalanceFromServer(userId);
       } catch {
         setSpinInProgress(false);
-        setTransactionFailureOpen(true);
+        showErrorToast("Could not open pack.");
+        goToLobby();
       } finally {
         setIsChargingSpin(false);
       }
@@ -355,6 +353,7 @@ export function PackOpeningView() {
     syncGemBalanceFromServer,
     openWalletModal,
     showErrorToast,
+    goToLobby,
   ]);
 
   const finishReveal = useCallback(() => {
@@ -401,8 +400,8 @@ export function PackOpeningView() {
     setIsExchanging(true);
     try {
       await exchangeVaultItemInUi(vaultItemId, {
-        removeVaultItem: (id, gemsAdded, serverGemsBalance) => {
-          applyVaultExchange(id, gemsAdded, serverGemsBalance);
+        removeVaultItem: (id, gemsAdded, serverGemsBalance, serverWithdrawableBalance) => {
+          applyVaultExchange(id, gemsAdded, serverGemsBalance, serverWithdrawableBalance);
         },
         syncGemBalance: userId
           ? () => syncGemBalanceFromServer(userId)
@@ -580,10 +579,6 @@ export function PackOpeningView() {
             navigateToView("fairness");
           }}
         />
-      ) : null}
-
-      {transactionFailureOpen ? (
-        <TransactionFailureModal onClose={() => setTransactionFailureOpen(false)} />
       ) : null}
 
       {pullQueue.length > 1 && (isSpinning || showModal) && (

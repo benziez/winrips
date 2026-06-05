@@ -1,12 +1,9 @@
-import { useMemo } from "react";
 import type { Card } from "../../types";
 import { formatGems } from "../../constants/retail";
-import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
 import { CollectibleImage, CardBackPlaceholder } from "../ui/CollectibleImage";
+import { resolveCollectibleImageSrc } from "../../utils/collectibleImageSrc";
 import { RarityBadge } from "../ui/RarityBadge";
 import { glowPaletteForCardRarity } from "../../utils/rarityGlowColors";
-import { resolveCollectibleImageSrc } from "../../utils/collectibleImageSrc";
-import { useFallbackImageSrc } from "../../hooks/useFallbackImageSrc";
 
 function tierFrameClass(card: Card, highlighted?: boolean, compact?: boolean): string {
   if (highlighted && compact) return "mobile-carousel-card--centered z-10";
@@ -19,6 +16,12 @@ function tierFrameClass(card: Card, highlighted?: boolean, compact?: boolean): s
 
 interface CarouselCardProps {
   card: Card;
+  /** Tape slot index — keeps image + label aligned under spin transforms. */
+  slotIndex?: number;
+  /** When true, only the winner slot shows the compact name label (reel landed). */
+  winnerLabelOnly?: boolean;
+  /** Center winner index — paired with winnerLabelOnly. */
+  winnerIndex?: number;
   width?: number;
   highlighted?: boolean;
   dimmed?: boolean;
@@ -26,36 +29,58 @@ interface CarouselCardProps {
   compact?: boolean;
   /** When false, render only the card-back placeholder (off-window strip tiles). */
   showArt?: boolean;
+  /** Slot-aligned preloaded Image (battle spinner GC pin). */
+  preloadedImage?: HTMLImageElement;
 }
 
 function CompactSpinCardImage({
   card,
+  slotIndex,
   tintRgb,
+  preloadedImage,
 }: {
   card: Card;
+  slotIndex: number;
   tintRgb: string;
+  preloadedImage?: HTMLImageElement;
 }) {
-  const resolvedSrc = useMemo(
-    () => resolveCollectibleImageSrc(card.image),
-    [card.image],
-  );
-  const fallbackSrc = useMemo(
-    () => resolveCollectibleImageSrc(CARD_PLACEHOLDER_IMAGE),
-    [],
-  );
-  const { imgSrc, onError } = useFallbackImageSrc(resolvedSrc, fallbackSrc);
+  const pinnedSrc = preloadedImage?.src?.trim() ?? "";
+  const catalogSrc = resolveCollectibleImageSrc(card.image?.trim() ?? "");
+  const pinnedMatchesCatalog =
+    pinnedSrc.length > 0 &&
+    catalogSrc.length > 0 &&
+    (pinnedSrc === catalogSrc ||
+      pinnedSrc.endsWith(catalogSrc) ||
+      catalogSrc.endsWith(pinnedSrc));
+
+  if (!pinnedMatchesCatalog) {
+    if (catalogSrc) {
+      return (
+        <CollectibleImage
+          key={`spin-catalog-${slotIndex}-${card.id}-${catalogSrc}`}
+          src={card.image}
+          alt={card.name}
+          className="h-full w-full rounded-lg object-contain"
+          loading="eager"
+          optimize={false}
+          placeholderTintRgb={tintRgb}
+        />
+      );
+    }
+    return <CardBackPlaceholder tintRgb={tintRgb} className="h-full w-full" />;
+  }
 
   return (
     <div className="relative flex h-full w-full items-center justify-center bg-transparent">
-      <CardBackPlaceholder tintRgb={tintRgb} className="absolute inset-0" />
       <img
-        src={imgSrc || fallbackSrc}
+        key={`spin-img-${slotIndex}-${card.id}-${pinnedSrc}`}
+        src={pinnedSrc}
         alt={card.name}
         className="relative z-[1] h-full w-full rounded-lg object-contain"
         loading="eager"
-        decoding="async"
+        fetchPriority="high"
         referrerPolicy="no-referrer"
-        onError={onError}
+        decoding="sync"
       />
     </div>
   );
@@ -63,13 +88,20 @@ function CompactSpinCardImage({
 
 export function CarouselCard({
   card,
+  slotIndex = 0,
+  winnerLabelOnly = false,
+  winnerIndex,
   width = 128,
   highlighted,
   dimmed,
   compact = false,
   showArt = true,
+  preloadedImage,
 }: CarouselCardProps) {
   const tintRgb = glowPaletteForCardRarity(card.rarity).rgb;
+  const showCompactLabel =
+    compact &&
+    (!winnerLabelOnly || winnerIndex == null || slotIndex === winnerIndex);
   return (
     <div
       style={{ width }}
@@ -86,7 +118,12 @@ export function CarouselCard({
       >
         {showArt ? (
           compact ? (
-            <CompactSpinCardImage card={card} tintRgb={tintRgb} />
+            <CompactSpinCardImage
+              card={card}
+              slotIndex={slotIndex}
+              tintRgb={tintRgb}
+              preloadedImage={preloadedImage}
+            />
           ) : (
             <CollectibleImage
               src={card.image}
@@ -101,9 +138,9 @@ export function CarouselCard({
           <CardBackPlaceholder tintRgb={tintRgb} className="h-full w-full" />
         )}
       </div>
-      {compact ? (
+      {showCompactLabel ? (
         <p className="truncate px-1 pt-1.5 text-[11px] text-[var(--rip-text-muted)]">{card.name}</p>
-      ) : (
+      ) : !compact ? (
         <div className="space-y-1 px-2.5 pt-2 pb-4 sm:pb-2.5">
           <p className="truncate text-[10px] font-semibold tracking-tight text-white">
             {card.name}
@@ -113,7 +150,7 @@ export function CarouselCard({
             <RarityBadge rarity={card.rarity} />
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

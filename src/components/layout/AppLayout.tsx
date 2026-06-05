@@ -8,7 +8,6 @@ import { PurchaseModal } from "../wallet/PurchaseModal";
 import { AuthModal } from "../auth/AuthModal";
 import { CorporateFooter } from "./CorporateFooter";
 import { VaultReleaseModal } from "../shipping/VaultReleaseModal";
-import { GemBalanceDepositNotifier } from "../wallet/GemBalanceDepositNotifier";
 import { WalletModal } from "../wallet/WalletModal";
 import { createVaultReleaseOnConfirm } from "../../lib/vaultReleaseFlow";
 import { useApp } from "../../context/AppContext";
@@ -54,7 +53,6 @@ function AppLayoutFrame({ children }: { children: ReactNode }) {
       <WalletModal />
       <DepositModal />
       <AuthModal />
-      <GemBalanceDepositNotifier />
 
       {shippingVaultItem && (
         <VaultReleaseModal

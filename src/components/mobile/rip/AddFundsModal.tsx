@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { PaymentSheetEventsEnum } from "@capacitor-community/stripe";
 import { formatUsd, gemsToUsd } from "../../../constants/retail";
 import { useApp } from "../../../context/AppContext";
 import { useAuth } from "../../../context/AuthContext";
 import { createStripePaymentIntent } from "../../../lib/stripeDepositApi";
-import { isStripeConfigured, Stripe } from "../../../lib/stripeClient";
+import { getStripeKeyDiagnostics, isStripeConfigured } from "../../../lib/stripeClient";
+import {
+  getDepositPaymentErrorMessage,
+  presentDepositPaymentSheet,
+} from "../../../lib/stripePaymentSheet";
 import { BackspaceIcon, XIcon } from "../../icons/AppIcons";
 import { RIP_SHEET_SPRING } from "./ripMotion";
 import {
@@ -15,7 +18,6 @@ import {
 } from "../../../utils/mobileHaptics";
 
 const PRESETS = [5, 25, 50, 1000] as const;
-const APPLE_PAY_MERCHANT_ID = "merchant.com.winrips.app";
 
 /** Smallest preset tier (min $5) that covers a USD shortfall. */
 export function defaultDepositUsdForShortfall(shortfallUsd: number): number {
@@ -48,18 +50,24 @@ export function AddFundsModal({
   const [amountDigits, setAmountDigits] = useState("10");
   const [touched, setTouched] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  /** Keeps the sheet mounted while Stripe PaymentSheet is presented (survives parent re-renders). */
+  const [holdOpenForPaymentSheet, setHoldOpenForPaymentSheet] = useState(false);
+  /** Native Stripe / bridge error shown in-modal (survives short global toasts). */
+  const [paymentError, setPaymentError] = useState<string | null>(null);
+  const sheetOpen = open || holdOpenForPaymentSheet;
 
   const amountUsd = Number.parseInt(amountDigits, 10) || 0;
   const displayAmount = formatUsd(amountUsd);
   const balanceLabel = formatUsd(gemsToUsd(goldVolts));
 
   useEffect(() => {
-    setAddFundsModalOpen(open);
+    setAddFundsModalOpen(sheetOpen);
     return () => setAddFundsModalOpen(false);
-  }, [open, setAddFundsModalOpen]);
+  }, [setAddFundsModalOpen, sheetOpen]);
 
   useEffect(() => {
     if (!open) return;
+    setPaymentError(null);
     if (defaultAmountUsd != null && defaultAmountUsd > 0) {
       setAmountDigits(String(Math.round(defaultAmountUsd)));
       setTouched(true);
@@ -116,42 +124,55 @@ export function AddFundsModal({
     }
 
     void hapticMediumImpact();
+    setPaymentError(null);
     setIsProcessing(true);
+    setHoldOpenForPaymentSheet(true);
 
     try {
-      const { clientSecret } = await createStripePaymentIntent(amountUsd);
+      const { clientSecret, paymentIntentId, livemode } =
+        await createStripePaymentIntent(amountUsd);
 
-      await Stripe.createPaymentSheet({
-        paymentIntentClientSecret: clientSecret,
-        merchantDisplayName: "WinRips",
-        enableApplePay: true,
-        applePayMerchantId: APPLE_PAY_MERCHANT_ID,
-        countryCode: "US",
-        style: "alwaysDark",
+      const appKeys = getStripeKeyDiagnostics();
+      const appMode = appKeys.keyMode;
+      const piMode = livemode ? "live" : "test";
+
+      console.info("[Stripe] PaymentIntent created", {
+        paymentIntentId,
+        amountUsd,
+        paymentIntentLivemode: livemode,
+        appPublishableKeyPrefix: appKeys.keyPrefix,
+        appPublishableKeyMode: appMode,
       });
 
-      const result = await Stripe.presentPaymentSheet();
-
-      if (result.paymentResult === PaymentSheetEventsEnum.Completed) {
-        void hapticNotificationSuccess();
-        showCashoutToast(`$${amountUsd.toFixed(2)} added to your account`);
-
-        await syncGemBalanceFromServer(userId);
-        onSuccess?.(amountUsd);
-        onClose();
+      if (appMode !== "missing" && appMode !== "unknown" && appMode !== piMode) {
+        const mismatch = `Stripe key mismatch: app uses ${appKeys.keyPrefix} but PaymentIntent is ${piMode} (server secret is sk_${piMode}_). Use matching pk_${piMode}_ in VITE_STRIPE_PUBLISHABLE_KEY.`;
+        console.error("[Stripe]", mismatch);
+        setPaymentError(mismatch);
+        showErrorToast(mismatch);
         return;
       }
 
-      if (result.paymentResult === PaymentSheetEventsEnum.Canceled) {
+      const outcome = await presentDepositPaymentSheet({
+        paymentIntentClientSecret: clientSecret,
+      });
+
+      if (outcome === "canceled") {
         return;
       }
 
-      showErrorToast("Payment did not complete. Please try again.");
+      void hapticNotificationSuccess();
+      showCashoutToast(`$${amountUsd.toFixed(2)} added to your account`);
+
+      await syncGemBalanceFromServer(userId);
+      onSuccess?.(amountUsd);
+      onClose();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Payment failed. Please try again.";
+      const message = getDepositPaymentErrorMessage(error);
+      console.error("[Stripe] deposit failed", error);
+      setPaymentError(message);
       showErrorToast(message);
     } finally {
+      setHoldOpenForPaymentSheet(false);
       setIsProcessing(false);
     }
   }, [
@@ -166,39 +187,64 @@ export function AddFundsModal({
     userId,
   ]);
 
+  const handleApplePayClick = useCallback(
+    (e: MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      void handlePay();
+    },
+    [handlePay],
+  );
+
   return (
     <AnimatePresence>
-      {open ? (
+      {sheetOpen ? (
         <motion.div
-          className="fixed inset-0 z-[100] flex flex-col bg-[var(--rip-bg-primary)]"
+          className="fixed inset-0 z-[10100] flex flex-col bg-[var(--rip-bg-primary)]"
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
           transition={RIP_SHEET_SPRING}
         >
+          <button
+            type="button"
+            onClick={() => {
+              if (isProcessing || holdOpenForPaymentSheet) return;
+              void hapticTabSelect();
+              onClose();
+            }}
+            disabled={isProcessing || holdOpenForPaymentSheet}
+            className="absolute z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 p-2 text-white backdrop-blur-sm disabled:opacity-50"
+            style={{ top: "calc(env(safe-area-inset-top) + 16px)", right: "16px" }}
+            aria-label="Close"
+          >
+            <XIcon size={20} />
+          </button>
+
           <header
-            className="relative flex shrink-0 items-center justify-center px-6 pb-4"
-            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+            className="flex shrink-0 items-center justify-center px-6 pb-4"
+            style={{ paddingTop: "calc(env(safe-area-inset-top) + 16px)" }}
           >
             <span className="rounded-full bg-[var(--rip-surface)] px-4 py-2 text-[13px] font-medium text-[var(--rip-text-muted)]">
               Balance: {balanceLabel}
             </span>
-            <button
-              type="button"
-              onClick={() => {
-                if (isProcessing) return;
-                void hapticTabSelect();
-                onClose();
-              }}
-              disabled={isProcessing}
-              className="absolute right-6 flex h-10 w-10 items-center justify-center rounded-full bg-[var(--rip-surface)] text-white disabled:opacity-50"
-              aria-label="Close"
-            >
-              <XIcon size={20} />
-            </button>
           </header>
 
           <div className="flex flex-1 flex-col px-6">
+            {paymentError ? (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="mt-3 rounded-2xl border border-red-500/50 bg-red-950/90 px-4 py-3 text-left shadow-lg"
+              >
+                <p className="text-[13px] font-semibold uppercase tracking-wide text-red-300">
+                  Payment failed
+                </p>
+                <p className="mt-2 break-words text-[15px] leading-snug text-red-50">
+                  {paymentError}
+                </p>
+              </div>
+            ) : null}
+
             <p
               className={`mt-4 text-center text-[64px] font-bold leading-none tabular-nums ${
                 touched ? "text-[var(--rip-text-primary)]" : "text-[var(--rip-text-subtle)]"
@@ -280,12 +326,12 @@ export function AddFundsModal({
           >
             <button
               type="button"
-              onClick={() => void handlePay()}
+              onClick={handleApplePayClick}
               disabled={isProcessing || amountUsd < 1}
               className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-[var(--rip-surface-strong)] text-[17px] font-semibold text-white disabled:opacity-50"
             >
               {isProcessing ? (
-                <span>Processing…</span>
+                <span>{holdOpenForPaymentSheet ? "Complete payment…" : "Processing…"}</span>
               ) : (
                 <>
                   <span aria-hidden></span>

@@ -17,7 +17,9 @@ alter table public.vault_items
       'vaulted',
       'pending_shipment',
       'shipped',
-      'delivered'
+      'delivered',
+      'exchanged',
+      'upgraded_lost'
     )
   );
 

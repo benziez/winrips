@@ -48,6 +48,10 @@ export interface Pack {
   ribbon?: string;
   /** Diagonal top-corner accent, e.g. "1,000x CEILING" */
   accentLabel?: string;
+  /** Max opens per Eastern calendar day (from boxes.daily_limit). */
+  dailyLimit?: number | null;
+  /** Opens consumed today (from boxes.opens_today). */
+  opensToday?: number;
 }
 
 export interface Card {

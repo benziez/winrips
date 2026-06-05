@@ -103,6 +103,7 @@ begin
     'success', true,
     'gems_added', v_credit,
     'gems_balance', v_new_balance,
+    'withdrawable_balance', v_new_withdrawable,
     'item_id', p_item_id,
     'status', 'exchanged'
   );

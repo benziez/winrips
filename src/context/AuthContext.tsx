@@ -18,6 +18,7 @@ import { normalizeReferralCodeInput } from "../utils/referralCode";
 
 export interface AuthActionResult {
   error: string | null;
+  cancelled?: boolean;
 }
 
 export interface SignUpResult extends AuthActionResult {
@@ -165,8 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithApple = useCallback(async (): Promise<AuthActionResult> => {
-    const { error } = await runAppleSignIn();
-    return { error };
+    return runAppleSignIn();
   }, []);
 
   const value = useMemo(

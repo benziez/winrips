@@ -1,5 +1,6 @@
 import {
   createContext,
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -25,10 +26,12 @@ import {
 } from "../constants/dualCurrency";
 import type { AppView, AuthModalMode, Currency, Pack, VaultedCard } from "../types";
 import type { WalletModalTab } from "../types/wallet";
-import { formatUsd, gemsToUsd } from "../constants/retail";
+import { VAULT_SHIPPING_COST } from "../constants/shipping";
+import { resolveVaultItemUuid } from "../lib/exchangeLogic";
+import { fetchVaultInventory } from "../queries/vaultInventory";
 import { fetchUserBalances, resolveSyncedGemBalance } from "../lib/userBalances";
 import { logger } from "../lib/logger";
-import { fetchProfileUsername } from "../lib/userProfile";
+import { fetchCurrentUserProfile } from "../lib/userProfile";
 import {
   fetchUserVaultInventory,
   persistVaultAdd,
@@ -64,6 +67,7 @@ interface AppState {
   walletModalTab: WalletModalTab;
   userId: string;
   profileUsername: string | null;
+  profileAvatarUrl: string | null;
   profileLoading: boolean;
   authModalOpen: boolean;
   authModalMode: AuthModalMode;
@@ -109,6 +113,8 @@ interface AppContextValue extends AppState {
   setGoldVolts: (balance: number) => void;
   syncGemBalanceFromServer: (authUserId?: string) => Promise<void>;
   syncUserProfileFromServer: (authUserId?: string) => Promise<void>;
+  setProfileAvatarUrl: (url: string | null) => void;
+  setProfileUsername: (username: string | null) => void;
   syncVaultFromServer: (authUserId?: string) => Promise<void>;
   setBalanceUserId: (authUserId: string | null) => void;
   resetWalletBalances: () => void;
@@ -131,7 +137,6 @@ interface AppContextValue extends AppState {
   setAuthModalOpen: (open: boolean) => void;
   showCashoutToast: (message: string) => void;
   showErrorToast: (message: string) => void;
-  showDepositSuccessToast: (gemsAdded: number) => void;
   clearCashoutToast: () => void;
   vaultItems: VaultedCard[];
   shippingVaultItem: VaultedCard | null;
@@ -141,8 +146,14 @@ interface AppContextValue extends AppState {
     vaultId: string,
     shippingName: string,
     shippingAddress: string,
+    serverGemsBalance?: number,
   ) => void;
-  applyVaultExchange: (vaultId: string, gemsAdded: number, serverGemsBalance?: number) => void;
+  applyVaultExchange: (
+    vaultId: string,
+    gemsAdded: number,
+    serverGemsBalance?: number,
+    serverWithdrawableBalance?: number,
+  ) => void;
   removeVaultCard: (vaultId: string) => void;
   addVaultCard: (card: VaultedCard) => void;
   appendVaultPullFromSpin: (card: VaultedCard) => void;
@@ -179,6 +190,7 @@ const INITIAL_STATE: AppState = {
   walletModalTab: "overview",
   userId: "",
   profileUsername: null,
+  profileAvatarUrl: null,
   profileLoading: false,
   authModalOpen: false,
   authModalMode: "login",
@@ -238,17 +250,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const currentView = normalizeView(nextView);
     const path = pathForView(currentView);
     navigateMobilePath(path);
-    setState((s) => ({
-      ...s,
-      currentView,
-      infoPageSlug: null,
-      selectedBattleId: null,
-      selectedPack: currentView === "pack-open" ? s.selectedPack : null,
-      mobileMenuOpen: false,
-      shippingModalOpen: false,
-      shippingVaultItem: null,
-    }));
-    window.scrollTo(0, 0);
+    startTransition(() => {
+      setState((s) => ({
+        ...s,
+        currentView,
+        infoPageSlug: null,
+        selectedBattleId: null,
+        selectedPack: currentView === "pack-open" ? s.selectedPack : null,
+        mobileMenuOpen: false,
+        shippingModalOpen: false,
+        shippingVaultItem: null,
+      }));
+    });
   }, []);
 
   const navigateToBattle = useCallback((battleId: string) => {
@@ -267,22 +280,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       shippingModalOpen: false,
       shippingVaultItem: null,
     }));
-    window.scrollTo(0, 0);
   }, []);
 
   const setView = navigateToView;
 
   const goToLobby = useCallback(() => {
     navigateMobilePath("/");
-    setState((s) => ({
-      ...s,
-      currentView: "lobby",
-      infoPageSlug: null,
-      selectedPack: null,
-      mobileMenuOpen: false,
-      shippingModalOpen: false,
-    }));
-    window.scrollTo(0, 0);
+    startTransition(() => {
+      setState((s) => ({
+        ...s,
+        currentView: "lobby",
+        infoPageSlug: null,
+        selectedPack: null,
+        mobileMenuOpen: false,
+        shippingModalOpen: false,
+      }));
+    });
   }, []);
 
   const openInfoPage = useCallback((slug: FooterPageSlug) => {
@@ -295,7 +308,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       mobileMenuOpen: false,
       shippingModalOpen: false,
     }));
-    window.scrollTo(0, 0);
   }, []);
 
   const closeInfoPage = useCallback(() => {
@@ -309,7 +321,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         shippingModalOpen: false,
       };
     });
-    window.scrollTo(0, 0);
   }, []);
 
   const toggleWallet = useCallback(() => {
@@ -329,7 +340,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentView: "pack-open",
       mobileMenuOpen: false,
     }));
-    window.scrollTo(0, 0);
   }, []);
 
   const deductPackCost = useCallback((cost: number, quantity: number): boolean => {
@@ -375,6 +385,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       gemBalanceLoading: false,
       userId: "",
       profileUsername: null,
+      profileAvatarUrl: null,
       profileLoading: false,
       isLoggedIn: false,
       vaultItems: [],
@@ -436,6 +447,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setState((s) => ({
         ...s,
         profileUsername: null,
+        profileAvatarUrl: null,
         profileLoading: false,
       }));
       return;
@@ -444,20 +456,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, profileLoading: true, userId }));
 
     try {
-      const username = await fetchProfileUsername(userId);
+      const profile = await fetchCurrentUserProfile(userId);
       setState((s) => ({
         ...s,
-        profileUsername: username,
+        profileUsername: profile?.username ?? null,
+        profileAvatarUrl: profile?.avatarUrl ?? null,
         profileLoading: false,
       }));
     } catch {
       setState((s) => ({
         ...s,
         profileUsername: null,
+        profileAvatarUrl: null,
         profileLoading: false,
       }));
     }
   }, [state.userId]);
+
+  const setProfileAvatarUrl = useCallback((url: string | null) => {
+    setState((s) => ({ ...s, profileAvatarUrl: url }));
+  }, []);
+
+  const setProfileUsername = useCallback((username: string | null) => {
+    setState((s) => ({ ...s, profileUsername: username }));
+  }, []);
 
   const syncVaultFromServer = useCallback(async (authUserId?: string) => {
     if (spinInProgressRef.current) {
@@ -478,7 +500,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, vaultItemsLoading: true, userId }));
 
     try {
-      const items = await fetchUserVaultInventory(userId);
+      const items = isSupabaseConfigured()
+        ? await fetchVaultInventory(userId)
+        : await fetchUserVaultInventory(userId);
       setState((s) => {
         if (spinInProgressRef.current) {
           return { ...s, vaultItemsLoading: false };
@@ -684,15 +708,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 4500);
   }, []);
 
-  const showDepositSuccessToast = useCallback((gemsAdded: number) => {
-    const amount = Math.max(0, Math.round(gemsAdded));
-    const cashoutToast = `Success! ${formatUsd(gemsToUsd(amount))} added to your balance.`;
-    setState((s) => ({ ...s, cashoutToast, toastVariant: "deposit" }));
-    setTimeout(() => {
-      setState((s) => ({ ...s, cashoutToast: null, toastVariant: "default" }));
-    }, 5500);
-  }, []);
-
   const clearCashoutToast = useCallback(() => {
     setState((s) => ({ ...s, cashoutToast: null, toastVariant: "default" }));
   }, []);
@@ -707,20 +722,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const markVaultItemPendingShipment = useCallback(
-    (vaultId: string, shippingName: string, shippingAddress: string) => {
-      setState((s) => ({
-        ...s,
-        vaultItems: s.vaultItems.map((item) =>
-          item.vaultId === vaultId
-            ? {
-                ...item,
-                status: "pending_shipment",
-                shippingName,
-                shippingAddress,
-              }
-            : item,
-        ),
-      }));
+    (
+      vaultId: string,
+      shippingName: string,
+      shippingAddress: string,
+      serverGemsBalance?: number,
+    ) => {
+      const normalizedVaultId = resolveVaultItemUuid(vaultId);
+      setState((s) => {
+        const hasServerBalance =
+          serverGemsBalance != null && Number.isFinite(serverGemsBalance);
+        const newBalance = hasServerBalance
+          ? Math.round(serverGemsBalance)
+          : Math.max(0, s.goldVolts - VAULT_SHIPPING_COST);
+        const withdrawableBalance = Math.min(s.withdrawableBalance, newBalance);
+
+        const shippingItem = s.shippingVaultItem;
+        const clearShippingModal =
+          shippingItem != null &&
+          resolveVaultItemUuid(shippingItem.vaultId) === normalizedVaultId;
+
+        return {
+          ...s,
+          goldVolts: newBalance,
+          withdrawableBalance,
+          shippingVaultItem: clearShippingModal ? null : s.shippingVaultItem,
+          vaultItems: s.vaultItems.filter(
+            (item) => resolveVaultItemUuid(item.vaultId) !== normalizedVaultId,
+          ),
+        };
+      });
+
+      logger.log("[markVaultItemPendingShipment] removed from collection:", {
+        vaultId: normalizedVaultId,
+        shippingName: shippingName.trim(),
+        hasAddress: Boolean(shippingAddress.trim()),
+      });
     },
     [],
   );
@@ -769,33 +806,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const applyVaultExchange = useCallback(
-    (vaultId: string, gemsAdded: number, serverGemsBalance?: number) => {
+    (
+      vaultId: string,
+      gemsAdded: number,
+      serverGemsBalance?: number,
+      serverWithdrawableBalance?: number,
+    ) => {
       setState((s) => {
+        const normalizedVaultId = resolveVaultItemUuid(vaultId);
         const currentBalance = s.goldVolts;
         const normalizedAdded = Math.max(0, Math.round(gemsAdded));
         const hasServerBalance =
-          serverGemsBalance != null &&
-          Number.isFinite(serverGemsBalance) &&
-          serverGemsBalance > 0;
+          serverGemsBalance != null && Number.isFinite(serverGemsBalance);
         const newBalance = hasServerBalance
           ? Math.round(serverGemsBalance)
           : currentBalance + normalizedAdded;
 
+        const hasServerWithdrawable =
+          serverWithdrawableBalance != null && Number.isFinite(serverWithdrawableBalance);
+        const withdrawableBalance = hasServerWithdrawable
+          ? Math.min(Math.round(serverWithdrawableBalance), newBalance)
+          : Math.min(s.withdrawableBalance + normalizedAdded, newBalance);
+
         logger.log("[applyVaultExchange] balance update:", {
           gemsAdded: normalizedAdded,
           newBalance,
+          withdrawableBalance,
         });
-
-        const withdrawableBalance = Math.min(
-          s.withdrawableBalance + normalizedAdded,
-          newBalance,
-        );
 
         return {
           ...s,
           goldVolts: newBalance,
           withdrawableBalance,
-          vaultItems: s.vaultItems.filter((c) => c.vaultId !== vaultId),
+          vaultItems: s.vaultItems.filter(
+            (c) => resolveVaultItemUuid(c.vaultId) !== normalizedVaultId,
+          ),
         };
       });
     },
@@ -863,6 +908,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setGoldVolts,
       syncGemBalanceFromServer,
       syncUserProfileFromServer,
+      setProfileAvatarUrl,
+      setProfileUsername,
       syncVaultFromServer,
       setBalanceUserId,
       resetWalletBalances,
@@ -885,7 +932,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAuthModalOpen,
       showCashoutToast,
       showErrorToast,
-      showDepositSuccessToast,
       clearCashoutToast,
       vaultItems: state.vaultItems,
       shippingVaultItem: state.shippingVaultItem,
@@ -916,6 +962,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setGoldVolts,
       syncGemBalanceFromServer,
       syncUserProfileFromServer,
+      setProfileAvatarUrl,
+      setProfileUsername,
       syncVaultFromServer,
       setBalanceUserId,
       resetWalletBalances,
@@ -938,7 +986,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setAuthModalOpen,
       showCashoutToast,
       showErrorToast,
-      showDepositSuccessToast,
       clearCashoutToast,
       openVaultShipping,
       closeVaultShipping,

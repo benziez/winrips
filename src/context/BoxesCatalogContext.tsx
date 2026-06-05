@@ -49,7 +49,9 @@ function catalogsEqual(a: CatalogPack[], b: CatalogPack[]): boolean {
       pack.id === other.id &&
       pack.name === other.name &&
       pack.cost === other.cost &&
-      pack.image === other.image
+      pack.image === other.image &&
+      pack.dailyLimit === other.dailyLimit &&
+      pack.opensToday === other.opensToday
     );
   });
 }

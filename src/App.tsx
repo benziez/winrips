@@ -1,5 +1,7 @@
 import { Capacitor } from "@capacitor/core";
+import { SplashScreen } from "@capacitor/splash-screen";
 import { useEffect } from "react";
+import { useAuth } from "./context/AuthContext";
 import { MobileAppLayout } from "./components/mobile/MobileAppLayout";
 import { WebDashboardLayout } from "./components/layout/AppLayout";
 import { InfoPageView } from "./components/views/InfoPageView";
@@ -18,13 +20,33 @@ function AppContent() {
 }
 
 export default function App() {
-  useEffect(() => {
-    if (Capacitor.getPlatform() !== "web") {
-      void configureNativeKeyboard();
-    }
-  }, []);
+  const { authLoading } = useAuth();
+  const isNative = Capacitor.getPlatform() !== "web";
 
-  if (Capacitor.getPlatform() !== "web") {
+  useEffect(() => {
+    if (!isNative) return;
+    void configureNativeKeyboard();
+  }, [isNative]);
+
+  useEffect(() => {
+    if (!isNative || authLoading) return;
+
+    let cancelled = false;
+
+    void (async () => {
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+      if (cancelled) return;
+      await SplashScreen.hide();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isNative, authLoading]);
+
+  if (isNative) {
     return <MobileAppLayout />;
   }
 

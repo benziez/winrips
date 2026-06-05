@@ -2,6 +2,7 @@
 export const PACK_ID_ALIASES: Record<string, string> = {
   "1999-god": "god-pack-1999",
   "151-booster": "151-booster-collector",
+  "flash-pack": "flash",
 };
 
 export function normalizePackId(packId: string): string {

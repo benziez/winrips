@@ -85,6 +85,12 @@ export interface PackFloorOverride {
 }
 
 export const PACK_FLOOR_OVERRIDES: Record<string, PackFloorOverride> = {
+  // Starter pack — ~$0.40 EV at $1 price; keep floor mass low so calibration can hit target.
+  "trainers-starter": {
+    share: 0.72,
+    grailMaxProbability: 2.5,
+    grailMinProbability: 0.35,
+  },
   // EV was -6.3% (loss): floor commons were too rich → lower them to land ~12%.
   "psa-10-chaser": { ratioMin: 0.44, ratioMax: 0.52 },
   // EV was 8.9% (just under band): trim floor slightly to land in 10–12%.
@@ -112,6 +118,11 @@ export const PACK_FLOOR_OVERRIDES: Record<string, PackFloorOverride> = {
     ratioMax: 1.028,
     share: 0.834,
   },
+  // Infinite Series — authored 77/18/5 tier split (23 floor + 5 mid + 2 grail slots).
+  "infinite-prime": { share: 0.77, grailMaxProbability: 5, grailMinProbability: 0.5 },
+  "infinite-apex": { share: 0.77, grailMaxProbability: 5, grailMinProbability: 0.5 },
+  "infinite-zenith": { share: 0.77, grailMaxProbability: 5, grailMinProbability: 0.5 },
+  "infinite-omega": { share: 0.77, grailMaxProbability: 5, grailMinProbability: 0.5 },
 };
 
 /** Floor mass target override for a pack, if any (else engine default). */

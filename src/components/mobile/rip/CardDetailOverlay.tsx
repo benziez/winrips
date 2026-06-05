@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Card, VaultedCard } from "../../../types";
 import {
@@ -10,16 +11,20 @@ import {
 import { useFallbackImageSrc, IMAGE_PLACEHOLDER } from "../../../hooks/useFallbackImageSrc";
 import { resolveAssetUrl, isRenderableAssetUrl } from "../../../utils/resolveAssetUrl";
 import { CARD_PLACEHOLDER_IMAGE } from "../../../constants/cardAssets";
-import { InfoIcon, XIcon } from "../../icons/AppIcons";
+import { XIcon } from "../../icons/AppIcons";
 import { ObsidianImage } from "../ObsidianImage";
-import { RipBottomSheet } from "./RipBottomSheet";
 import { ShipCardSheet } from "../vault/ShipCardSheet";
 import { useApp } from "../../../context/AppContext";
 import { hapticTabSelect } from "../../../utils/mobileHaptics";
 import {
+  OVERLAY_DISMISS_EXIT,
+  OVERLAY_DISMISS_TRANSITION,
+} from "./ripMotion";
+import {
   exchangeVaultItemInUi,
   formatExchangeSuccessToast,
 } from "../../../lib/exchangeLogic";
+import { queryKeys } from "../../../queries/queryKeys";
 
 interface CardDetailOverlayProps {
   card: Card | VaultedCard | null;
@@ -32,6 +37,7 @@ function isVaultedCard(card: Card | VaultedCard): card is VaultedCard {
 }
 
 export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProps) {
+  const queryClient = useQueryClient();
   const {
     showErrorToast,
     showCashoutToast,
@@ -40,7 +46,6 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
     syncGemBalanceFromServer,
     userId,
   } = useApp();
-  const [infoOpen, setInfoOpen] = useState(false);
   const [shipSheetOpen, setShipSheetOpen] = useState(false);
   const [sellConfirmOpen, setSellConfirmOpen] = useState(false);
   const [isSelling, setIsSelling] = useState(false);
@@ -67,6 +72,7 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
 
   useEffect(() => {
     if (!open) {
+      setShipSheetOpen(false);
       setSellConfirmOpen(false);
       setIsSelling(false);
     }
@@ -101,14 +107,14 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
 
     try {
       await exchangeVaultItemInUi(vaultedCard.vaultId, {
-        removeVaultItem: (vaultItemId, gemsAdded, serverGemsBalance) => {
-          applyVaultExchange(vaultItemId, gemsAdded, serverGemsBalance);
+        removeVaultItem: (vaultItemId, gemsAdded, serverGemsBalance, serverWithdrawableBalance) => {
+          applyVaultExchange(vaultItemId, gemsAdded, serverGemsBalance, serverWithdrawableBalance);
         },
-        syncGemBalance: userId
-          ? async () => {
-              await syncGemBalanceFromServer(userId);
-            }
-          : undefined,
+        syncGemBalance: userId ? async () => { await syncGemBalanceFromServer(userId); } : undefined,
+        invalidateBalanceQueries: async () => {
+          await queryClient.invalidateQueries({ queryKey: queryKeys.vaultAll });
+          await queryClient.invalidateQueries({ queryKey: queryKeys.userAll });
+        },
         toastError: showErrorToast,
         toastSuccess: (gemsAdded) => {
           showCashoutToast(formatExchangeSuccessToast(gemsAdded));
@@ -118,9 +124,11 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
           onClose();
         },
       });
+    } catch (e) {
+      console.error("CRITICAL TRANSACTION ERROR:", e);
+      showErrorToast("Transaction failed. Try again.");
     } finally {
       setIsSelling(false);
-      setSellConfirmOpen(false);
     }
   }
 
@@ -130,9 +138,10 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
         {open && card ? (
           <motion.div
             className="fixed inset-0 z-[10100] flex flex-col rip-ambient-bg"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={OVERLAY_DISMISS_EXIT}
+            transition={OVERLAY_DISMISS_TRANSITION}
           >
             <button
               type="button"
@@ -150,24 +159,7 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
               <XIcon size={22} />
             </button>
 
-            <header
-              className="flex shrink-0 items-center px-6"
-              style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  void hapticTabSelect();
-                  setInfoOpen(true);
-                }}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white"
-                aria-label="Card info"
-              >
-                <InfoIcon size={20} />
-              </button>
-            </header>
-
-            <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-4">
+            <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-4 pt-[calc(max(0.5rem,env(safe-area-inset-top))+2.5rem)]">
               <motion.div
                 animate={{ y: [0, -4, 0] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
@@ -252,6 +244,7 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
               initial={{ opacity: 0, y: 16, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 12, scale: 0.96 }}
+              transition={OVERLAY_DISMISS_TRANSITION}
             >
               <h2 id="sell-confirm-title" className="text-xl font-bold text-white">
                 Sell for {sellValueLabel}?
@@ -282,33 +275,12 @@ export function CardDetailOverlay({ card, open, onClose }: CardDetailOverlayProp
         ) : null}
       </AnimatePresence>
 
-      <RipBottomSheet open={infoOpen} onClose={() => setInfoOpen(false)} heightClass="h-auto max-h-[50dvh]">
-        {card ? (
-          <div className="px-6 pb-8 pt-14">
-            <h3 className="text-xl font-bold text-white">Card details</h3>
-            <dl className="mt-4 space-y-3 text-[15px]">
-              <div>
-                <dt className="text-[var(--rip-text-muted)]">Name</dt>
-                <dd className="text-white">{card.name}</dd>
-              </div>
-              <div>
-                <dt className="text-[var(--rip-text-muted)]">Rarity</dt>
-                <dd className="text-white">{card.rarity}</dd>
-              </div>
-              <div>
-                <dt className="text-[var(--rip-text-muted)]">Fair market value</dt>
-                <dd className="text-white">{priceLabel}</dd>
-              </div>
-            </dl>
-          </div>
-        ) : null}
-      </RipBottomSheet>
-
       <ShipCardSheet
         open={shipSheetOpen}
         onClose={() => setShipSheetOpen(false)}
         card={vaultedCard}
         onSuccess={onClose}
+        zIndex={10200}
       />
     </>
   );

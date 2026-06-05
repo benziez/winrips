@@ -2,6 +2,13 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { isNativeCapacitorApp } from "../utils/platform";
 import { isSupabaseConfigured, supabase } from "./supabaseClient";
 
+export const APPLE_SIGN_IN_CANCELLED = "cancelled";
+
+export interface AppleSignInResult {
+  error: string | null;
+  cancelled?: boolean;
+}
+
 interface AppleSignInPlugin {
   signIn(): Promise<{
     identityToken?: string;
@@ -16,7 +23,16 @@ interface AppleSignInPlugin {
 
 const AppleSignInNative = registerPlugin<AppleSignInPlugin>("AppleSignInPlugin");
 
-export async function signInWithApple(): Promise<{ error: string | null }> {
+function isAppleSignInCancelled(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("cancel") ||
+    normalized.includes("1000") ||
+    normalized.includes("authorizationerror")
+  );
+}
+
+export async function signInWithApple(): Promise<AppleSignInResult> {
   if (!isSupabaseConfigured() || !supabase) {
     return { error: "Authentication is not configured." };
   }
@@ -26,7 +42,7 @@ export async function signInWithApple(): Promise<{ error: string | null }> {
       const result = await AppleSignInNative.signIn();
 
       if (result.cancelled) {
-        return { error: null };
+        return { error: APPLE_SIGN_IN_CANCELLED, cancelled: true };
       }
 
       if (!result.identityToken) {
@@ -41,8 +57,8 @@ export async function signInWithApple(): Promise<{ error: string | null }> {
       return { error: error?.message ?? null };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Apple Sign In failed.";
-      if (message.toLowerCase().includes("cancel")) {
-        return { error: null };
+      if (isAppleSignInCancelled(message)) {
+        return { error: APPLE_SIGN_IN_CANCELLED, cancelled: true };
       }
       return { error: message };
     }

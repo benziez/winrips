@@ -51,8 +51,6 @@ export function AuthModal() {
     }
   }, [authModalOpen]);
 
-  if (!authModalOpen) return null;
-
   function handleClose() {
     setAuthModalOpen(false);
   }
@@ -126,11 +124,17 @@ export function AuthModal() {
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-md"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="auth-title"
+      className={`fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto p-4 ${
+        authModalOpen
+          ? "pointer-events-auto bg-black/80 backdrop-blur-md"
+          : "pointer-events-none bg-transparent"
+      }`}
+      role={authModalOpen ? "dialog" : undefined}
+      aria-modal={authModalOpen ? true : undefined}
+      aria-hidden={!authModalOpen}
+      aria-labelledby={authModalOpen ? "auth-title" : undefined}
     >
+      {authModalOpen ? (
       <div className={MODAL_PANEL}>
         <button
           type="button"
@@ -282,6 +286,7 @@ export function AuthModal() {
           </button>
         </p>
       </div>
+      ) : null}
     </div>
   );
 }

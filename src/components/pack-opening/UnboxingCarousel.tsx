@@ -8,9 +8,15 @@ import {
   ROULETTE_WINNER_INDEX,
 } from "../../utils/rng";
 import { CarouselCard } from "./CarouselCard";
+import {
+  SPIN_ART_RENDER_WINDOW,
+  SPIN_TAPE_LEAD_ART_MAX_INDEX,
+} from "../../utils/spinnerImagePreload";
+import { resolveCollectibleImageSrc } from "../../utils/collectibleImageSrc";
 
-/** Mobile spin: only render real art for tiles near the landing index; rest show card-backs. */
-const ART_RENDER_WINDOW = 8;
+/** Mobile spin: only render real art for tape lead + landing window; rest show card-backs. */
+const ART_RENDER_WINDOW = SPIN_ART_RENDER_WINDOW;
+const TAPE_LEAD_ART_MAX_INDEX = SPIN_TAPE_LEAD_ART_MAX_INDEX;
 
 interface UnboxingCarouselProps {
   cards: Card[];
@@ -23,6 +29,12 @@ interface UnboxingCarouselProps {
   compactCards?: boolean;
   /** When true, hide built-in slate edge fades (mobile wrapper provides its own). */
   suppressEdgeFades?: boolean;
+  /** Override the outer frame min-height (e.g. battle dual lanes). */
+  frameMinHeightClass?: string;
+  /** Slot-index-aligned preloaded Image objects (battle spinner). */
+  preloadedImagesBySlot?: Map<number, HTMLImageElement>;
+  /** URL-aligned preloaded images (mobile spin). */
+  preloadedImagesByUrl?: Map<string, HTMLImageElement>;
 }
 
 export function UnboxingCarousel({
@@ -33,6 +45,9 @@ export function UnboxingCarousel({
   spinDurationMs = ROULETTE_SPIN_MS,
   compactCards = false,
   suppressEdgeFades = false,
+  frameMinHeightClass,
+  preloadedImagesBySlot,
+  preloadedImagesByUrl,
 }: UnboxingCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -67,25 +82,38 @@ export function UnboxingCarousel({
     }
 
     const session = ++spinSessionRef.current;
-    setIsAnimating(false);
-    setTranslateX(0);
-
+    let layoutFrame = 0;
     let frame1 = 0;
     let frame2 = 0;
 
-    frame1 = requestAnimationFrame(() => {
-      frame2 = requestAnimationFrame(() => {
-        if (spinSessionRef.current !== session) return;
+    const beginSpin = () => {
+      const containerWidth = containerRef.current?.clientWidth ?? 0;
+      if (containerWidth <= 0) {
+        layoutFrame = requestAnimationFrame(beginSpin);
+        return;
+      }
+      if (spinSessionRef.current !== session) return;
 
-        const containerWidth = containerRef.current?.clientWidth ?? 0;
-        const stopOffset = computeRouletteStopOffset(winnerIndex, containerWidth, slotWidth);
+      setIsAnimating(false);
+      setTranslateX(computeRouletteStopOffset(0, containerWidth, slotWidth));
 
-        setIsAnimating(true);
-        setTranslateX(stopOffset);
+      frame1 = requestAnimationFrame(() => {
+        frame2 = requestAnimationFrame(() => {
+          if (spinSessionRef.current !== session) return;
+
+          const width = containerRef.current?.clientWidth ?? containerWidth;
+          const stopOffset = computeRouletteStopOffset(winnerIndex, width, slotWidth);
+
+          setIsAnimating(true);
+          setTranslateX(stopOffset);
+        });
       });
-    });
+    };
+
+    beginSpin();
 
     return () => {
+      cancelAnimationFrame(layoutFrame);
       cancelAnimationFrame(frame1);
       cancelAnimationFrame(frame2);
     };
@@ -95,7 +123,9 @@ export function UnboxingCarousel({
 
   const showWinnerHighlight = !isSpinning && cards.length > 0;
   const isCompactPreview = cards.length <= 5;
-  const frameMinHeight = suppressEdgeFades ? "min-h-[340px]" : isCompactPreview ? "min-h-[220px]" : "min-h-[220px] sm:min-h-[300px]";
+  const frameMinHeight =
+    frameMinHeightClass ??
+    (suppressEdgeFades ? "min-h-[340px]" : isCompactPreview ? "min-h-[220px]" : "min-h-[220px] sm:min-h-[300px]");
 
   return (
     <div
@@ -134,26 +164,36 @@ export function UnboxingCarousel({
           ref={trackRef}
           className={`flex gap-3 will-change-transform ${
             isCompactPreview ? "mx-auto py-6" : "py-5"
-          } ${isSpinning && isAnimating ? "blur-[1px] opacity-95" : ""}`}
+          }`}
           style={{
-            transform: `translateX(-${translateX}px)`,
+            transform: `translate3d(-${translateX}px, 0, 0)`,
             transition: isAnimating ? spinTransition : "none",
           }}
         >
-          {cards.map((card, index) => {
-            const renderArt =
-              !compactCards ||
-              isSpinning ||
-              Math.abs(index - winnerIndex) <= ART_RENDER_WINDOW;
+          {cards.map((card, slotIndex) => {
+            const renderArt = compactCards
+              ? isSpinning ||
+                slotIndex <= TAPE_LEAD_ART_MAX_INDEX ||
+                Math.abs(slotIndex - winnerIndex) <= ART_RENDER_WINDOW
+              : true;
+            const rawUrl = card.image?.trim() ?? "";
+            const resolvedUrl = rawUrl ? resolveCollectibleImageSrc(rawUrl) : "";
+            const preloadedImage =
+              preloadedImagesBySlot?.get(slotIndex) ??
+              (resolvedUrl ? preloadedImagesByUrl?.get(resolvedUrl) : undefined);
             return (
               <CarouselCard
-                key={`slot-${index}-${card.id}`}
+                key={`tape-slot-${slotIndex}-${card.id}`}
+                slotIndex={slotIndex}
+                winnerIndex={winnerIndex}
+                winnerLabelOnly={showWinnerHighlight}
                 card={card}
                 width={cardWidth}
-                highlighted={showWinnerHighlight && index === winnerIndex}
-                dimmed={showWinnerHighlight && index !== winnerIndex}
+                highlighted={showWinnerHighlight && slotIndex === winnerIndex}
+                dimmed={showWinnerHighlight && slotIndex !== winnerIndex}
                 compact={compactCards}
                 showArt={renderArt}
+                preloadedImage={preloadedImage}
               />
             );
           })}

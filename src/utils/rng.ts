@@ -17,6 +17,7 @@ import {
   normalizePackWeights,
   PROBABILITY_TOTAL,
 } from "./packProbability";
+import { applyRiskyRipMultipliers } from "./riskyRipOdds";
 
 export { normalizePackWeights } from "./packProbability";
 
@@ -111,23 +112,21 @@ function unknownCardFallback(itemId: string): Card {
   };
 }
 
-/** Prefer server open_pack fields when present; fall back to local catalog lookup. */
+/** Bind pull display to one catalog row — image, name, and id always match itemId. */
 export function cardFromPullEntry(packId: string, entry: PackPullEntry): Card {
   const catalog = resolveCardByItemId(packId, entry.itemId);
-  const serverName = entry.serverItemName?.trim();
-  const serverImage = entry.serverImageUrl?.trim();
   const serverValue = entry.serverGemValue;
-
-  if (!serverName && !serverImage && serverValue == null) {
-    return catalog;
-  }
+  const value =
+    serverValue != null && Number.isFinite(serverValue) && serverValue > 0
+      ? serverValue
+      : catalog.value;
 
   return snapshotCard({
-    id: entry.itemId,
-    name: serverName || catalog.name,
+    id: catalog.id,
+    name: catalog.name,
     rarity: catalog.rarity,
-    value: serverValue ?? catalog.value,
-    image: serverImage || catalog.image,
+    value,
+    image: catalog.image,
   });
 }
 
@@ -183,8 +182,14 @@ export function resolveWinnerItem(packId: string, rolled: Card): Card {
   });
 }
 
-export function rollCardForPackWithRoll(packId: string): PackRollResult {
-  const items = getPackRollPool(packId);
+export function rollCardForPackWithRoll(
+  packId: string,
+  options?: { riskyRip?: boolean },
+): PackRollResult {
+  let items = getPackRollPool(packId);
+  if (options?.riskyRip) {
+    items = applyRiskyRipMultipliers(items);
+  }
   const pack = findPackById(packId);
 
   if (items.length === 0) {
@@ -208,6 +213,24 @@ export function rollCardForPack(packId: string): Card {
   return rollCardForPackWithRoll(packId).card;
 }
 
+/** Guest demo — always return the highest gem-value card in the pack roll pool. */
+export function rollTopValueCardForPack(packId: string): PackRollResult {
+  const items = getPackRollPool(packId);
+  if (items.length === 0) {
+    return rollCardForPackWithRoll(packId);
+  }
+
+  const topItem = items.reduce(
+    (best, item) => (item.value > best.value ? item : best),
+    items[0]!,
+  );
+
+  return {
+    card: resolveCardByItemId(packId, topItem.id),
+    rolledNumber: 0,
+  };
+}
+
 function rollCardFromCategoryPool(category: PackCategory): Card {
   const pool = cardPoolForCategory(category);
   if (pool.length === 0) {
@@ -227,10 +250,14 @@ export function rollCard(): Card {
   return rollCardFromCategoryPool("pokemon");
 }
 
-export function rollMultipleWithRoll(count: number, packId?: string): PackRollResult[] {
+export function rollMultipleWithRoll(
+  count: number,
+  packId?: string,
+  options?: { riskyRip?: boolean },
+): PackRollResult[] {
   return Array.from({ length: count }, () =>
     packId
-      ? rollCardForPackWithRoll(packId)
+      ? rollCardForPackWithRoll(packId, options)
       : { card: rollCard(), rolledNumber: secureRandomUnit() * PROBABILITY_TOTAL },
   );
 }

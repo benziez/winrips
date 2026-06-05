@@ -10,7 +10,16 @@ const LOCAL_PLUGIN = "AppleSignInPlugin";
 
 const json = JSON.parse(readFileSync(configPath, "utf8"));
 const list = new Set(json.packageClassList ?? []);
+const hadPlugin = list.has(LOCAL_PLUGIN);
 list.add(LOCAL_PLUGIN);
 json.packageClassList = [...list].sort((a, b) => a.localeCompare(b));
 writeFileSync(configPath, `${JSON.stringify(json, null, "\t")}\n`);
-console.log(`[ensureAppleSignInPlugin] packageClassList includes ${LOCAL_PLUGIN}`);
+
+if (!hadPlugin) {
+  console.warn(
+    `[ensureAppleSignInPlugin] Added ${LOCAL_PLUGIN} to packageClassList. ` +
+      "Without this, native Sign in with Apple throws \"plugin not implemented\" on device.",
+  );
+} else {
+  console.log(`[ensureAppleSignInPlugin] packageClassList includes ${LOCAL_PLUGIN}`);
+}

@@ -1,4 +1,5 @@
 import { normalizePackId } from "../constants/packIdAliases";
+import { packImagePath } from "../utils/assetPaths";
 import {
   BUNDLED_PLACEHOLDER_PACK,
   PACK_COVER_URL_BY_STEM,
@@ -13,6 +14,14 @@ const PACK_ID_TO_STEM: Record<string, string> = {
   "toon-chaos-edition": "placeholder-pack",
   "exodia-chase-protocol": "placeholder-pack",
   "millennium-tin-premium": "placeholder-pack",
+};
+
+/** Infinite Series — bundled from `public/images/packs/` for Capacitor-native shells. */
+const LOCAL_PUBLIC_PACK_COVERS: Record<string, string> = {
+  "infinite-prime": packImagePath("infinite-prime"),
+  "infinite-apex": packImagePath("infinite-apex"),
+  "infinite-zenith": packImagePath("infinite-zenith"),
+  "infinite-omega": packImagePath("infinite-omega"),
 };
 
 function lookupCoverByStem(stem: string): string | undefined {
@@ -33,7 +42,7 @@ export { BUNDLED_PLACEHOLDER_PACK };
 
 /** Pack id → bundled cover URL. */
 export const BUNDLED_PACK_COVERS: Record<string, string> = (() => {
-  const record: Record<string, string> = {};
+  const record: Record<string, string> = { ...LOCAL_PUBLIC_PACK_COVERS };
 
   for (const [stem, url] of Object.entries(PACK_COVER_URL_BY_STEM)) {
     if (!stem.endsWith("-cover")) record[stem] = url;
@@ -56,6 +65,8 @@ export const BUNDLED_PACK_COVERS: Record<string, string> = (() => {
 export function getBundledPackCover(packId: string): string | undefined {
   const normalized = normalizePackId(packId).toLowerCase();
   return (
+    LOCAL_PUBLIC_PACK_COVERS[packId] ??
+    LOCAL_PUBLIC_PACK_COVERS[normalized] ??
     BUNDLED_PACK_COVERS[packId] ??
     BUNDLED_PACK_COVERS[normalized] ??
     lookupCoverByStem(resolveStem(packId))

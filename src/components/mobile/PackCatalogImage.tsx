@@ -39,7 +39,7 @@ export function PackCatalogImage({
 
   return (
     <GlassSurface
-      variant="default"
+      variant="solid"
       className={`relative h-full w-full overflow-hidden rounded-2xl ${className}`}
     >
       {image}

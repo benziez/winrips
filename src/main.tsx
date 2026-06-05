@@ -8,11 +8,14 @@ import { BoxesCatalogProvider } from "./context/BoxesCatalogContext";
 import { WalletBalanceSync } from "./components/wallet/WalletBalanceSync";
 import { queryClient } from "./lib/queryClient";
 import { initializeStripe } from "./lib/stripeClient";
+import { registerStripeAppUrlHandler } from "./lib/registerStripeAppUrlHandler";
 import "./index.css";
 
-void initializeStripe().catch((error) => {
-  console.warn("Stripe init failed:", error);
-});
+void initializeStripe()
+  .then(() => registerStripeAppUrlHandler())
+  .catch((error) => {
+    console.warn("Stripe init failed:", error);
+  });
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

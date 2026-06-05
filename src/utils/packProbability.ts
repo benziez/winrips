@@ -1,15 +1,51 @@
 import type { StoreItem } from "../types/store";
 import { isFloorFillerItemId } from "../constants/floorFillers";
+import { isInfiniteSeriesPackId } from "../constants/infiniteSeriesPools";
+import { normalizePackId } from "../constants/packIdAliases";
 
 /** Percent scale for pack odds — all weights normalize to this total. */
 export const PROBABILITY_TOTAL = 100;
 
-/** House retains 10–12% on every box — player EV lands in this band. */
+/** Packs whose defineItem() probability seeds drive base weights (not inverse gem value). */
+const PACKS_USING_SEED_WEIGHTS = new Set(["trainers-starter"]);
+
+/** Legacy default when a pack has no explicit target (10–12% band). */
 export const HOUSE_EDGE_MIN = 0.1;
 export const HOUSE_EDGE_MAX = 0.12;
 
-/** Primary calibration target — 100 Gem box ≈ 88 Gem EV (12% edge). */
+/** Fallback calibration target when no per-pack override exists. */
 export const TARGET_HOUSE_EDGE = 0.12;
+
+/** ± tolerance (probability points) around each pack's target house edge during calibration. */
+export const HOUSE_EDGE_CALIBRATION_TOLERANCE = 0.005;
+
+/** Per-pack house edge targets — player EV = spinCost × (1 − edge). */
+export const PACK_TARGET_HOUSE_EDGE: Record<string, number> = {
+  /** $1 pack → ~$0.40 EV after payment processing fees (60% house edge). */
+  "trainers-starter": 0.6,
+  "mega-evolution": 0.2,
+  "shiny-vault": 0.2,
+  "151-booster-collector": 0.2,
+  "151-booster": 0.2,
+  "legendary-hunt": 0.22,
+  "waifu-vault": 0.22,
+  "prismatic-sir": 0.25,
+  "psa-10-chaser": 0.25,
+  "evolving-skies": 0.25,
+  "obsidian-vault": 0.28,
+  "god-pack-1999": 0.28,
+  "1999-god": 0.28,
+  "wotc-first-edition": 0.3,
+  "infinite-prime": 0.12,
+  "infinite-apex": 0.12,
+  "infinite-zenith": 0.12,
+  "infinite-omega": 0.12,
+};
+
+export function packHouseEdgeTarget(packId: string): number {
+  const normalized = normalizePackId(packId.trim());
+  return PACK_TARGET_HOUSE_EDGE[normalized] ?? TARGET_HOUSE_EDGE;
+}
 
 /** Inverse-power raw weight — expensive cards approach micro-odds. */
 export const GEM_VALUE_SCALING_EXPONENT = 2.35;
@@ -34,6 +70,10 @@ const EV_TRANSFER_STEP = 0.25;
 
 export interface HouseEdgeOptions {
   spinCost: number;
+  /** Per-pack house edge target (defaults to packHouseEdgeTarget when packId set, else TARGET_HOUSE_EDGE). */
+  houseEdge?: number;
+  /** Pack id — resolves houseEdge from PACK_TARGET_HOUSE_EDGE when houseEdge omitted. */
+  packId?: string;
   /** Per-pack floor mass target override (defaults to FLOOR_FILLER_TARGET_SHARE). */
   floorShare?: number;
   /** Per-pack grail probability cap override (defaults to grailAbsoluteMaxForPack). */
@@ -47,10 +87,15 @@ export interface ProbabilityWeighted {
   probability: number;
 }
 
-export function expectedValueBounds(spinCost: number): { min: number; max: number } {
+export function expectedValueBounds(
+  spinCost: number,
+  houseEdge?: number,
+): { min: number; max: number } {
+  const edge = houseEdge ?? TARGET_HOUSE_EDGE;
+  const tol = HOUSE_EDGE_CALIBRATION_TOLERANCE;
   return {
-    min: spinCost * (1 - HOUSE_EDGE_MAX),
-    max: spinCost * (1 - HOUSE_EDGE_MIN),
+    min: spinCost * (1 - edge - tol),
+    max: spinCost * (1 - edge + tol),
   };
 }
 
@@ -100,16 +145,20 @@ export function grailMaxProbabilityForItem(
   item: StoreItem,
   spinCost: number,
   grailMax?: number,
+  houseEdge?: number,
 ): number {
   if (!isGrailStoreItem(item, spinCost)) return PROBABILITY_TOTAL;
 
-  const targetEv = targetPackExpectedValue(spinCost);
+  // Explicit per-pack override is the authored ceiling (starter / tuned chase packs).
+  if (grailMax != null) return grailMax;
+
+  const targetEv = targetPackExpectedValue(spinCost, houseEdge);
   const grailBudget = targetEv * GRAIL_EV_BUDGET_SHARE;
   const soloCap = (grailBudget / Math.max(item.value, 1)) * PROBABILITY_TOTAL;
 
   return Math.min(
     Math.max(soloCap, GRAIL_MIN_PROBABILITY),
-    grailMax ?? grailAbsoluteMaxForPack(spinCost),
+    grailAbsoluteMaxForPack(spinCost),
   );
 }
 
@@ -176,12 +225,13 @@ function capGrailProbabilities(
   spinCost: number,
   grailMax?: number,
   grailMin?: number,
+  houseEdge?: number,
 ): number[] {
   const minProb = grailMin ?? GRAIL_MIN_PROBABILITY;
   return weights.map((weight, index) => {
     const item = items[index]!;
     if (!isGrailStoreItem(item, spinCost)) return weight;
-    const cap = grailMaxProbabilityForItem(item, spinCost, grailMax);
+    const cap = grailMaxProbabilityForItem(item, spinCost, grailMax, houseEdge);
     return Math.min(Math.max(weight, minProb), cap);
   });
 }
@@ -203,8 +253,9 @@ function stagePackWeights<T extends StoreItem>(
   spinCost: number,
   grailMax?: number,
   grailMin?: number,
+  houseEdge?: number,
 ): T[] {
-  let capped = capGrailProbabilities(items, weights, spinCost, grailMax, grailMin);
+  let capped = capGrailProbabilities(items, weights, spinCost, grailMax, grailMin, houseEdge);
   let staged = assignProbabilities(items, capped);
   capped = capGrailProbabilities(
     items,
@@ -212,6 +263,7 @@ function stagePackWeights<T extends StoreItem>(
     spinCost,
     grailMax,
     grailMin,
+    houseEdge,
   );
   return assignProbabilities(items, capped);
 }
@@ -219,8 +271,16 @@ function stagePackWeights<T extends StoreItem>(
 function buildBaseWeights<T extends StoreItem>(
   items: readonly T[],
   floorShare: number = FLOOR_FILLER_TARGET_SHARE,
+  packId?: string,
 ): number[] {
-  const raw = items.map((item) => rawWeightFromGemValue(item.value));
+  const normalizedPackId = packId ? normalizePackId(packId) : "";
+  const useSeed =
+    normalizedPackId.length > 0 && PACKS_USING_SEED_WEIGHTS.has(normalizedPackId);
+  const raw = items.map((item) =>
+    useSeed && item.probability > 0
+      ? item.probability
+      : rawWeightFromGemValue(item.value),
+  );
   const boosted = boostFloorFillerWeights(items, raw, floorShare);
   return normalizePackWeights(boosted.map((probability) => ({ probability })));
 }
@@ -289,7 +349,7 @@ function transferMass(
 
 /**
  * Iteratively shifts probability mass between floor, mid-tier, and grail rows
- * until pack EV sits in the 10–12% house-edge band.
+ * until pack EV sits within the per-pack house-edge tolerance band.
  */
 function calibrateHouseEdge<T extends StoreItem>(
   items: readonly T[],
@@ -297,14 +357,16 @@ function calibrateHouseEdge<T extends StoreItem>(
   floorShare: number = FLOOR_FILLER_TARGET_SHARE,
   grailMax?: number,
   grailMin?: number,
+  houseEdge?: number,
+  packId?: string,
 ): T[] {
   if (spinCost <= 0 || items.length === 0) return [...items];
 
-  const { min, max } = expectedValueBounds(spinCost);
+  const { min, max } = expectedValueBounds(spinCost, houseEdge);
   const grailDonorMin = grailMin ?? GRAIL_MIN_PROBABILITY;
 
-  let weights = buildBaseWeights(items, floorShare);
-  let staged = stagePackWeights(items, weights, spinCost, grailMax, grailMin);
+  let weights = buildBaseWeights(items, floorShare, packId);
+  let staged = stagePackWeights(items, weights, spinCost, grailMax, grailMin, houseEdge);
 
   for (let iteration = 0; iteration < 1200; iteration++) {
     const ev = computePackExpectedValue(staged);
@@ -335,10 +397,10 @@ function calibrateHouseEdge<T extends StoreItem>(
       }
     }
 
-    staged = stagePackWeights(items, weights, spinCost, grailMax, grailMin);
+    staged = stagePackWeights(items, weights, spinCost, grailMax, grailMin, houseEdge);
   }
 
-  return tunePremiumTailScale(items, weights, spinCost, grailMax, grailMin);
+  return tunePremiumTailScale(items, weights, spinCost, grailMax, grailMin, houseEdge);
 }
 
 function upscalePremiumTail<T extends StoreItem>(
@@ -348,11 +410,12 @@ function upscalePremiumTail<T extends StoreItem>(
   factor: number,
   grailMax?: number,
   grailMin?: number,
+  houseEdge?: number,
 ): T[] {
   const scaled = weights.map((weight, index) =>
     isFloorFillerStoreItem(items[index]!) ? weight : weight * factor,
   );
-  return stagePackWeights(items, scaled, spinCost, grailMax, grailMin);
+  return stagePackWeights(items, scaled, spinCost, grailMax, grailMin, houseEdge);
 }
 
 function tunePremiumTailScale<T extends StoreItem>(
@@ -361,9 +424,10 @@ function tunePremiumTailScale<T extends StoreItem>(
   spinCost: number,
   grailMax?: number,
   grailMin?: number,
+  houseEdge?: number,
 ): T[] {
-  const { min, max } = expectedValueBounds(spinCost);
-  const targetEv = targetPackExpectedValue(spinCost);
+  const { min, max } = expectedValueBounds(spinCost, houseEdge);
+  const targetEv = targetPackExpectedValue(spinCost, houseEdge);
   let lo = 0.5;
   let hi =
     spinCost >= 25_000
@@ -375,12 +439,20 @@ function tunePremiumTailScale<T extends StoreItem>(
           : spinCost >= 1_000
             ? 48
             : 16;
-  let best = stagePackWeights(items, weights, spinCost, grailMax, grailMin);
+  let best = stagePackWeights(items, weights, spinCost, grailMax, grailMin, houseEdge);
   let bestDistance = Math.abs(computePackExpectedValue(best) - targetEv);
 
   for (let i = 0; i < 48; i++) {
     const factor = (lo + hi) / 2;
-    const candidate = upscalePremiumTail(items, weights, spinCost, factor, grailMax, grailMin);
+    const candidate = upscalePremiumTail(
+      items,
+      weights,
+      spinCost,
+      factor,
+      grailMax,
+      grailMin,
+      houseEdge,
+    );
     const ev = computePackExpectedValue(candidate);
     const distance = Math.abs(ev - targetEv);
 
@@ -405,7 +477,7 @@ function tunePremiumTailScale<T extends StoreItem>(
 
 /**
  * Value-scaled house-edge odds: inverse-power weights, floor mass, grail caps,
- * then EV calibration to ~88 Gems per 100 Gem spin (10–12% margin).
+ * then EV calibration to each pack's target house edge.
  */
 export function applyValueScaledProbabilities<T extends StoreItem>(
   items: readonly T[],
@@ -413,19 +485,37 @@ export function applyValueScaledProbabilities<T extends StoreItem>(
 ): T[] {
   if (items.length === 0) return [];
 
+  const packId = options?.packId?.trim() ?? "";
+  if (packId && isInfiniteSeriesPackId(packId)) {
+    const weights = items.map((item) => (item.probability > 0 ? item.probability : 0));
+    return assignProbabilities([...items], weights);
+  }
+
   const spinCost = options?.spinCost ?? 0;
+  const houseEdge =
+    options?.houseEdge ??
+    (options?.packId ? packHouseEdgeTarget(options.packId) : TARGET_HOUSE_EDGE);
   const floorShare = options?.floorShare ?? FLOOR_FILLER_TARGET_SHARE;
   const grailMax = options?.grailMaxProbability;
   const grailMin = options?.grailMinProbability;
   if (spinCost <= 0) {
     return stagePackWeights(
       items,
-      buildBaseWeights(items, floorShare),
+      buildBaseWeights(items, floorShare, options?.packId),
       0,
       grailMax,
       grailMin,
+      houseEdge,
     );
   }
 
-  return calibrateHouseEdge(items, spinCost, floorShare, grailMax, grailMin);
+  return calibrateHouseEdge(
+    items,
+    spinCost,
+    floorShare,
+    grailMax,
+    grailMin,
+    houseEdge,
+    options?.packId,
+  );
 }

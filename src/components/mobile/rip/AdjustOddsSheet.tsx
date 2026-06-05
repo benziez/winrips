@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Pack } from "../../../types";
 import type { OddsMode } from "./adjustOdds";
-import { ODDS_MODE_OPTIONS } from "./adjustOdds";
+import { OddsModeSelector } from "./OddsModeSelector";
+import { PackOddsDisplay } from "./PackOddsDisplay";
 import { RipBottomSheet } from "./RipBottomSheet";
 import { PackSlabMark } from "./PackSlabMark";
 import { CollectibleImage } from "../../ui/CollectibleImage";
@@ -13,15 +14,14 @@ import {
   PACK_TIER_BAR_GRADIENT,
 } from "../../../utils/packTierOdds";
 import { hapticTabSelect } from "../../../utils/mobileHaptics";
+import { isInfiniteSeriesPackId } from "../../../constants/infiniteSeriesPools";
 
 interface AdjustOddsSheetProps {
   pack: Pack | null;
   open: boolean;
   onClose: () => void;
   selected?: OddsMode;
-  onSelect?: (mode: OddsMode) => void;
-  /** Hide the volatility selector + Apply when this is a display-only odds sheet. */
-  showVolatility?: boolean;
+  onApply?: (mode: OddsMode) => void;
   /** Probability-weighted expected pull value, preformatted as USD. */
   expectedValueUsd?: string;
   /** Stacking context — must exceed the host view's z-index to render above it. */
@@ -35,8 +35,7 @@ export function AdjustOddsSheet({
   open,
   onClose,
   selected = "normal",
-  onSelect,
-  showVolatility = true,
+  onApply,
   expectedValueUsd,
   zIndex,
   topHit,
@@ -47,13 +46,24 @@ export function AdjustOddsSheet({
     if (open) setDraftMode(selected);
   }, [open, selected]);
 
-  const tierRows = useMemo(() => (pack ? getPackTierOdds(pack.id) : []), [pack]);
+  const tierRows = useMemo(
+    () => (pack ? getPackTierOdds(pack.id, draftMode) : []),
+    [pack, draftMode],
+  );
   const maxProbability = useMemo(
     () => Math.max(...tierRows.map((row) => row.probability), 1),
     [tierRows],
   );
 
   if (!pack) return null;
+
+  const isInfiniteSeries = isInfiniteSeriesPackId(pack.id);
+
+  function handleDone(): void {
+    void hapticTabSelect();
+    onApply?.(draftMode);
+    onClose();
+  }
 
   return (
     <RipBottomSheet
@@ -89,6 +99,12 @@ export function AdjustOddsSheet({
           </button>
         </div>
 
+        <div className="mt-6">
+          {!isInfiniteSeries ? (
+            <OddsModeSelector mode={draftMode} onChange={setDraftMode} size="compact" />
+          ) : null}
+        </div>
+
         {topHit ? (
           <div className="mt-6 flex flex-col items-center rounded-2xl border border-[var(--rip-border)] bg-[var(--rip-surface)] px-4 py-6">
             <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--rip-text-muted)]">
@@ -112,7 +128,7 @@ export function AdjustOddsSheet({
         {expectedValueUsd ? (
           <div className="mt-6 flex items-center justify-between rounded-2xl border border-[var(--rip-border)] bg-[var(--rip-surface)] px-4 py-3.5">
             <span className="text-[15px] font-medium text-[var(--rip-text-muted)]">
-              Expected value
+              Pack price
             </span>
             <span className="text-[22px] font-bold text-[var(--rip-green-bright)]">
               {expectedValueUsd}
@@ -120,75 +136,49 @@ export function AdjustOddsSheet({
           </div>
         ) : null}
 
-        {showVolatility ? (
-          <div className="mt-6">
-            <p className="mb-3 text-center text-[13px] text-[var(--rip-text-muted)]">
-              Choose your volatility level
-            </p>
-            <div className="flex justify-center gap-2">
-              {ODDS_MODE_OPTIONS.map((option) => {
-                const isSelected = draftMode === option.id;
-                return (
-                  <button
-                    key={option.id}
-                    type="button"
-                    onClick={() => {
-                      void hapticTabSelect();
-                      setDraftMode(option.id);
-                    }}
-                    className={`rounded-full border px-5 py-2 text-[15px] font-semibold transition-colors ${
-                      isSelected
-                        ? "border-[var(--rip-border-strong)] bg-[var(--rip-surface-strong)] text-white"
-                        : "border-[var(--rip-border)] bg-transparent text-[var(--rip-text-muted)]"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        <div className="relative mt-8 border-l border-[var(--rip-border)] pl-4">
-          {tierRows.map((row) => {
-            const widthPct = Math.max(4, (row.probability / maxProbability) * 100);
-            const labelInside = widthPct >= 28;
-            return (
-              <div key={row.tier} className="mb-4 grid grid-cols-[5rem_1fr] items-center gap-3 last:mb-0">
-                <div className="text-right">
-                  <p className="text-[14px] font-bold text-white">{row.tier}</p>
-                  <p className="text-[12px] font-medium text-[var(--rip-text-muted)]">
-                    {row.priceRange}
-                  </p>
-                </div>
-                <div className="relative h-8 w-full overflow-hidden rounded-md bg-[var(--rip-surface)]">
-                  <div
-                    className="absolute inset-y-0 left-0 flex items-center rounded-md px-2"
-                    style={{
-                      width: `${widthPct}%`,
-                      background: PACK_TIER_BAR_GRADIENT[row.tier],
-                    }}
-                  >
-                    {labelInside ? (
-                      <span className="ml-auto text-[16px] font-bold text-white">
+        {isInfiniteSeries ? (
+          <PackOddsDisplay />
+        ) : (
+          <div className="relative mt-8 border-l border-[var(--rip-border)] pl-4">
+            {tierRows.map((row) => {
+              const widthPct = Math.max(4, (row.probability / maxProbability) * 100);
+              const labelInside = widthPct >= 28;
+              return (
+                <div key={row.tier} className="mb-4 grid grid-cols-[5rem_1fr] items-center gap-3 last:mb-0">
+                  <div className="text-right">
+                    <p className="text-[14px] font-bold text-white">{row.tier}</p>
+                    <p className="text-[12px] font-medium text-[var(--rip-text-muted)]">
+                      {row.priceRange}
+                    </p>
+                  </div>
+                  <div className="relative h-8 w-full overflow-hidden rounded-md bg-[var(--rip-surface)]">
+                    <div
+                      className="absolute inset-y-0 left-0 flex items-center rounded-md px-2"
+                      style={{
+                        width: `${widthPct}%`,
+                        background: PACK_TIER_BAR_GRADIENT[row.tier],
+                      }}
+                    >
+                      {labelInside ? (
+                        <span className="ml-auto text-[16px] font-bold text-white">
+                          {formatTierProbability(row.probability)}
+                        </span>
+                      ) : null}
+                    </div>
+                    {!labelInside ? (
+                      <span
+                        className="absolute top-1/2 -translate-y-1/2 text-[16px] font-bold text-white"
+                        style={{ left: `calc(${widthPct}% + 6px)` }}
+                      >
                         {formatTierProbability(row.probability)}
                       </span>
                     ) : null}
                   </div>
-                  {!labelInside ? (
-                    <span
-                      className="absolute top-1/2 -translate-y-1/2 text-[16px] font-bold text-white"
-                      style={{ left: `calc(${widthPct}% + 6px)` }}
-                    >
-                      {formatTierProbability(row.probability)}
-                    </span>
-                  ) : null}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mt-8 flex items-center justify-around px-2">
           <div className="flex items-baseline gap-2">
@@ -210,14 +200,10 @@ export function AdjustOddsSheet({
 
         <button
           type="button"
-          onClick={() => {
-            void hapticTabSelect();
-            if (showVolatility) onSelect?.(draftMode);
-            onClose();
-          }}
+          onClick={handleDone}
           className="mt-6 flex h-14 w-full items-center justify-center rounded-full bg-[var(--rip-orange)] text-[17px] font-semibold text-white active:scale-[0.97] active:bg-[var(--rip-orange-pressed)]"
         >
-          {showVolatility ? "Apply" : "Done"}
+          Done
         </button>
       </div>
     </RipBottomSheet>

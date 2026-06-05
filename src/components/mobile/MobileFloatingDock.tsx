@@ -1,10 +1,11 @@
+import { memo } from "react";
+import { Swords } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import {
   AccountIcon,
   CollectionIcon,
   PacksIcon,
-  ReferIcon,
-  ShowroomIcon,
+  TrophyIcon,
 } from "../icons/AppIcons";
 import { hapticTabSelect } from "../../utils/mobileHaptics";
 import type { AppView } from "../../types";
@@ -12,24 +13,25 @@ import type { AppView } from "../../types";
 const TAB_ITEMS: {
   id: AppView;
   label: string;
-  Icon: typeof PacksIcon;
+  Icon?: typeof PacksIcon;
+  lucideIcon?: typeof Swords;
 }[] = [
   { id: "lobby", label: "Packs", Icon: PacksIcon },
-  { id: "showroom", label: "Showroom", Icon: ShowroomIcon },
+  { id: "showroom", label: "Wins", Icon: TrophyIcon },
   { id: "vault", label: "Collection", Icon: CollectionIcon },
-  { id: "refer", label: "Refer Friends", Icon: ReferIcon },
+  { id: "battles", label: "Battles", lucideIcon: Swords },
   { id: "account", label: "Account", Icon: AccountIcon },
 ];
 
-/** Space reserved above home indicator + floating dock. */
-export const MOBILE_DOCK_CLEARANCE = "calc(5.5rem + env(safe-area-inset-bottom))";
+/** Space reserved above home indicator + floating dock (matches h-[68px] tab row). */
+export const MOBILE_DOCK_CLEARANCE = "calc(68px + env(safe-area-inset-bottom))";
 
-export function MobileFloatingDock() {
+export const MobileFloatingDock = memo(function MobileFloatingDock() {
   const { currentView, navigateToView } = useApp();
 
   return (
     <nav
-      className="rip-surface-glass pointer-events-none fixed inset-x-0 bottom-0 z-50 border-t border-[var(--rip-border)]"
+      className="rip-surface-glass pointer-events-none fixed inset-x-0 bottom-0 z-50"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Main navigation"
     >
@@ -38,7 +40,8 @@ export function MobileFloatingDock() {
           const active =
             currentView === item.id ||
             (item.id === "lobby" && currentView === "pack-open");
-          const { Icon } = item;
+          const { Icon, lucideIcon: LucideIcon } = item;
+          const iconClass = active ? "text-white" : "text-[var(--rip-text-subtle)]";
 
           return (
             <button
@@ -48,7 +51,7 @@ export function MobileFloatingDock() {
                 void hapticTabSelect();
                 navigateToView(item.id);
               }}
-              className="relative flex flex-col items-center justify-center gap-1 px-0.5 py-1"
+              className="relative flex min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1"
               aria-label={item.label}
               aria-current={active ? "page" : undefined}
             >
@@ -58,10 +61,18 @@ export function MobileFloatingDock() {
                   aria-hidden
                 />
               ) : null}
-              <Icon
-                size={24}
-                className={active ? "text-white" : "text-[var(--rip-text-subtle)]"}
-              />
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center">
+                {LucideIcon ? (
+                  <LucideIcon
+                    size={22}
+                    strokeWidth={1.75}
+                    className={iconClass}
+                    aria-hidden
+                  />
+                ) : Icon ? (
+                  <Icon size={24} className={iconClass} />
+                ) : null}
+              </span>
               <span
                 className={`max-w-full truncate text-[11px] font-medium leading-tight ${
                   active ? "text-white" : "text-[var(--rip-text-subtle)]"
@@ -75,4 +86,4 @@ export function MobileFloatingDock() {
       </div>
     </nav>
   );
-}
+});

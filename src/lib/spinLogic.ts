@@ -92,11 +92,26 @@ function mapOpenPackError(message: string, code?: string): string {
   if (normalized.includes("profile_not_found")) {
     return "Account profile not found. Try signing out and back in.";
   }
-  if (normalized.includes("pack not found")) {
+  if (normalized.includes("pack_not_found") || normalized.includes("pack not found")) {
     return "This pack is not available right now.";
   }
+  if (normalized.includes("daily_limit_sold_out")) {
+    return "This pack is sold out today. Check back after midnight Eastern.";
+  }
+  if (normalized.includes("daily_limit_exceeded")) {
+    return "Daily open limit reached for that quantity.";
+  }
+  if (
+    normalized.includes("pack_weights_missing") ||
+    normalized.includes("roll weights are not configured")
+  ) {
+    return "This pack is not available right now.";
+  }
+  if (normalized.includes("open_pack_error")) {
+    return "Could not open pack. Try again in a moment.";
+  }
 
-  return "Unable to open this pack. Please try again.";
+  return "Could not open pack.";
 }
 
 async function resolveAuthenticatedUserId(prefilledUserId?: string): Promise<string> {
@@ -131,8 +146,18 @@ export async function openPack(
   spinCost: number,
   quantity: number,
   authUserId?: string,
+  riskyRip = false,
 ): Promise<OpenPackResult> {
+  console.log("[open_pack] openPack() invoked", {
+    packId,
+    spinCost,
+    quantity,
+    riskyRip,
+    hasAuthUserId: Boolean(authUserId?.trim()),
+  });
+
   if (!isSupabaseConfigured() || !supabase) {
+    console.error("[open_pack] Supabase not configured");
     return {
       ok: false,
       error: "Pack opening requires Supabase configuration.",
@@ -161,10 +186,19 @@ export async function openPack(
         p_pack_id: normalizedPackId,
         p_quantity: normalizedQuantity,
         p_spin_cost: normalizedCost,
+        p_risky_rip: riskyRip,
       } as never,
     );
 
     if (error) {
+      console.error("[open_pack] PostgREST/RPC transport error:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        status: (error as { status?: number }).status,
+        full: error,
+      });
       logger.warn("[open_pack] PostgREST error:", error.message);
       return {
         ok: false,
@@ -190,6 +224,15 @@ export async function openPack(
         typeof payload?.error === "string" && payload.error.trim()
           ? payload.error.trim()
           : "Unable to open this pack.";
+
+      console.error("[open_pack] RPC business rejection:", {
+        rpcCode,
+        rpcStep,
+        errorMessage,
+        payload,
+        normalizedPackId,
+        normalizedQuantity,
+      });
 
       return {
         ok: false,
@@ -223,13 +266,25 @@ export async function openPack(
       };
     }
 
-    logger.log("[open_pack] pack opened", { packId: normalizedPackId, quantity: normalizedQuantity });
+    logger.log("[open_pack] pack opened", {
+      packId: normalizedPackId,
+      quantity: normalizedQuantity,
+      riskyRip,
+    });
     return {
       ok: true,
       gemsBalance: Math.round(gemsBalance),
       winners,
     };
   } catch (error) {
+    console.error("[open_pack] openPack() threw:", error);
+    if (error && typeof error === "object") {
+      console.error("[open_pack] openPack() error details:", {
+        ...error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+    }
     const message =
       error instanceof Error ? error.message : "Unable to complete this pack opening.";
     return { ok: false, error: message };

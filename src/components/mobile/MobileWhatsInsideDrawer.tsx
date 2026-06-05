@@ -3,6 +3,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { getPackDropTable, formatProbability } from "../../data/packDropTables";
 import { formatUsd, gemsToUsd } from "../../constants/retail";
 import { MOBILE_COLORS, PAGE_STACK_SPRING } from "./mobileTheme";
+import {
+  OVERLAY_DISMISS_EXIT,
+  OVERLAY_DISMISS_TRANSITION,
+} from "./rip/ripMotion";
 import { useFallbackImageSrc, IMAGE_PLACEHOLDER } from "../../hooks/useFallbackImageSrc";
 import { resolveAssetUrl, isRenderableAssetUrl } from "../../utils/resolveAssetUrl";
 import { CARD_PLACEHOLDER_IMAGE } from "../../constants/cardAssets";
@@ -87,6 +91,7 @@ export function MobileWhatsInsideDrawer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={OVERLAY_DISMISS_TRANSITION}
             onClick={onClose}
           />
           <motion.div
@@ -94,9 +99,9 @@ export function MobileWhatsInsideDrawer({
             role="dialog"
             aria-modal="true"
             initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={PAGE_STACK_SPRING}
+            animate={{ y: 0, transition: PAGE_STACK_SPRING }}
+            exit={OVERLAY_DISMISS_EXIT}
+            transition={OVERLAY_DISMISS_TRANSITION}
           >
             <header
               className="relative flex shrink-0 items-center justify-center px-5 pb-2"

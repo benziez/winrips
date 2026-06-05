@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useApp } from "../../context/AppContext";
+import { useAuth } from "../../context/AuthContext";
 import type { FooterPageSlug } from "../../constants/footerContent";
 import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { AutoSellPolicySheet } from "./settings/AutoSellPolicySheet";
@@ -23,14 +24,23 @@ const BUILD_NUMBER = import.meta.env.VITE_BUILD_NUMBER ?? "199";
 
 export function MobileSettingsView() {
   const { navigateToView, openAuthModal, isLoggedIn } = useApp();
+  const { isAuthenticated } = useAuth();
   const [autoSellSheetOpen, setAutoSellSheetOpen] = useState(false);
   const [supportSheetOpen, setSupportSheetOpen] = useState(false);
   const [infoSheetKey, setInfoSheetKey] = useState<FooterPageSlug | null>(null);
 
+  const visibleLinkRows = useMemo(
+    () =>
+      LINK_ROWS.filter(
+        (row) => row.action !== "login" || !isAuthenticated,
+      ),
+    [isAuthenticated],
+  );
+
   return (
     <RipAmbientShell>
       <header
-        className="px-6"
+        className="shrink-0 px-6"
         style={{ paddingTop: "calc(max(0.5rem, env(safe-area-inset-top)) + 0.5rem)" }}
       >
         <button
@@ -47,7 +57,7 @@ export function MobileSettingsView() {
         <h1 className="mt-4 text-[40px] font-bold text-white">Settings</h1>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-10">
+      <div className="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
         <div className="mt-6 flex flex-col gap-3">
           <button
             type="button"
@@ -85,7 +95,7 @@ export function MobileSettingsView() {
         </div>
 
         <ul className="mx-2 mt-8">
-          {LINK_ROWS.map((row) => (
+          {visibleLinkRows.map((row) => (
             <li key={row.label} className="border-b border-[var(--rip-border)]">
               <button
                 type="button"

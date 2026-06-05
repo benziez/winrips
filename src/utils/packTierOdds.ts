@@ -1,6 +1,8 @@
+import type { OddsMode } from "./riskyRipOdds";
 import type { StoreRarity } from "../types/store";
 import { getPackDropTable } from "../data/packDropTables";
 import { formatUsd, gemsToUsd } from "../constants/retail";
+import { applyRiskyRipMultipliers, isRiskyRipMode } from "./riskyRipOdds";
 
 export const PACK_TIER_ORDER: StoreRarity[] = [
   "Common",
@@ -39,15 +41,28 @@ function formatPriceBand(minGems: number, maxGems: number): string {
   return `${min}–${max}`;
 }
 
-export function getPackTierOdds(packId: string): PackTierOddsRow[] {
+export function getPackTierOdds(
+  packId: string,
+  mode: OddsMode = "normal",
+): PackTierOddsRow[] {
   const table = getPackDropTable(packId);
+  const weightedEntries = isRiskyRipMode(mode)
+    ? applyRiskyRipMultipliers(
+        table.map((entry) => ({
+          ...entry,
+          rarity: entry.storeRarity,
+          probability: entry.probability,
+        })),
+      )
+    : table;
+
   const byTier = new Map<StoreRarity, { probability: number; minGems: number; maxGems: number }>();
 
   for (const tier of PACK_TIER_ORDER) {
     byTier.set(tier, { probability: 0, minGems: Number.POSITIVE_INFINITY, maxGems: 0 });
   }
 
-  for (const entry of table) {
+  for (const entry of weightedEntries) {
     const tier = entry.storeRarity;
     const bucket = byTier.get(tier);
     if (!bucket) continue;
@@ -70,5 +85,8 @@ export function getPackTierOdds(packId: string): PackTierOddsRow[] {
 }
 
 export function formatTierProbability(p: number): string {
+  if (p > 0 && p.toFixed(1) === "0.0") {
+    return "<0.1%";
+  }
   return `${p.toFixed(1)}%`;
 }

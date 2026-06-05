@@ -45,7 +45,7 @@ function PortfolioTooltip({
   if (!active || !payload?.[0]?.payload) return null;
   const point = payload[0].payload;
   return (
-    <div className="rounded-md border border-[var(--rip-border)] bg-[var(--rip-surface-glass)] p-2 shadow-lg backdrop-blur-md">
+    <div className="rounded-md border border-[var(--rip-border)] bg-black/90 p-2 shadow-lg">
       <p className="text-[11px] text-[var(--rip-text-muted)]">{point.date}</p>
       <p className="text-[14px] font-bold text-white">{formatUsd(point.value)}</p>
     </div>

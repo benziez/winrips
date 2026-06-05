@@ -71,9 +71,18 @@ export interface PaymentIntentDepositStatus {
   pending: boolean;
 }
 
-export async function fetchPaymentIntentDepositStatus(
+type PaymentIntentStatusPollResponse =
+  | { kind: "ok"; status: PaymentIntentDepositStatus }
+  | { kind: "not_found" }
+  | { kind: "error"; httpStatus: number; message: string };
+
+const INITIAL_POLL_DELAY_MS = 1_500;
+const POLL_TIMEOUT_MS = 10_000;
+const POLL_INTERVAL_MS = 800;
+
+async function pollPaymentIntentDepositStatus(
   paymentIntentId: string,
-): Promise<PaymentIntentDepositStatus> {
+): Promise<PaymentIntentStatusPollResponse> {
   const accessToken = await getDepositAccessToken();
 
   const response = await fetch(apiUrl("/api/stripe/payment-intent-status"), {
@@ -94,19 +103,47 @@ export async function fetchPaymentIntentDepositStatus(
       }
     | null;
 
+  if (response.status === 404) {
+    return { kind: "not_found" };
+  }
+
   if (!response.ok) {
-    throw new Error(payload?.error ?? "Could not verify payment status.");
+    return {
+      kind: "error",
+      httpStatus: response.status,
+      message: payload?.error ?? "Could not verify payment status.",
+    };
   }
 
   return {
-    status: payload?.status?.trim() ?? "unknown",
-    succeeded: payload?.succeeded === true,
-    pending: payload?.pending === true,
+    kind: "ok",
+    status: {
+      status: payload?.status?.trim() ?? "unknown",
+      succeeded: payload?.succeeded === true,
+      pending: payload?.pending === true,
+    },
   };
+}
+
+export async function fetchPaymentIntentDepositStatus(
+  paymentIntentId: string,
+): Promise<PaymentIntentDepositStatus> {
+  const result = await pollPaymentIntentDepositStatus(paymentIntentId);
+  if (result.kind === "ok") return result.status;
+  if (result.kind === "not_found") {
+    throw new Error("Payment not found");
+  }
+  throw new Error(result.message);
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export interface WaitForDepositPaymentResult {
+  confirmed: boolean;
+  /** Set when polling ends with only retriable 404s (PI not visible yet). */
+  notFoundAfterTimeout?: boolean;
 }
 
 /**
@@ -115,39 +152,87 @@ function sleep(ms: number): Promise<void> {
  */
 export async function waitForDepositPaymentSuccess(
   paymentIntentId: string,
-  options?: { maxAttempts?: number; intervalMs?: number },
-): Promise<boolean> {
-  const maxAttempts = options?.maxAttempts ?? 12;
-  const intervalMs = options?.intervalMs ?? 800;
+  options?: {
+    initialDelayMs?: number;
+    timeoutMs?: number;
+    intervalMs?: number;
+  },
+): Promise<WaitForDepositPaymentResult> {
+  const initialDelayMs = options?.initialDelayMs ?? INITIAL_POLL_DELAY_MS;
+  const timeoutMs = options?.timeoutMs ?? POLL_TIMEOUT_MS;
+  const intervalMs = options?.intervalMs ?? POLL_INTERVAL_MS;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    const result = await fetchPaymentIntentDepositStatus(paymentIntentId);
+  await sleep(initialDelayMs);
 
-    if (result.succeeded) {
-      console.info("[Stripe] PaymentIntent verified on server", {
+  const deadline = Date.now() + timeoutMs;
+  let attempt = 0;
+  let sawDefinitiveFailure = false;
+  let lastObservedStatus: string | null = null;
+  let onlyNotFound = true;
+
+  while (Date.now() < deadline) {
+    attempt += 1;
+    const poll = await pollPaymentIntentDepositStatus(paymentIntentId);
+
+    if (poll.kind === "ok") {
+      onlyNotFound = false;
+      lastObservedStatus = poll.status.status;
+
+      if (poll.status.succeeded) {
+        console.info("[Stripe] PaymentIntent verified on server", {
+          paymentIntentId,
+          status: poll.status.status,
+          attempt,
+        });
+        return { confirmed: true };
+      }
+
+      const failed =
+        poll.status.status === "requires_payment_method" ||
+        poll.status.status === "canceled";
+      if (failed) {
+        console.warn("[Stripe] PaymentIntent failed on server", {
+          paymentIntentId,
+          status: poll.status.status,
+          attempt,
+        });
+        sawDefinitiveFailure = true;
+        return { confirmed: false };
+      }
+    } else if (poll.kind === "not_found") {
+      console.info("[Stripe] PaymentIntent not found yet (retriable 404)", {
         paymentIntentId,
-        status: result.status,
         attempt,
       });
-      return true;
-    }
-
-    const failed =
-      result.status === "requires_payment_method" || result.status === "canceled";
-    if (failed) {
-      console.warn("[Stripe] PaymentIntent failed on server", {
+    } else {
+      onlyNotFound = false;
+      console.warn("[Stripe] PaymentIntent status poll error (retriable)", {
         paymentIntentId,
-        status: result.status,
         attempt,
+        httpStatus: poll.httpStatus,
+        message: poll.message,
       });
-      return false;
     }
 
-    if (attempt < maxAttempts) {
-      await sleep(intervalMs);
+    if (Date.now() + intervalMs >= deadline) {
+      break;
     }
+    await sleep(intervalMs);
   }
 
-  console.warn("[Stripe] PaymentIntent status poll timed out", { paymentIntentId });
-  return false;
+  if (onlyNotFound) {
+    console.warn("[Stripe] PaymentIntent still not found after poll timeout", {
+      paymentIntentId,
+      attempt,
+    });
+    return { confirmed: false, notFoundAfterTimeout: true };
+  }
+
+  console.warn("[Stripe] PaymentIntent status poll timed out", {
+    paymentIntentId,
+    attempt,
+    lastObservedStatus,
+    sawDefinitiveFailure,
+  });
+  return { confirmed: false };
 }

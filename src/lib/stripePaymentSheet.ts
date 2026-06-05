@@ -339,12 +339,19 @@ export async function presentDepositPaymentSheet(
     } catch (presentError) {
       console.error("[Stripe] presentPaymentSheet threw", presentError);
 
-      const serverConfirmed = await waitForDepositPaymentSuccess(paymentIntentId);
-      if (serverConfirmed || sheetListeners.state.completed) {
+      const poll = await waitForDepositPaymentSuccess(paymentIntentId);
+      if (poll.confirmed || sheetListeners.state.completed) {
         console.info(
           "[Stripe] Payment succeeded on server despite presentPaymentSheet throw",
         );
         return "completed";
+      }
+
+      if (poll.notFoundAfterTimeout) {
+        throw new StripePaymentSheetError(
+          "Payment could not be confirmed. If your balance did not update, try again or contact support.",
+          { nativeError: "Payment not found after verification timeout" },
+        );
       }
 
       const native =
@@ -372,13 +379,23 @@ export async function presentDepositPaymentSheet(
       "[Stripe] Sheet result not success; verifying PaymentIntent on server:",
       paymentResult,
     );
-    const serverConfirmed = await waitForDepositPaymentSuccess(paymentIntentId);
-    if (serverConfirmed) {
+    const poll = await waitForDepositPaymentSuccess(paymentIntentId);
+    if (poll.confirmed) {
       console.info(
         "[Stripe] Payment succeeded on server despite sheet result:",
         paymentResult,
       );
       return "completed";
+    }
+
+    if (poll.notFoundAfterTimeout) {
+      throw new StripePaymentSheetError(
+        "Payment could not be confirmed. If your balance did not update, try again or contact support.",
+        {
+          paymentResult: paymentResult as PaymentSheetEventsEnum,
+          nativeError: "Payment not found after verification timeout",
+        },
+      );
     }
 
     const native = await resolveNativePaymentSheetFailure(sheetListeners, paymentResult);

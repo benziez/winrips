@@ -75,6 +75,10 @@ export interface PaymentIntentDepositStatus {
   status: string;
   succeeded: boolean;
   pending: boolean;
+  /** Set when payment-intent-status credits the deposit via credit_deposit. */
+  newBalance?: number;
+  gemsAdded?: number;
+  credited?: boolean;
 }
 
 type PaymentIntentStatusPollResponse =
@@ -105,6 +109,9 @@ async function pollPaymentIntentDepositStatus(
         status?: string;
         succeeded?: boolean;
         pending?: boolean;
+        new_balance?: number;
+        gems_added?: number;
+        credited?: boolean;
         error?: string;
       }
     | null;
@@ -135,6 +142,10 @@ async function pollPaymentIntentDepositStatus(
       status: payload?.status?.trim() ?? "unknown",
       succeeded: payload?.succeeded === true,
       pending: payload?.pending === true,
+      newBalance:
+        typeof payload?.new_balance === "number" ? payload.new_balance : undefined,
+      gemsAdded: typeof payload?.gems_added === "number" ? payload.gems_added : undefined,
+      credited: payload?.credited === true,
     },
   };
 }
@@ -148,6 +159,24 @@ export async function fetchPaymentIntentDepositStatus(
     throw new Error("Payment not found");
   }
   throw new Error(result.message);
+}
+
+/**
+ * Hit payment-intent-status once (credits idempotently when PI succeeded) and poll until settled.
+ */
+export async function ensureDepositPaymentCredited(
+  paymentIntentId: string,
+): Promise<PaymentIntentDepositStatus | null> {
+  const poll = await waitForDepositPaymentSuccess(paymentIntentId, {
+    initialDelayMs: 0,
+    timeoutMs: 15_000,
+  });
+  if (!poll.confirmed) {
+    return null;
+  }
+
+  const result = await pollPaymentIntentDepositStatus(paymentIntentId);
+  return result.kind === "ok" ? result.status : null;
 }
 
 function sleep(ms: number): Promise<void> {

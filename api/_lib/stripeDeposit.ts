@@ -84,6 +84,62 @@ const DEPOSIT_PENDING_STATUSES = new Set<Stripe.PaymentIntent.Status>([
   "requires_confirmation",
 ]);
 
+type CreditDepositResult = {
+  credited: boolean;
+  alreadyProcessed: boolean;
+  newBalance: number | null;
+  amountGemsAdded: number;
+};
+
+/** Idempotent gems credit via Supabase credit_deposit RPC. */
+async function creditBalanceDepositFromIntent(
+  intent: Stripe.PaymentIntent,
+): Promise<CreditDepositResult | null> {
+  const purpose = intent.metadata.purpose?.trim();
+  const supabaseUserId = intent.metadata.supabase_user_id?.trim();
+
+  if (purpose !== "balance_deposit" || !supabaseUserId) {
+    return null;
+  }
+
+  if (!DEPOSIT_SUCCESS_STATUSES.has(intent.status)) {
+    return {
+      credited: false,
+      alreadyProcessed: false,
+      newBalance: null,
+      amountGemsAdded: 0,
+    };
+  }
+
+  const supabase = readSupabaseAdmin();
+  const { data, error } = await supabase.rpc("credit_deposit", {
+    p_user_id: supabaseUserId,
+    p_amount_cents: intent.amount,
+    p_stripe_payment_intent_id: intent.id,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const payload = (data ?? {}) as {
+    success?: boolean;
+    already_processed?: boolean;
+    new_balance?: number;
+    amount_gems_added?: number;
+  };
+
+  return {
+    credited: payload.success === true && payload.already_processed !== true,
+    alreadyProcessed: payload.already_processed === true,
+    newBalance: typeof payload.new_balance === "number" ? payload.new_balance : null,
+    amountGemsAdded:
+      typeof payload.amount_gems_added === "number"
+        ? payload.amount_gems_added
+        : intent.amount,
+  };
+}
+
 export async function handleStripePaymentIntentStatusRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -123,11 +179,34 @@ export async function handleStripePaymentIntentStatusRoute(
     }
 
     const status = intent.status;
+    const succeeded = DEPOSIT_SUCCESS_STATUSES.has(status);
+
+    let creditResult: CreditDepositResult | null = null;
+    if (succeeded) {
+      try {
+        creditResult = await creditBalanceDepositFromIntent(intent);
+        if (creditResult?.credited) {
+          logger.critical(
+            `[stripe/payment-intent-status] credited deposit pi=${intent.id} gems=${creditResult.amountGemsAdded} newBalance=${creditResult.newBalance}`,
+          );
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Credit failed";
+        logger.error("[stripe/payment-intent-status] credit_deposit failed:", message);
+        sendJson(res, 500, { error: "Credit failed" });
+        return true;
+      }
+    }
+
     sendJson(res, 200, {
       status,
-      succeeded: DEPOSIT_SUCCESS_STATUSES.has(status),
+      succeeded,
       pending: DEPOSIT_PENDING_STATUSES.has(status),
       livemode: intent.livemode,
+      credited: creditResult?.credited ?? false,
+      already_processed: creditResult?.alreadyProcessed ?? false,
+      gems_added: creditResult?.amountGemsAdded ?? undefined,
+      new_balance: creditResult?.newBalance ?? undefined,
     });
     return true;
   } catch (error) {
@@ -286,7 +365,6 @@ export async function handleStripeWebhookRoute(
 
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object as Stripe.PaymentIntent;
-    const supabaseUserId = intent.metadata.supabase_user_id?.trim();
     const purpose = intent.metadata.purpose?.trim();
 
     if (purpose !== "balance_deposit") {
@@ -294,28 +372,20 @@ export async function handleStripeWebhookRoute(
       return true;
     }
 
-    if (!supabaseUserId) {
+    if (!intent.metadata.supabase_user_id?.trim()) {
       logger.error("[stripe/webhook] missing supabase_user_id for intent", intent.id);
       sendJson(res, 400, { error: "Missing user metadata" });
       return true;
     }
 
     try {
-      const supabase = readSupabaseAdmin();
-      const { error } = await supabase.rpc("credit_deposit", {
-        p_user_id: supabaseUserId,
-        p_amount_cents: intent.amount,
-        p_stripe_payment_intent_id: intent.id,
-      });
-
-      if (error) {
-        logger.error("[stripe/webhook] credit_deposit failed:", error.message);
-        sendJson(res, 500, { error: "Credit failed" });
-        return true;
-      }
+      const creditResult = await creditBalanceDepositFromIntent(intent);
+      logger.critical(
+        `[stripe/webhook] payment_intent.succeeded pi=${intent.id} credited=${creditResult?.credited ?? false} alreadyProcessed=${creditResult?.alreadyProcessed ?? false} newBalance=${creditResult?.newBalance ?? "null"}`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Credit failed";
-      logger.error("[stripe/webhook]", message);
+      logger.error("[stripe/webhook] credit_deposit failed:", message);
       sendJson(res, 500, { error: "Credit failed" });
       return true;
     }

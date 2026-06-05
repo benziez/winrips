@@ -30,6 +30,7 @@ import { VAULT_SHIPPING_COST } from "../constants/shipping";
 import { resolveVaultItemUuid } from "../lib/exchangeLogic";
 import { fetchVaultInventory } from "../queries/vaultInventory";
 import { fetchUserBalances, resolveSyncedGemBalance } from "../lib/userBalances";
+import { refreshWalletAfterDeposit as refreshWalletAfterDepositImpl } from "../lib/walletBalanceRefresh";
 import { logger } from "../lib/logger";
 import { fetchCurrentUserProfile } from "../lib/userProfile";
 import {
@@ -112,6 +113,14 @@ interface AppContextValue extends AppState {
   addGoldVolts: (amount: number) => void;
   setGoldVolts: (balance: number) => void;
   syncGemBalanceFromServer: (authUserId?: string) => Promise<void>;
+  refreshWalletAfterDeposit: (
+    authUserId: string,
+    options: {
+      previousGemBalance: number;
+      expectedIncreaseGems: number;
+      knownNewBalance?: number | null;
+    },
+  ) => Promise<void>;
   syncUserProfileFromServer: (authUserId?: string) => Promise<void>;
   setProfileAvatarUrl: (url: string | null) => void;
   setProfileUsername: (username: string | null) => void;
@@ -440,6 +449,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }));
     }
   }, [state.userId]);
+
+  const refreshWalletAfterDeposit = useCallback(
+    async (
+      authUserId: string,
+      options: {
+        previousGemBalance: number;
+        expectedIncreaseGems: number;
+        knownNewBalance?: number | null;
+      },
+    ) => {
+      if (!authUserId.trim()) return;
+
+      setState((s) => ({ ...s, gemBalanceLoading: true, userId: authUserId }));
+
+      try {
+        await refreshWalletAfterDepositImpl({
+          userId: authUserId,
+          previousGemBalance: options.previousGemBalance,
+          expectedIncreaseGems: options.expectedIncreaseGems,
+          knownNewBalance: options.knownNewBalance,
+          applyBalances: (gems, withdrawableBalance, sweepsBalance) => {
+            setState((s) => ({
+              ...s,
+              goldVolts: gems,
+              withdrawableBalance,
+              sweepsCash: sweepsBalance,
+            }));
+          },
+        });
+      } finally {
+        setState((s) => ({ ...s, gemBalanceLoading: false }));
+      }
+    },
+    [],
+  );
 
   const syncUserProfileFromServer = useCallback(async (authUserId?: string) => {
     const userId = authUserId ?? state.userId;
@@ -907,6 +951,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addGoldVolts,
       setGoldVolts,
       syncGemBalanceFromServer,
+      refreshWalletAfterDeposit,
       syncUserProfileFromServer,
       setProfileAvatarUrl,
       setProfileUsername,
@@ -961,6 +1006,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addGoldVolts,
       setGoldVolts,
       syncGemBalanceFromServer,
+      refreshWalletAfterDeposit,
       syncUserProfileFromServer,
       setProfileAvatarUrl,
       setProfileUsername,

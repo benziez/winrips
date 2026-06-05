@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { formatUsd, gemsToUsd } from "../../../constants/retail";
 import { useApp } from "../../../context/AppContext";
 import { useAuth } from "../../../context/AuthContext";
-import { createStripePaymentIntent } from "../../../lib/stripeDepositApi";
+import { createStripePaymentIntent, ensureDepositPaymentCredited } from "../../../lib/stripeDepositApi";
 import { getStripeKeyDiagnostics, isStripeConfigured } from "../../../lib/stripeClient";
 import {
   getDepositPaymentErrorMessage,
@@ -45,7 +45,7 @@ export function AddFundsModal({
     userId,
     showErrorToast,
     showCashoutToast,
-    syncGemBalanceFromServer,
+    refreshWalletAfterDeposit,
     setAddFundsModalOpen,
   } = useApp();
   const [amountDigits, setAmountDigits] = useState("10");
@@ -129,6 +129,9 @@ export function AddFundsModal({
     setIsProcessing(true);
     setHoldOpenForPaymentSheet(true);
 
+    const balanceBeforeDeposit = goldVolts;
+    const expectedIncreaseGems = Math.round(amountUsd * 100);
+
     try {
       const { clientSecret, paymentIntentId, livemode } =
         await createStripePaymentIntent(amountUsd);
@@ -162,10 +165,16 @@ export function AddFundsModal({
         return;
       }
 
+      const creditStatus = await ensureDepositPaymentCredited(paymentIntentId);
+
       void hapticNotificationSuccess();
       showCashoutToast(`$${amountUsd.toFixed(2)} added to your account`);
 
-      await syncGemBalanceFromServer(userId);
+      await refreshWalletAfterDeposit(userId, {
+        previousGemBalance: balanceBeforeDeposit,
+        expectedIncreaseGems,
+        knownNewBalance: creditStatus?.newBalance ?? null,
+      });
       onSuccess?.(amountUsd);
       onClose();
     } catch (error) {
@@ -179,13 +188,14 @@ export function AddFundsModal({
     }
   }, [
     amountUsd,
+    goldVolts,
     isProcessing,
     onClose,
     onSuccess,
+    refreshWalletAfterDeposit,
     session?.access_token,
     showCashoutToast,
     showErrorToast,
-    syncGemBalanceFromServer,
     userId,
   ]);
 

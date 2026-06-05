@@ -9,6 +9,7 @@ import {
   redactPaymentIntentClientSecret,
   stripeSecretKeyMode,
 } from "./stripeKeyDiagnostics.js";
+import { isStripeRoute } from "./stripeRouteMatch.js";
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
@@ -87,7 +88,7 @@ export async function handleStripePaymentIntentStatusRoute(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  if (req.method !== "POST" || req.url !== "/api/stripe/payment-intent-status") {
+  if (!isStripeRoute(req, "POST", "payment-intent-status")) {
     return false;
   }
 
@@ -141,7 +142,7 @@ export async function handleStripeCreatePaymentIntentRoute(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  if (req.method !== "POST" || req.url !== "/api/stripe/create-payment-intent") {
+  if (!isStripeRoute(req, "POST", "create-payment-intent")) {
     return false;
   }
 
@@ -237,7 +238,7 @@ export async function handleStripeWebhookRoute(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  if (req.method !== "POST" || req.url !== "/api/stripe/webhook") {
+  if (!isStripeRoute(req, "POST", "webhook")) {
     return false;
   }
 

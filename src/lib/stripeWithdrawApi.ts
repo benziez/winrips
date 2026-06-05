@@ -1,3 +1,4 @@
+import { STRIPE_API_ROUTES } from "../constants/stripeApiRoutes";
 import { supabase } from "./supabaseClient";
 import { apiUrl } from "../utils/apiBaseUrl";
 
@@ -72,7 +73,7 @@ function parseConnectStatus(payload: Record<string, unknown>): StripeConnectStat
 }
 
 export async function fetchStripeConnectStatus(): Promise<StripeConnectStatus> {
-  const response = await authedFetch("/api/stripe/connect-status", { method: "GET" });
+  const response = await authedFetch(STRIPE_API_ROUTES.connectStatus, { method: "GET" });
   const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
 
   if (!response.ok) {
@@ -83,7 +84,7 @@ export async function fetchStripeConnectStatus(): Promise<StripeConnectStatus> {
 }
 
 export async function createStripeConnectAccount(): Promise<string> {
-  const response = await authedFetch("/api/stripe/connect-account", { method: "POST" });
+  const response = await authedFetch(STRIPE_API_ROUTES.connectAccount, { method: "POST" });
   const payload = (await response.json().catch(() => null)) as
     | { account_id?: string; error?: string }
     | null;
@@ -101,7 +102,7 @@ export async function createStripeConnectAccount(): Promise<string> {
 }
 
 export async function createStripeOnboardingLink(): Promise<string> {
-  const response = await authedFetch("/api/stripe/onboarding-link", { method: "POST" });
+  const response = await authedFetch(STRIPE_API_ROUTES.onboardingLink, { method: "POST" });
   const payload = (await response.json().catch(() => null)) as { url?: string; error?: string } | null;
 
   if (!response.ok) {
@@ -117,7 +118,7 @@ export async function createStripeOnboardingLink(): Promise<string> {
 }
 
 export async function submitStripeWithdrawal(amountUsd: number): Promise<void> {
-  const response = await authedFetch("/api/stripe/withdraw", {
+  const response = await authedFetch(STRIPE_API_ROUTES.withdraw, {
     method: "POST",
     body: JSON.stringify({ amount_usd: amountUsd }),
   });
@@ -136,7 +137,7 @@ export interface KycSessionResult {
 }
 
 export async function createStripeKycSession(): Promise<KycSessionResult> {
-  const response = await authedFetch("/api/stripe/kyc-session", { method: "POST" });
+  const response = await authedFetch(STRIPE_API_ROUTES.kycSession, { method: "POST" });
   const payload = (await response.json().catch(() => null)) as
     | {
         url?: string;

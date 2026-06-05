@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { requireAuthenticatedUserId } from "./verifySupabaseSession.js";
 import { logger } from "./logger.js";
+import { isStripeRoute } from "./stripeRouteMatch.js";
 
 const MIN_WITHDRAWAL_USD = 5;
 const WEEKLY_CAP_CENTS = 25_000;
@@ -132,7 +133,7 @@ export async function handleStripeConnectStatusRoute(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  if (req.method !== "GET" || req.url !== "/api/stripe/connect-status") {
+  if (!isStripeRoute(req, "GET", "connect-status")) {
     return false;
   }
 
@@ -179,7 +180,7 @@ export async function handleStripeCreateConnectAccountRoute(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  if (req.method !== "POST" || req.url !== "/api/stripe/connect-account") {
+  if (!isStripeRoute(req, "POST", "connect-account")) {
     return false;
   }
 
@@ -227,7 +228,7 @@ export async function handleStripeCreateOnboardingLinkRoute(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  if (req.method !== "POST" || req.url !== "/api/stripe/onboarding-link") {
+  if (!isStripeRoute(req, "POST", "onboarding-link")) {
     return false;
   }
 
@@ -268,7 +269,7 @@ export async function handleStripeWithdrawRoute(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  if (req.method !== "POST" || req.url !== "/api/stripe/withdraw") {
+  if (!isStripeRoute(req, "POST", "withdraw")) {
     return false;
   }
 

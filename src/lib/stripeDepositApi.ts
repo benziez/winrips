@@ -1,4 +1,5 @@
 import { supabase } from "./supabaseClient";
+import { STRIPE_API_ROUTES } from "../constants/stripeApiRoutes";
 import { apiUrl } from "../utils/apiBaseUrl";
 
 export interface CreateStripePaymentIntentResult {
@@ -31,7 +32,7 @@ export async function createStripePaymentIntent(
 ): Promise<CreateStripePaymentIntentResult> {
   const accessToken = await getDepositAccessToken();
 
-  const response = await fetch(apiUrl("/api/stripe/create-payment-intent"), {
+  const response = await fetch(apiUrl(STRIPE_API_ROUTES.createPaymentIntent), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -50,6 +51,11 @@ export async function createStripePaymentIntent(
     | null;
 
   if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        `Payment API not found (${STRIPE_API_ROUTES.createPaymentIntent}). Deploy the latest server or check VITE_API_BASE_URL.`,
+      );
+    }
     throw new Error(payload?.error ?? "Failed to start payment.");
   }
 
@@ -85,7 +91,7 @@ async function pollPaymentIntentDepositStatus(
 ): Promise<PaymentIntentStatusPollResponse> {
   const accessToken = await getDepositAccessToken();
 
-  const response = await fetch(apiUrl("/api/stripe/payment-intent-status"), {
+  const response = await fetch(apiUrl(STRIPE_API_ROUTES.paymentIntentStatus), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -104,6 +110,14 @@ async function pollPaymentIntentDepositStatus(
     | null;
 
   if (response.status === 404) {
+    const apiNotFound = payload?.error === "Not found";
+    if (apiNotFound) {
+      return {
+        kind: "error",
+        httpStatus: 404,
+        message: `Payment status API not found (${STRIPE_API_ROUTES.paymentIntentStatus}).`,
+      };
+    }
     return { kind: "not_found" };
   }
 

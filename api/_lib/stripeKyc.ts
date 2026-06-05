@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { requireAuthenticatedUserId } from "./verifySupabaseSession.js";
 import { logger } from "./logger.js";
+import { isStripeRoute } from "./stripeRouteMatch.js";
 
 function sendJson(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
@@ -59,7 +60,7 @@ export async function handleStripeKycSessionRoute(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
-  if (req.method !== "POST" || req.url !== "/api/stripe/kyc-session") {
+  if (!isStripeRoute(req, "POST", "kyc-session")) {
     return false;
   }
 

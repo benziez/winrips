@@ -516,7 +516,7 @@ export const MobileAccountView = memo(function MobileAccountView({
             <div className="pr-3">
               <p className="text-[16px] font-semibold text-white">Fast Mode</p>
               <p className="mt-1 text-[14px] text-[var(--rip-text-muted)]">
-                Speeds up pack spins. The reveal still plays in full.
+                Speeds up pack opens. The reveal still plays in full.
               </p>
             </div>
             <button

@@ -96,7 +96,7 @@ export function CardDetailModal({ card, onClose }: CardDetailModalProps) {
             {card.probability != null ? (
               <div className="rounded-full border border-border/70 bg-slate-800/80 px-2.5 py-1">
                 <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted">
-                  Odds
+                  Pull Rates
                 </span>
                 <span className="ml-1.5 font-mono text-xs font-bold tabular-nums text-white">
                   {formatProbability(card.probability)}

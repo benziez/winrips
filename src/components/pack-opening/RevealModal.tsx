@@ -146,7 +146,7 @@ export function RevealModal({
                 : "border border-fuchsia/50 bg-[#1A1C20] text-fuchsia shadow-[0_0_18px_rgba(255,0,127,0.12)] transition-all hover:border-fuchsia hover:bg-fuchsia/10"
             } ${isGuest ? GUEST_DISABLED_ACTION : ""}`}
           >
-            {isGuest ? "DEMO SPIN ONLY" : "Send to Vault"}
+            {isGuest ? "DEMO OPEN ONLY" : "Send to Vault"}
           </button>
           <button
             type="button"

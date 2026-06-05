@@ -95,7 +95,7 @@ export const MOCK_BATTLE_ROOMS: BattleRoom[] = [
     entryFeePerPlayer: 100,
     status: "full",
     players: [
-      { id: "p1", name: "StarterLuck", totalValue: 0, pulls: [] },
+      { id: "p1", name: "StarterPull", totalValue: 0, pulls: [] },
       { id: "p2", name: "PackFiend", totalValue: 0, pulls: [] },
     ],
   },

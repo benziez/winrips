@@ -121,7 +121,7 @@ export function MobileWhatsInsideDrawer({
                 className="text-center text-[11px] uppercase tracking-widest"
                 style={{ color: MOBILE_COLORS.textMuted }}
               >
-                Price · Odds
+                Price · Pull Rates
               </p>
             </GlassSurface>
 

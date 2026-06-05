@@ -11,10 +11,10 @@ export const ODDS_MODE_OPTIONS: {
 ];
 
 export const NORMAL_ODDS_DISCLAIMER =
-  "Standard odds. Balanced mix of commons, rares, and chase cards.";
+  "Standard pull rates. Balanced mix of commons, rares, and chase cards.";
 
 export const RISKY_RIP_DISCLAIMER =
-  "High variance mode. Commons dominate, but Legendary and Mythic odds are boosted. Swing for the fences — every pull still wins a real card.";
+  "High variance mode. Commons dominate, but Legendary and Mythic pull rates are boosted. Swing for the fences — every pull still wins a real card.";
 
 export function oddsModeDisclaimer(mode: OddsMode): string {
   return mode === "risky_rip" ? RISKY_RIP_DISCLAIMER : NORMAL_ODDS_DISCLAIMER;

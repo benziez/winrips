@@ -164,7 +164,7 @@ export function FairnessVerifyModal({
             </div>
           ) : (
             <p className="text-xs leading-relaxed text-muted">
-              Hash committed before your unlock. After a spin, the roll result is sealed into this
+              Hash committed before your unlock. After you open a pack, the roll result is sealed into this
               record for independent verification.
             </p>
           )}

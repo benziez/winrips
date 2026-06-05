@@ -40,7 +40,7 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     eyebrow: "Drop Rooms",
     title: "PvP Battles",
     paragraphs: [
-      "PvP Box Battles deliver a highly competitive, gamified opening experience where multiple collectors pit their unboxing luck against each other in real-time high-stakes rooms. Users can either create custom battle configurations with up to four players or instantly join active lobbies waiting for participants.",
+      "PvP Box Battles deliver a highly competitive, gamified opening experience where multiple collectors compete on total pull value in real-time head-to-head rooms. Users can either create custom battle configurations with up to four players or instantly join active lobbies waiting for participants.",
       "The mechanism is perfectly synchronized across all sessions: players unbox identical pack sequences side-by-side. Once all rounds resolve, the values of each player's pulled assets are automatically calculated by our pricing index system. The collector who amasses the highest total combined card value walks away with all unboxed assets from the entire battle, while the remaining players receive a standard platform consolation credit balance to ensure a continuous collection loop.",
     ],
   },
@@ -49,7 +49,7 @@ export const FOOTER_CONTENT: Record<FooterPageSlug, FooterPageContent> = {
     eyebrow: "Transparency",
     title: "Drop Tables",
     paragraphs: [
-      "The Drop Tables directory serves as our central compliance data clearinghouse, offering a completely transparent, public breakdown of every individual asset pool loaded onto our wheel spinners. We maintain a strict policy of absolute visibility: we do not utilize dynamic adjustment filters or hidden pool skewing systems.",
+      "The Drop Tables directory serves as our central compliance data clearinghouse, offering a completely transparent, public breakdown of every individual asset pool loaded onto our pack reveal carousels. We maintain a strict policy of absolute visibility: we do not utilize dynamic adjustment filters or hidden pool skewing systems.",
       "Every single collectible card inside our inventory database carries an explicit, static weight ratio. This directory allows users to audit full item indices, sorting by specific card sets (such as Scarlet & Violet 151, Paradox Rift, or Base Set), precise dollar valuations, and exact mathematical drop probabilities down to four decimal places. This ensures you know the exact risk and reward profile of any box before interacting with the platform.",
     ],
   },

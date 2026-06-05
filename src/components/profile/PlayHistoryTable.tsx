@@ -114,7 +114,7 @@ export function PlayHistoryTable({ className = "", embedded = false }: PlayHisto
     }
     if (!canLoad) {
       return (
-        <p className="py-10 text-center text-sm text-muted">Sign in to view your spin history.</p>
+        <p className="py-10 text-center text-sm text-muted">Sign in to view your open history.</p>
       );
     }
     if (error) {
@@ -123,7 +123,7 @@ export function PlayHistoryTable({ className = "", embedded = false }: PlayHisto
     if (entries.length === 0) {
       return (
         <p className="py-10 text-center text-sm text-muted">
-          No spins recorded yet. Open a box to start your history.
+          No pack opens recorded yet. Open a box to start your history.
         </p>
       );
     }
@@ -277,7 +277,7 @@ export function PlayHistoryTable({ className = "", embedded = false }: PlayHisto
           >
             Play History
           </h2>
-          <p className="mt-0.5 text-xs text-muted">Box spins logged to your account · newest first</p>
+          <p className="mt-0.5 text-xs text-muted">Pack opens logged to your account · newest first</p>
         </div>
         <button
           type="button"

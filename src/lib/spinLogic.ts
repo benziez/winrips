@@ -87,7 +87,7 @@ function mapOpenPackError(message: string, code?: string): string {
     return "Sign in to unlock drops with your account balance.";
   }
   if (normalized.includes("invalid_spin_cost")) {
-    return "Invalid spin cost.";
+    return "Invalid pack price.";
   }
   if (normalized.includes("profile_not_found")) {
     return "Account profile not found. Try signing out and back in.";
@@ -173,7 +173,7 @@ export async function openPack(
   }
 
   if (normalizedCost <= 0) {
-    return { ok: false, error: "Invalid spin cost." };
+    return { ok: false, error: "Invalid pack price." };
   }
 
   try {

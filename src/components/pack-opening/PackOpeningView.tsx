@@ -465,8 +465,8 @@ export function PackOpeningView() {
       ? "Ripping Pack..."
       : isGuest
         ? quantity === 1
-          ? "Demo Spin"
-          : `Demo Spin × ${quantity}`
+          ? "Demo Open"
+          : `Demo Open × ${quantity}`
         : quantity === 1
           ? `${RETAIL_COPY.purchaseVerb} · ${formatPackPriceUsd(selectedPack.cost)}`
           : `${RETAIL_COPY.purchaseVerb} × ${quantity} · ${formatPackPriceUsd(totalCost)}`;
@@ -527,7 +527,7 @@ export function PackOpeningView() {
               {openButtonLabel}
             </button>
             {isGuest && !isSpinning && !showModal ? (
-              <p className="text-xs text-muted">Free preview — same odds as live opens</p>
+              <p className="text-xs text-muted">Free preview — same pull rates as live opens</p>
             ) : null}
             {!isGuest && goldVolts < totalCost && !isSpinning && !showModal && !isChargingSpin ? (
               <p className="text-xs text-fuchsia">Add funds to open this pack</p>

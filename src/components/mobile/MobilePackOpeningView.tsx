@@ -1122,7 +1122,7 @@ export function MobilePackOpeningView() {
       ? limitedDropOpenBlockMessage
       : isGuest
         ? isGuestDemoSpinAvailable(selectedPack.id)
-          ? "Try Free Spin"
+          ? "Try Free Open"
           : "Sign Up to Open"
         : `Open Pack · ${formatPackPriceUsd(totalCost)}`;
 

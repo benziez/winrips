@@ -39,7 +39,7 @@ export function DropTableMatrix({ packId, packName }: DropTableMatrixProps) {
         <div>
           <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">Drop Table</h2>
           <p className="mt-0.5 text-xs text-muted">
-            {sortedItems.length} items · full pool odds · tap a card to inspect
+            {sortedItems.length} items · full pool pull rates · tap a card to inspect
           </p>
         </div>
       </header>

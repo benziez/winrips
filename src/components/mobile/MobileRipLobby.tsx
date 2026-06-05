@@ -316,7 +316,7 @@ function LimitedDropCard({
         </div>
         <div className="flex min-h-0 flex-[1] flex-col justify-center gap-1 px-2.5 py-2">
           <span className="w-fit rounded-full border border-amber-400/30 bg-black/70 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300">
-            ⚡ BOOSTED ODDS
+            ⚡ BOOSTED PULL RATES
           </span>
           <p className="truncate text-[14px] font-bold leading-tight text-white">{pack.name}</p>
           <p className="shrink-0 text-[12px] font-bold tabular-nums text-[var(--rip-green-bright)]">

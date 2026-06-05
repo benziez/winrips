@@ -26,12 +26,12 @@ const PACK_DETAIL_DESCRIPTIONS: Record<string, string> = {
   "waifu-vault":
     "Trainer Gallery exclusives. The rarest trainer cards from SWSH sets.",
   "power-hour":
-    "One hour. One shot at a grail. Every pull during Power Hour has boosted Mythic odds.",
+    "One hour. One shot at a grail. Every pull during Power Hour has boosted Mythic pull rates.",
   "midnight-grail":
     "The rarest pulls only come out at night. Vintage and dark-type chase cards, 12–1AM only.",
-  flash: "Blink and you'll miss it. Modern illustration rares with boosted Epic odds.",
+  flash: "Blink and you'll miss it. Modern illustration rares with boosted Epic pull rates.",
   "weekend-warrior":
-    "Your weekend reward. The best odds of the week, Saturday and Sunday only.",
+    "Your weekend reward. The best pull rates of the week, Saturday and Sunday only.",
   "infinite-prime":
     "Infinite Series entry — 30 curated hits with a 77/18/5 floor, mid, and grail split.",
   "infinite-apex":

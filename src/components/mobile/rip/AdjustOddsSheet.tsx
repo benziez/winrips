@@ -83,7 +83,7 @@ export function AdjustOddsSheet({
                 {pack.name}
               </p>
               <h2 className="mt-0.5 text-[26px] font-bold leading-tight text-white">
-                Estimated Odds &amp; Values
+                Estimated Pull Rates &amp; Values
               </h2>
             </div>
           </div>
@@ -194,7 +194,7 @@ export function AdjustOddsSheet({
 
         <p className="mt-6 text-[13px] leading-relaxed text-[var(--rip-text-muted)]">
           All collectibles are backed by our buyback guarantee — sell any card back at{" "}
-          <strong className="font-bold text-white">85%</strong> of Fair Market Value (FMV). Odds
+          <strong className="font-bold text-white">85%</strong> of Fair Market Value (FMV). Pull rates
           are calculated in real time at the time of purchase and subject to change from the above.
         </p>
 

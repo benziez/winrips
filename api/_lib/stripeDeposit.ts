@@ -72,6 +72,71 @@ function readStripeWebhookSecret(eventType: string | undefined): string | null {
   return process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? null;
 }
 
+const DEPOSIT_SUCCESS_STATUSES = new Set<Stripe.PaymentIntent.Status>([
+  "succeeded",
+  "processing",
+  "requires_capture",
+]);
+
+const DEPOSIT_PENDING_STATUSES = new Set<Stripe.PaymentIntent.Status>([
+  "requires_action",
+  "requires_confirmation",
+]);
+
+export async function handleStripePaymentIntentStatusRoute(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<boolean> {
+  if (req.method !== "POST" || req.url !== "/api/stripe/payment-intent-status") {
+    return false;
+  }
+
+  let userId: string;
+  try {
+    userId = await requireAuthenticatedUserId(req);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unauthorized";
+    sendJson(res, 401, { error: message });
+    return true;
+  }
+
+  const body = (await readJsonBody(req)) as { payment_intent_id?: unknown };
+  const paymentIntentId =
+    typeof body.payment_intent_id === "string" ? body.payment_intent_id.trim() : "";
+
+  if (!paymentIntentId.startsWith("pi_")) {
+    sendJson(res, 400, { error: "Invalid payment_intent_id" });
+    return true;
+  }
+
+  try {
+    const stripe = new Stripe(readStripeSecret());
+    const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+    const ownerId = intent.metadata.supabase_user_id?.trim();
+    const purpose = intent.metadata.purpose?.trim();
+
+    if (purpose !== "balance_deposit" || ownerId !== userId) {
+      sendJson(res, 404, { error: "Payment not found" });
+      return true;
+    }
+
+    const status = intent.status;
+    sendJson(res, 200, {
+      status,
+      succeeded: DEPOSIT_SUCCESS_STATUSES.has(status),
+      pending: DEPOSIT_PENDING_STATUSES.has(status),
+      livemode: intent.livemode,
+    });
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Status check failed";
+    logger.error("[stripe/payment-intent-status]", message);
+    sendJson(res, 500, { error: message });
+    return true;
+  }
+}
+
 export async function handleStripeCreatePaymentIntentRoute(
   req: IncomingMessage,
   res: ServerResponse,

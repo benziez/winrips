@@ -4,6 +4,7 @@ import {
 } from "@capacitor-community/stripe";
 import type { PluginListenerHandle } from "@capacitor/core";
 import { Capacitor } from "@capacitor/core";
+import { waitForDepositPaymentSuccess } from "./stripeDepositApi";
 import { ensureStripeInitialized, getStripeKeyDiagnostics, Stripe } from "./stripeClient";
 
 /** Must match CFBundleURLSchemes in ios/App/App/Info.plist (Stripe 3DS / redirect return). */
@@ -106,6 +107,7 @@ type PaymentSheetDiagnosticState = {
   failedToLoad: string | null;
   failed: string | null;
   loaded: boolean;
+  completed: boolean;
 };
 
 type PaymentSheetDiagnosticHandles = {
@@ -123,6 +125,7 @@ async function attachPaymentSheetDiagnosticListeners(): Promise<PaymentSheetDiag
     failedToLoad: null,
     failed: null,
     loaded: false,
+    completed: false,
   };
 
   const failureWaiters: Array<(message: string) => void> = [];
@@ -141,6 +144,13 @@ async function attachPaymentSheetDiagnosticListeners(): Promise<PaymentSheetDiag
     await Stripe.addListener(PaymentSheetEventsEnum.Loaded, () => {
       state.loaded = true;
       console.info("[Stripe] paymentSheetLoaded");
+    }),
+  );
+
+  handles.push(
+    await Stripe.addListener(PaymentSheetEventsEnum.Completed, () => {
+      state.completed = true;
+      console.info("[Stripe] paymentSheetCompleted (listener)");
     }),
   );
 
@@ -223,8 +233,18 @@ async function resolveNativePaymentSheetFailure(
 
 export interface PresentDepositPaymentSheetOptions {
   paymentIntentClientSecret: string;
+  paymentIntentId: string;
   merchantDisplayName?: string;
   enableApplePay?: boolean;
+}
+
+function sheetIndicatesSuccess(
+  sheetListeners: PaymentSheetDiagnosticHandles,
+  sheetResult: PaymentSheetEventsEnum,
+): boolean {
+  return (
+    sheetResult === PaymentSheetEventsEnum.Completed || sheetListeners.state.completed
+  );
 }
 
 /**
@@ -234,8 +254,12 @@ export interface PresentDepositPaymentSheetOptions {
 export async function presentDepositPaymentSheet(
   options: PresentDepositPaymentSheetOptions,
 ): Promise<DepositPaymentSheetOutcome> {
-  const { paymentIntentClientSecret, merchantDisplayName = "WinRips", enableApplePay = true } =
-    options;
+  const {
+    paymentIntentClientSecret,
+    paymentIntentId,
+    merchantDisplayName = "WinRips",
+    enableApplePay = true,
+  } = options;
 
   await ensureStripeInitialized();
 
@@ -311,30 +335,50 @@ export async function presentDepositPaymentSheet(
     try {
       const result = await Stripe.presentPaymentSheet();
       paymentResult = result.paymentResult as PaymentSheetEventsEnum;
+      console.info("[Stripe] presentPaymentSheet resolved", { paymentResult, result });
     } catch (presentError) {
+      console.error("[Stripe] presentPaymentSheet threw", presentError);
+
+      const serverConfirmed = await waitForDepositPaymentSuccess(paymentIntentId);
+      if (serverConfirmed || sheetListeners.state.completed) {
+        console.info(
+          "[Stripe] Payment succeeded on server despite presentPaymentSheet throw",
+        );
+        return "completed";
+      }
+
       const native =
         (await sheetListeners.waitForNativeFailure()) ??
         sheetListeners.state.failed ??
         sheetListeners.state.failedToLoad ??
         formatCapacitorStripeError(presentError);
-      console.error("[Stripe] presentPaymentSheet threw", {
-        native,
-        bridge: formatCapacitorStripeError(presentError),
-      });
+
       throw new StripePaymentSheetError(
         native || "Payment sheet could not be presented.",
         { nativeError: native, cause: presentError },
       );
     }
 
-    console.info("[Stripe] presentPaymentSheet resolved", { paymentResult });
-
-    if (paymentResult === PaymentSheetEventsEnum.Completed) {
+    if (sheetIndicatesSuccess(sheetListeners, paymentResult)) {
       return "completed";
     }
 
     if (paymentResult === PaymentSheetEventsEnum.Canceled) {
       return "canceled";
+    }
+
+    // paymentSheetFailed (or unknown) — confirm with Stripe API before showing error UI
+    console.info(
+      "[Stripe] Sheet result not success; verifying PaymentIntent on server:",
+      paymentResult,
+    );
+    const serverConfirmed = await waitForDepositPaymentSuccess(paymentIntentId);
+    if (serverConfirmed) {
+      console.info(
+        "[Stripe] Payment succeeded on server despite sheet result:",
+        paymentResult,
+      );
+      return "completed";
     }
 
     const native = await resolveNativePaymentSheetFailure(sheetListeners, paymentResult);

@@ -154,6 +154,7 @@ export function AddFundsModal({
 
       const outcome = await presentDepositPaymentSheet({
         paymentIntentClientSecret: clientSecret,
+        paymentIntentId,
       });
 
       if (outcome === "canceled") {

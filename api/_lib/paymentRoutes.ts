@@ -10,6 +10,7 @@ import {
 import { handleFairnessSessionRoute } from "./fairnessSessionHttp.js";
 import {
   handleStripeCreatePaymentIntentRoute,
+  handleStripePaymentIntentStatusRoute,
   handleStripeWebhookRoute,
 } from "./stripeDeposit.js";
 import { handleStripeKycSessionRoute } from "./stripeKyc.js";
@@ -26,6 +27,7 @@ export async function handlePaymentHttp(
   res: ServerResponse,
 ): Promise<boolean> {
   if (await handleStripeCreatePaymentIntentRoute(req, res)) return true;
+  if (await handleStripePaymentIntentStatusRoute(req, res)) return true;
   if (await handleStripeWebhookRoute(req, res)) return true;
   if (await handleStripeConnectStatusRoute(req, res)) return true;
   if (await handleStripeKycSessionRoute(req, res)) return true;

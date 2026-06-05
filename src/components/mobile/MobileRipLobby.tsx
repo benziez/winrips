@@ -18,11 +18,6 @@ import { JustPulledHorizontalFeed } from "./JustPulledHorizontalFeed";
 import type { JustPulledFeedHandle } from "./JustPulledHorizontalFeed";
 import { PackCatalogImage } from "./PackCatalogImage";
 import { PackTileTopBadges } from "./PackTileTopBadges";
-import {
-  bypassesPackDailyLimitUi,
-  isPackSoldOutToday,
-  isWotcFirstEditionPackId,
-} from "../../constants/packDailyLimits";
 import { RipAmbientShell } from "./rip/RipAmbientShell";
 import { BalancePill } from "./rip/BalancePill";
 import { CategorySelector } from "./rip/CategorySelector";
@@ -164,23 +159,6 @@ function regularPackGlowColor(packId: string): string | undefined {
 /** Gold accent for Infinite Series high-roller row. */
 const INFINITE_SERIES_GLOW = "#D4AF37";
 
-/** Temporary override — keep WOTC lobby cards fully interactive. */
-function lobbyPackSoldOutState(pack: Pack): {
-  isSoldOutToday: boolean;
-  isDisabled: boolean;
-  rawSoldOut: boolean;
-} {
-  const rawSoldOut = isPackSoldOutToday(pack);
-  if (bypassesPackDailyLimitUi(pack.id)) {
-    return { isSoldOutToday: false, isDisabled: false, rawSoldOut };
-  }
-  return {
-    isSoldOutToday: rawSoldOut,
-    isDisabled: rawSoldOut,
-    rawSoldOut,
-  };
-}
-
 function InfiniteSeriesSectionHeader() {
   return (
     <div className="flex items-center gap-2.5 px-6">
@@ -245,16 +223,11 @@ function FeaturedHeroBannerSlide({
   onSelectPack: (pack: Pack) => void;
   onSelectView: () => void;
 }) {
-  const packSoldOut = pack ? lobbyPackSoldOutState(pack) : null;
-  const soldOut = packSoldOut?.isSoldOutToday ?? false;
   const canOpenBattleView = slide.targetView === "battles";
-  const disabled =
-    (packSoldOut?.isDisabled ?? false) || (!pack && !canOpenBattleView);
-  const label = soldOut
-    ? `${pack?.name ?? slide.title} sold out today`
-    : canOpenBattleView
-      ? "Open Pack Battles"
-      : `Open ${pack?.name ?? slide.title}`;
+  const disabled = !pack && !canOpenBattleView;
+  const label = canOpenBattleView
+    ? "Open Pack Battles"
+    : `Open ${pack?.name ?? slide.title}`;
 
   return (
     <motion.button
@@ -299,7 +272,6 @@ function LimitedDropCard({
   index: number;
   onSelect: (pack: Pack) => void;
 }) {
-  const soldOut = isPackSoldOutToday(pack);
   const windowState = useMemo(
     () => getLimitedDropWindowState(config.packId, nowMs),
     [config.packId, nowMs],
@@ -313,7 +285,7 @@ function LimitedDropCard({
       aria-label={`View ${pack.name} details`}
       className={`flex w-[44vw] shrink-0 snap-start flex-col text-left${
         index === 0 ? " ml-4" : ""
-      }${soldOut ? " opacity-50" : ""}`}
+      }`}
     >
       <div
         className={`flex aspect-[2/3.35] w-full flex-col overflow-hidden rounded-2xl border bg-[#111] ${config.borderClass}`}
@@ -864,35 +836,20 @@ export function MobileRipLobby({ isActive = true }: { isActive?: boolean }) {
               <SectionHeader title="Regular Packs" />
               <div className="rip-hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden scroll-pl-4 pr-6 pb-1">
                 {openPackRow.map((pack, index) => {
-                  const { isSoldOutToday, isDisabled, rawSoldOut } =
-                    lobbyPackSoldOutState(pack);
-                  const isWotc = isWotcFirstEditionPackId(pack.id);
-                  if (isWotc) {
-                    console.log("Rendering WOTC Pack State:", {
-                      isDisabled,
-                      isSoldOutToday,
-                      rawSoldOut,
-                    });
-                  }
                   const glowColor = regularPackGlowColor(pack.id);
                   const topHitLabel = formatPackTopHitUsd(pack.id);
                   return (
                     <motion.button
                       key={pack.id}
                       type="button"
-                      whileTap={isDisabled ? undefined : { scale: 0.97 }}
+                      whileTap={{ scale: 0.97 }}
                       onClick={() => {
                         handleSelectPack(pack);
                       }}
-                      disabled={isDisabled}
-                      aria-label={
-                        isSoldOutToday
-                          ? `${pack.name} sold out today`
-                          : `Open ${pack.name}`
-                      }
+                      aria-label={`Open ${pack.name}`}
                       className={`flex w-[44vw] shrink-0 snap-start flex-col text-left${
                         index === 0 ? " ml-4" : ""
-                      }${isSoldOutToday ? " opacity-50" : ""}`}
+                      }`}
                     >
                       <div
                         className="flex aspect-[2/3.35] w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#111]"
@@ -969,24 +926,20 @@ export function MobileRipLobby({ isActive = true }: { isActive?: boolean }) {
               <InfiniteSeriesSectionHeader />
               <div className="rip-hide-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-hidden scroll-pl-4 pr-6 pb-1">
                 {infiniteSeriesRow.map((pack, index) => {
-                  const soldOut = isPackSoldOutToday(pack);
                   const topHitLabel = formatPackTopHitUsd(pack.id);
                   const isOmega = pack.id === "infinite-omega";
                   return (
                     <motion.button
                       key={pack.id}
                       type="button"
-                      whileTap={soldOut ? undefined : { scale: 0.97 }}
+                      whileTap={{ scale: 0.97 }}
                       onClick={() => {
-                        if (!soldOut) handleSelectPack(pack);
+                        handleSelectPack(pack);
                       }}
-                      disabled={soldOut}
-                      aria-label={
-                        soldOut ? `${pack.name} sold out today` : `Open ${pack.name}`
-                      }
+                      aria-label={`Open ${pack.name}`}
                       className={`flex w-[44vw] shrink-0 snap-start flex-col text-left${
                         index === 0 ? " ml-4" : ""
-                      }${soldOut ? " opacity-50" : ""}`}
+                      }`}
                     >
                       <div
                         className={`flex aspect-[2/3.35] w-full flex-col overflow-hidden rounded-2xl border bg-[#111] ${

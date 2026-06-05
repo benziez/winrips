@@ -48,8 +48,68 @@ export function normalizeStripeListenerPayload(payload: unknown): string {
   return payload == null ? "" : String(payload);
 }
 
+/** Serialize any thrown value for console (Capacitor often throws `{}`). */
+export function serializeStripeErrorForLog(error: unknown): Record<string, unknown> {
+  if (error instanceof StripePaymentSheetError) {
+    return {
+      name: error.name,
+      message: error.message,
+      nativeError: error.nativeError ?? null,
+      paymentResult: error.paymentResult ?? null,
+      cause:
+        error.cause != null ? serializeStripeErrorForLog(error.cause) : null,
+    };
+  }
+
+  if (error instanceof Error) {
+    const cap = error as Error & {
+      code?: string;
+      errorMessage?: string;
+      data?: unknown;
+    };
+    return {
+      name: cap.name,
+      message: cap.message,
+      code: cap.code ?? null,
+      errorMessage: cap.errorMessage ?? null,
+      data: cap.data ?? null,
+      stack: cap.stack ?? null,
+    };
+  }
+
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const keys = Object.keys(record);
+    if (keys.length === 0) {
+      return { emptyObject: true, hint: "Native bridge rejected with {}" };
+    }
+    try {
+      return { ...record };
+    } catch {
+      return { value: String(error) };
+    }
+  }
+
+  return { value: error == null ? null : String(error) };
+}
+
+function isEmptyErrorPayload(error: unknown): boolean {
+  if (error == null) return true;
+  if (typeof error === "string") return !error.trim();
+  if (error instanceof Error) {
+    return !error.message.trim() && !(error as Error & { code?: string }).code;
+  }
+  if (typeof error === "object") {
+    return Object.keys(error as object).length === 0;
+  }
+  return false;
+}
+
 /** Extract the native bridge / Capacitor rejection message for logging and toasts. */
-export function formatCapacitorStripeError(error: unknown): string {
+export function formatCapacitorStripeError(
+  error: unknown,
+  context = "Stripe payment",
+): string {
   if (error instanceof StripePaymentSheetError) {
     return error.nativeError?.trim() || error.message;
   }
@@ -83,14 +143,38 @@ export function formatCapacitorStripeError(error: unknown): string {
       (typeof record.error === "string" && record.error) ||
       (typeof record.errorMessage === "string" && record.errorMessage);
     if (message) return message;
+    if (Object.keys(record).length === 0) {
+      return `${context} failed (native bridge returned an empty error object).`;
+    }
     try {
-      return JSON.stringify(error);
+      const json = JSON.stringify(error);
+      if (json === "{}") {
+        return `${context} failed (native bridge returned {}).`;
+      }
+      return json;
     } catch {
       return String(error);
     }
   }
 
   return error == null ? "Payment failed." : String(error);
+}
+
+function formatStripeFailureMessage(
+  error: unknown,
+  context: string,
+  fallback: string,
+): string {
+  const formatted = formatCapacitorStripeError(error, context);
+  if (
+    formatted &&
+    formatted !== "Payment failed." &&
+    formatted !== "{}" &&
+    !isEmptyErrorPayload(error)
+  ) {
+    return formatted;
+  }
+  return fallback;
 }
 
 function redactClientSecret(secret: string): string {
@@ -113,6 +197,7 @@ type PaymentSheetDiagnosticState = {
 type PaymentSheetDiagnosticHandles = {
   state: PaymentSheetDiagnosticState;
   waitForNativeFailure: (timeoutMs?: number) => Promise<string | null>;
+  waitForSheetLoaded: (timeoutMs?: number) => Promise<boolean>;
   remove: () => Promise<void>;
 };
 
@@ -129,6 +214,7 @@ async function attachPaymentSheetDiagnosticListeners(): Promise<PaymentSheetDiag
   };
 
   const failureWaiters: Array<(message: string) => void> = [];
+  const loadedWaiters: Array<() => void> = [];
 
   const notifyFailureWaiters = (message: string): void => {
     const trimmed = message.trim();
@@ -144,6 +230,9 @@ async function attachPaymentSheetDiagnosticListeners(): Promise<PaymentSheetDiag
     await Stripe.addListener(PaymentSheetEventsEnum.Loaded, () => {
       state.loaded = true;
       console.info("[Stripe] paymentSheetLoaded");
+      while (loadedWaiters.length > 0) {
+        loadedWaiters.shift()?.();
+      }
     }),
   );
 
@@ -191,8 +280,28 @@ async function attachPaymentSheetDiagnosticListeners(): Promise<PaymentSheetDiag
         failureWaiters.push(onFailure);
       });
     },
+    waitForSheetLoaded: async (timeoutMs = 5_000) => {
+      if (state.loaded) return true;
+      if (state.failedToLoad) return false;
+
+      return new Promise<boolean>((resolve) => {
+        const timer = window.setTimeout(() => {
+          const idx = loadedWaiters.findIndex((w) => w === onLoaded);
+          if (idx >= 0) loadedWaiters.splice(idx, 1);
+          resolve(state.loaded);
+        }, timeoutMs);
+
+        const onLoaded = () => {
+          window.clearTimeout(timer);
+          resolve(true);
+        };
+
+        loadedWaiters.push(onLoaded);
+      });
+    },
     remove: async () => {
       failureWaiters.length = 0;
+      loadedWaiters.length = 0;
       await Promise.all(handles.map((handle) => handle.remove()));
     },
   };
@@ -203,9 +312,14 @@ export function getDepositPaymentErrorMessage(error: unknown): string {
   if (error instanceof StripePaymentSheetError) {
     const native = error.nativeError?.trim();
     if (native) return native;
-    return error.message.trim() || "Payment failed.";
+    if (error.message.trim()) return error.message.trim();
+    return formatStripeFailureMessage(
+      error.cause,
+      "Stripe payment sheet",
+      "Payment failed. Check your connection and try again.",
+    );
   }
-  return formatCapacitorStripeError(error);
+  return formatCapacitorStripeError(error, "Stripe deposit");
 }
 
 async function resolveNativePaymentSheetFailure(
@@ -310,34 +424,47 @@ export async function presentDepositPaymentSheet(
   const sheetListeners = await attachPaymentSheetDiagnosticListeners();
 
   try {
+    console.info("[Stripe] createPaymentSheet starting");
     try {
       await Stripe.createPaymentSheet(sheetConfig);
     } catch (createError) {
-      const native =
-        sheetListeners.state.failedToLoad ?? formatCapacitorStripeError(createError);
-      console.error("[Stripe] createPaymentSheet rejected", {
-        native,
-        bridge: formatCapacitorStripeError(createError),
-      });
-      throw new StripePaymentSheetError(
-        native || "Could not load payment sheet.",
-        { nativeError: native, cause: createError },
+      const native = formatStripeFailureMessage(
+        createError,
+        "createPaymentSheet",
+        sheetListeners.state.failedToLoad ??
+          "Could not load payment sheet (native bridge returned no error text).",
       );
-    }
-
-    if (sheetListeners.state.failedToLoad) {
-      throw new StripePaymentSheetError(sheetListeners.state.failedToLoad, {
-        nativeError: sheetListeners.state.failedToLoad,
+      console.error("[Stripe] createPaymentSheet rejected", {
+        ...serializeStripeErrorForLog(createError),
+        native,
+        failedToLoad: sheetListeners.state.failedToLoad,
+      });
+      throw new StripePaymentSheetError(native, {
+        nativeError: sheetListeners.state.failedToLoad ?? native,
+        cause: createError,
       });
     }
 
+    const sheetLoaded = await sheetListeners.waitForSheetLoaded();
+    if (!sheetLoaded || sheetListeners.state.failedToLoad) {
+      const native =
+        sheetListeners.state.failedToLoad ??
+        "Payment sheet did not finish loading before present (paymentSheetLoaded never fired).";
+      console.error("[Stripe] createPaymentSheet did not load", {
+        sheetLoaded,
+        failedToLoad: sheetListeners.state.failedToLoad,
+      });
+      throw new StripePaymentSheetError(native, { nativeError: native });
+    }
+
+    console.info("[Stripe] createPaymentSheet complete — presenting sheet");
     let paymentResult: PaymentSheetEventsEnum;
     try {
       const result = await Stripe.presentPaymentSheet();
       paymentResult = result.paymentResult as PaymentSheetEventsEnum;
       console.info("[Stripe] presentPaymentSheet resolved", { paymentResult, result });
     } catch (presentError) {
-      console.error("[Stripe] presentPaymentSheet threw", presentError);
+      console.error("[Stripe] presentPaymentSheet threw", serializeStripeErrorForLog(presentError));
 
       const poll = await waitForDepositPaymentSuccess(paymentIntentId);
       if (poll.confirmed || sheetListeners.state.completed) {
@@ -354,16 +481,19 @@ export async function presentDepositPaymentSheet(
         );
       }
 
-      const native =
+      const native = formatStripeFailureMessage(
+        presentError,
+        "presentPaymentSheet",
         (await sheetListeners.waitForNativeFailure()) ??
-        sheetListeners.state.failed ??
-        sheetListeners.state.failedToLoad ??
-        formatCapacitorStripeError(presentError);
-
-      throw new StripePaymentSheetError(
-        native || "Payment sheet could not be presented.",
-        { nativeError: native, cause: presentError },
+          sheetListeners.state.failed ??
+          sheetListeners.state.failedToLoad ??
+          "Payment sheet could not be presented (native bridge returned no error text).",
       );
+
+      throw new StripePaymentSheetError(native, {
+        nativeError: native,
+        cause: presentError,
+      });
     }
 
     if (sheetIndicatesSuccess(sheetListeners, paymentResult)) {

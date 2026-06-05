@@ -63,9 +63,8 @@ export function packOpensRemaining(
   return Math.max(0, limit - normalizedPackOpensToday(pack.opensToday));
 }
 
-export function isPackSoldOutToday(pack: Pick<Pack, "dailyLimit" | "opensToday">): boolean {
-  const remaining = packOpensRemaining(pack);
-  return remaining !== null && remaining <= 0;
+export function isPackSoldOutToday(_pack: Pick<Pack, "dailyLimit" | "opensToday">): boolean {
+  return false;
 }
 
 export function enrichPackDailyLimit<T extends Pack>(pack: T): T {

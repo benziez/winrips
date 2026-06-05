@@ -8,6 +8,7 @@ import { getStripeKeyDiagnostics, isStripeConfigured } from "../../../lib/stripe
 import {
   getDepositPaymentErrorMessage,
   presentDepositPaymentSheet,
+  serializeStripeErrorForLog,
 } from "../../../lib/stripePaymentSheet";
 import { BackspaceIcon, XIcon } from "../../icons/AppIcons";
 import { RIP_SHEET_SPRING } from "./ripMotion";
@@ -169,7 +170,7 @@ export function AddFundsModal({
       onClose();
     } catch (error) {
       const message = getDepositPaymentErrorMessage(error);
-      console.error("[Stripe] deposit failed", error);
+      console.error("[Stripe] deposit failed", serializeStripeErrorForLog(error));
       setPaymentError(message);
       showErrorToast(message);
     } finally {
@@ -200,7 +201,7 @@ export function AddFundsModal({
     <AnimatePresence>
       {sheetOpen ? (
         <motion.div
-          className="fixed inset-0 z-[10100] flex flex-col bg-[var(--rip-bg-primary)]"
+          className="fixed inset-0 z-[10100] flex min-h-0 flex-col bg-[var(--rip-bg-primary)]"
           initial={{ y: "100%" }}
           animate={{ y: 0 }}
           exit={{ y: "100%" }}
@@ -230,7 +231,7 @@ export function AddFundsModal({
             </span>
           </header>
 
-          <div className="flex flex-1 flex-col px-6">
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 pb-6">
             {paymentError ? (
               <div
                 role="alert"
@@ -279,7 +280,7 @@ export function AddFundsModal({
               ))}
             </div>
 
-            <div className="mt-8 grid flex-1 grid-cols-3 gap-y-2">
+            <div className="mt-8 grid grid-cols-3 gap-y-2 pb-4">
               {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
                 <button
                   key={digit}
@@ -322,8 +323,10 @@ export function AddFundsModal({
           </div>
 
           <div
-            className="shrink-0 px-6 pb-6"
-            style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}
+            className="shrink-0 border-t border-white/5 px-6 pt-4"
+            style={{
+              paddingBottom: "calc(6rem + env(safe-area-inset-bottom))",
+            }}
           >
             <button
               type="button"

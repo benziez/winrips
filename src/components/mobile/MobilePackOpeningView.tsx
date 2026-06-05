@@ -53,11 +53,6 @@ import { DismissPill } from "./DismissPill";
 import { GlassSurface } from "./GlassSurface";
 import { ShipCardSheet } from "./vault/ShipCardSheet";
 import { isGuestDemoSpinAvailable, markGuestDemoSpinUsed } from "../../constants/guestDemoSpin";
-import {
-  bypassesPackDailyLimitUi,
-  isPackSoldOutToday,
-  packOpensRemaining,
-} from "../../constants/packDailyLimits";
 import { getLimitedDropOpenBlockMessage } from "../../utils/limitedDropWindows";
 import { getPackRollPool } from "../../data/boxCatalog";
 import type { StoreItem } from "../../types/store";
@@ -1116,13 +1111,6 @@ export function MobilePackOpeningView() {
   }
 
   const totalCost = selectedPack.cost * quantity;
-  const bypassDailyLimit = bypassesPackDailyLimitUi(selectedPack.id);
-  const soldOutToday =
-    !isGuest && !bypassDailyLimit && isPackSoldOutToday(selectedPack);
-  const dailyOpensRemaining =
-    !isGuest && !bypassDailyLimit ? packOpensRemaining(selectedPack) : null;
-  const exceedsDailyRemaining =
-    dailyOpensRemaining !== null && dailyOpensRemaining < quantity;
   const limitedDropOpenBlockMessage = getLimitedDropOpenBlockMessage(
     selectedPack.id,
     dropWindowNow,
@@ -1130,15 +1118,13 @@ export function MobilePackOpeningView() {
 
   const openLabel = isChargingSpin
     ? "Processing…"
-    : soldOutToday
-      ? "Sold out today"
-      : limitedDropOpenBlockMessage
-        ? limitedDropOpenBlockMessage
-        : isGuest
-          ? isGuestDemoSpinAvailable(selectedPack.id)
-            ? "Try Free Spin"
-            : "Sign Up to Open"
-          : `Open Pack · ${formatPackPriceUsd(totalCost)}`;
+    : limitedDropOpenBlockMessage
+      ? limitedDropOpenBlockMessage
+      : isGuest
+        ? isGuestDemoSpinAvailable(selectedPack.id)
+          ? "Try Free Spin"
+          : "Sign Up to Open"
+        : `Open Pack · ${formatPackPriceUsd(totalCost)}`;
 
   const showPack = phase === "pre-rip";
   const showSpinner = phase === "spinning";
@@ -1350,8 +1336,6 @@ export function MobilePackOpeningView() {
                     onClick={() => void handleOpenPack()}
                     disabled={
                       isChargingSpin ||
-                      soldOutToday ||
-                      exceedsDailyRemaining ||
                       limitedDropOpenBlockMessage !== null
                     }
                     className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-[var(--rip-orange)] text-[16px] font-bold text-white transition-transform active:scale-[0.98] active:bg-[var(--rip-orange-pressed)] disabled:opacity-40"
